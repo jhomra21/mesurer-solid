@@ -45,7 +45,7 @@ Its current high-level split is meaningful:
 - `components/`. Rendered UI.
 - `core/`. Geometry, selection, persistence, targets, and other renderer-domain helpers.
 - `model/`. Renderer model construction.
-- `plugins/`. Renderer-side first-party plugin implementations. Screenshot host selection and its native, extension, and browser adapters stay private here.
+- `plugins/`. Renderer-side first-party plugin implementations. Layout Guides, Screenshot, and Recording UI/lifecycle live here; Screenshot/Recording host selection and native, extension, and browser adapters stay private.
 - `runtime/`. Host and browser interaction coordination.
 - `runtime/text-editing/`. Direct-edit intent, editing and presentation coordination, and direct-edit-only UI ownership.
 - `runtime/typography/`. Shared Typography inspector code used by both the built-in inspector and direct editing.
@@ -57,7 +57,7 @@ Create another feature/domain directory only when a group has the same kind of s
 
 ### `packages/mesurer`
 
-The public `mesurer-solid` package. It owns public mounting/injection, first-party plugin factories, Context/Edit/Codex integration, package staging, and package-facing documentation.
+The public `mesurer-solid` package. It owns public mounting/injection, first-party plugin factories, Context/Edit/Layout Guides/Screenshot/Recording/Codex integration, Electron helper entrypoints, package staging, and package-facing documentation.
 
 Package scripts that ship with `mesurer-solid` stay here even when a repository-level test exercises them.
 
