@@ -139,6 +139,8 @@ ipcMain.handle("window:capture", async (event) => {
 
 `captureScreenshot()` may return a PNG `Blob`, `ArrayBuffer`, `Uint8Array`, or an object with a `png` field containing one of those values. Extra metadata such as `width` and `height` is allowed. Mesurer hides its control UI, waits for paint, calls the host capability, and crops the selected region itself.
 
+If the captured PNG contains transparency, Mesurer flattens it against the renderer's opaque page backdrop before producing the selected image. This matters for macOS applications that use a transparent page with native BrowserWindow vibrancy: Electron captures the Chromium surface, while the visible vibrancy is composited outside that surface.
+
 Reject the promise when native capture fails. Once Screenshot has selected the Electron host capability, a failure stays on that path instead of opening a browser screen-share prompt.
 
 Color Picker also uses `captureScreenshot()` when it is present. Mesurer shows a renderer-local crosshair, hides its own UI after the user clicks, captures the window once, maps the CSS point to the returned PNG dimensions, and copies the sampled color. Blur, visibility loss, plugin disable, and disposal cancel the pending local pick. Mesurer does not call the browser's screen-wide `EyeDropper` on this path.

@@ -8,7 +8,7 @@ import {
   type MesurerScreenshotService,
 } from "../../../packages/mesurer/src/plugins";
 
-type HostCaptureFormat = "blob" | "array-buffer" | "uint8-array" | "wrapped" | "invalid";
+type HostCaptureFormat = "blob" | "array-buffer" | "uint8-array" | "wrapped" | "transparent" | "invalid";
 
 type HostCaptureResult =
   | Blob
@@ -38,7 +38,37 @@ const deterministicPng = async () => {
   });
 };
 
+const deterministicTransparentPng = async () => {
+  const canvas = document.createElement("canvas");
+  canvas.width = window.innerWidth * 2;
+  canvas.height = window.innerHeight * 2;
+  const context = canvas.getContext("2d");
+
+  if (!context) throw new Error("Transparent fixture canvas unavailable");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "rgb(255 255 255 / 50%)";
+  context.fillRect(200, 200, 900, 500);
+
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Transparent fixture capture failed"));
+    }, "image/png");
+  });
+};
+
 const hostCapture = async () => {
+  if (hostCaptureFormat === "transparent") {
+    document.documentElement.style.background = "transparent";
+    document.body.style.background = "transparent";
+    document.documentElement.style.setProperty("--background", "#121212");
+
+    return deterministicTransparentPng();
+  }
+
+  document.documentElement.style.removeProperty("background");
+  document.body.style.removeProperty("background");
+  document.documentElement.style.removeProperty("--background");
   const blob = await deterministicPng();
 
   if (hostCaptureFormat === "blob") return blob;

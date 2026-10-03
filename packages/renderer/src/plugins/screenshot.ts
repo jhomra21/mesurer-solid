@@ -14,6 +14,7 @@ import {
   normalizeScreenshotRect,
   prepareScreenshotCapture,
   releaseScreenshotCapture,
+  screenshotCaptureBackground,
   waitForNextPaint,
   type ScreenshotCaptureContext,
   type ScreenshotCaptureProvider,
@@ -544,6 +545,7 @@ export const screenshotPlugin = (
           rect,
           { width: ownerWindow.innerWidth, height: ownerWindow.innerHeight },
           ownerDocument,
+          screenshotCaptureBackground(ownerDocument),
         );
 
         if (operation !== operationId) throw new Error("Screenshot capture was cancelled.");

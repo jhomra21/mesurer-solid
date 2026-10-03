@@ -375,6 +375,57 @@ try {
     }
   }
 
+  const transparentHostCapture = await page.evaluate(async () => {
+    const harness = window.__MESURER_SCREENSHOT_TEST__;
+
+    if (!harness) throw new Error("Screenshot harness unavailable");
+    harness.setHostCaptureFormat("transparent");
+
+    try {
+      const result = await harness.service.capture({
+        left: 100,
+        top: 100,
+        width: 120,
+        height: 80,
+      });
+
+      const bitmap = await createImageBitmap(result.blob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+
+      if (!context) throw new Error("Transparent host capture sample canvas unavailable");
+      context.drawImage(bitmap, 0, 0);
+      const pixel = Array.from(context.getImageData(4, 4, 1, 1).data);
+      bitmap.close();
+
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        type: result.blob.type,
+        pixel,
+      };
+    } finally {
+      harness.setHostCaptureFormat("blob");
+    }
+  });
+
+  if (
+    transparentHostCapture.width !== 240
+    || transparentHostCapture.height !== 160
+    || transparentHostCapture.type !== "image/png"
+    || transparentHostCapture.pixel[3] !== 255
+    || transparentHostCapture.pixel[0] < 130
+    || transparentHostCapture.pixel[0] > 145
+    || transparentHostCapture.pixel[1] !== transparentHostCapture.pixel[0]
+    || transparentHostCapture.pixel[2] !== transparentHostCapture.pixel[0]
+  ) {
+    throw new Error(
+      `Transparent native capture must flatten against the page backdrop before preview/save: ${JSON.stringify(transparentHostCapture)}`,
+    );
+  }
+
   const invalidHostCapture = await page.evaluate(async () => {
     const harness = window.__MESURER_SCREENSHOT_TEST__;
 
@@ -431,6 +482,7 @@ try {
     viewer: viewerSize,
     programmatic,
     hostCaptureFormats,
+    transparentHostCapture,
     invalidHostCapture,
     automaticCopyFallback,
   }, null, 2));
