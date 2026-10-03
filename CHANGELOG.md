@@ -4,6 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Keep the selected Recording region visually clear while the rest of the page stays dimmed for the full capture lifecycle, with Stop/time remaining above the mask.
+- Animate the Recording editor out toward the Recording toolbar control when its close button discards the clip.
+- Move trim controls above the scrub rail with inward chevrons so trimming no longer blocks normal timeline scrubbing.
+- Keep Screenshot, Recording, Guides, Layout Guides, and Rulers visible in compact Select mode.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.10 - 2026-10-03
