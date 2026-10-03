@@ -197,8 +197,8 @@ export const createScreenshotPreviewController = ({
   dismissButton.title = "Dismiss";
   setStyle(dismissButton, {
     position: "absolute",
-    top: "6px",
-    right: "6px",
+    top: "8px",
+    right: "8px",
     width: "24px",
     height: "24px",
     display: "flex",
