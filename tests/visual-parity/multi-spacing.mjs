@@ -42,6 +42,12 @@ page.on("console", (message) => {
 
 page.on("pageerror", (error) => consoleErrors.push(error.message));
 
+page.on("requestfailed", (request) => {
+  const failure = request.failure();
+
+  if (failure) consoleErrors.push(`Request failed: ${request.url()} (${failure.errorText})`);
+});
+
 const center = (box) => ({
   x: box.x + box.width / 2,
   y: box.y + box.height / 2,
