@@ -267,23 +267,23 @@ const exerciseMcpFallback = async () => {
       kind: "annotations",
     });
 
-    assert.deepEqual(annotations, []);
+    assert.deepEqual(annotations, { kind: "annotations", items: [] });
 
     const editIntents = await mcp.call("get_saved_ui_intent", {
       kind: "edit",
     });
 
-    assert.deepEqual(editIntents, []);
+    assert.deepEqual(editIntents, { kind: "edit", items: [] });
 
     const textIntents = await mcp.call("get_saved_ui_intent", {
       kind: "text",
     });
 
-    assert.deepEqual(textIntents, []);
+    assert.deepEqual(textIntents, { kind: "text", items: [] });
 
     const annotationReview = await mcp.call("review_ui");
 
-    assert.deepEqual(annotationReview, []);
+    assert.deepEqual(annotationReview, { kind: "annotations", reviews: [] });
 
     const pluginIds = new Set(status.mesurer.description.plugins.map((plugin) => plugin.id));
 
