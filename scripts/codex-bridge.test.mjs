@@ -676,7 +676,28 @@ if (args[0] === "queue") {
       buffer = buffer.slice(newline + 1);
       if (!line) continue;
       const message = JSON.parse(line);
-      if (message.id === "mesurer-history-init") {
+      if (message.id === "mesurer-queue-init") {
+        write({ id: message.id, result: { userAgent: "fake-codex" } });
+      } else if (String(message.id).startsWith("mesurer-queue-list-")) {
+        write({
+          id: message.id,
+          result: {
+            data: [
+              {
+                id: "queue-history-complete",
+                input: [{ type: "text", text: "complete this exact Mesurer feedback", textElements: [] }],
+                clientUserMessageId: "client-history-complete",
+              },
+              {
+                id: "queue-history-interrupt",
+                input: [{ type: "text", text: "interrupt this exact Mesurer feedback", textElements: [] }],
+                clientUserMessageId: "client-history-interrupt",
+              },
+            ],
+            nextCursor: null,
+          },
+        });
+      } else if (message.id === "mesurer-history-init") {
         write({ id: message.id, result: { userAgent: "fake-codex" } });
       } else if (message.id === "mesurer-history-turns") {
         write({
@@ -1617,17 +1638,22 @@ if (args[0] === "queue") {
     assert.equal(sent.dispatchError, null);
 
     const invocations = await readInvocations(argsPath);
-    assert.deepEqual(invocations[0], [
+    const queueInvocations = invocations.filter((args) => args[0] === "queue");
+    const relayInvocations = invocations.filter((args) => args[0] === "stdio-to-uds");
+    const daemonStarts = invocations.filter((args) =>
+      args[0] === "app-server" && args[1] === "daemon" && args[2] === "start");
+
+    assert.deepEqual(queueInvocations, [[
       "queue",
       "--thread",
       "thread-cold",
       "--message",
       "wake without a preexisting daemon",
-    ]);
-    assert.equal(invocations[1][0], "stdio-to-uds");
-    assert.deepEqual(invocations[2], ["app-server", "daemon", "start"]);
-    assert.equal(invocations[3][0], "stdio-to-uds");
-    assert.equal(invocations[1][1], invocations[3][1]);
+    ]]);
+    assert.equal(relayInvocations.length, 2);
+    assert.equal(daemonStarts.length, 1);
+    assert.deepEqual(daemonStarts[0], ["app-server", "daemon", "start"]);
+    assert.equal(relayInvocations[0][1], relayInvocations[1][1]);
 
     const protocol = await readInvocations(protocolPath);
     assert.deepEqual(
@@ -1692,15 +1718,20 @@ if (args[0] === "queue") {
     assert.match(sent.dispatchError, /Permission denied/);
 
     const invocations = await readInvocations(argsPath);
-    assert.equal(invocations.length, 2);
-    assert.deepEqual(invocations[0], [
+    const queueInvocations = invocations.filter((args) => args[0] === "queue");
+    const relayInvocations = invocations.filter((args) => args[0] === "stdio-to-uds");
+    const daemonStarts = invocations.filter((args) =>
+      args[0] === "app-server" && args[1] === "daemon" && args[2] === "start");
+
+    assert.deepEqual(queueInvocations, [[
       "queue",
       "--thread",
       "thread-cold",
       "--message",
       "do not widen the fallback",
-    ]);
-    assert.equal(invocations[1][0], "stdio-to-uds");
+    ]]);
+    assert.equal(relayInvocations.length, 1);
+    assert.equal(daemonStarts.length, 0);
   } finally {
     if (child.exitCode === null) child.kill("SIGKILL");
     await waitForExit(child).catch(() => {});
