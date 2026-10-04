@@ -12,10 +12,7 @@
       },
       "policy": {
         "installation": "AVAILABLE",
-        "authentication": "ON_USE",
-        "products": [
-          "CODEX"
-        ]
+        "authentication": "ON_USE"
       },
       "category": "Developer Tools"
     }
