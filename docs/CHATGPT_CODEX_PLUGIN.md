@@ -83,10 +83,10 @@ The server exposes focused shortcuts rather than mirroring renderer internals:
 | `select_ui` | Select exact rendered targets and return Context. |
 | `use_mesurer_tool` | Invoke a visible toolbar button through the rendered Mesurer UI. |
 | `get_saved_ui_intent` | Read annotations, Edit movement intent, or direct text/style intent. |
-| `run_mesurer_command` | Advanced JSON-safe command shortcut after command discovery. |
+| `set_mesurer_plugin` | Idempotently enable or disable a registered plugin through its visible Settings switch. |
 | `review_ui` | Compare Live against annotation or Edit Desired state. |
 
-`use_mesurer_tool` intentionally goes through the visible button instead of calling the backing command. `run_mesurer_command` is the lower-level escape hatch: call `get_mesurer_status` first and use a command from `description.commands` rather than guessing ids.
+`use_mesurer_tool` intentionally goes through the visible toolbar button instead of calling the backing command. `set_mesurer_plugin` does the same for Settings: it uses a plugin id from `get_mesurer_status`, drives the rendered switch, and restores the Settings UI state it had before the call. The MCP surface intentionally has no generic command executor; browser evaluation can still use the public `window.__MESURER__.command()` API when an advanced command is genuinely needed.
 
 ## Browser ownership
 
