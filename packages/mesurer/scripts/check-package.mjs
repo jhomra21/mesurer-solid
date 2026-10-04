@@ -692,6 +692,12 @@ for (const [name, path] of [
   }
 }
 
+for (const name of ["codex-bridge.mjs", "codex-connect.mjs", "codex-lifecycle.mjs"]) {
+  if (!existsSync(new URL(`../.publish/codex/${name}`, import.meta.url))) {
+    throw new Error(`Staged npm package is missing canonical Codex companion source: codex/${name}.`);
+  }
+}
+
 const stagedMediaBunnyLicense = new URL("../.publish/dist/mediabunny-LICENSE.txt", import.meta.url);
 
 if (!existsSync(stagedMediaBunnyLicense)) {
@@ -785,12 +791,19 @@ try {
   const installedSkill = join(installRoot, ".agents/skills/mesurer-ui/SKILL.md");
   const installedInjector = join(installRoot, ".agents/skills/mesurer-ui/assets/inject-script.js");
   const installedMediaBunny = join(installRoot, ".agents/skills/mesurer-ui/assets/mediabunny-vendor.js");
+  const installedCodexBridge = join(installRoot, ".agents/skills/mesurer-ui/assets/codex-bridge.mjs");
+  const installedCodexConnect = join(installRoot, ".agents/skills/mesurer-ui/assets/codex-connect.mjs");
+  const installedCodexLifecycle = join(installRoot, ".agents/skills/mesurer-ui/assets/codex-lifecycle.mjs");
 
   if (!existsSync(installedSkill)) throw new Error("mesurer-skill install did not create SKILL.md.");
 
   if (!existsSync(installedInjector)) throw new Error("mesurer-skill install did not create assets/inject-script.js.");
 
   if (!existsSync(installedMediaBunny)) throw new Error("mesurer-skill install did not create assets/mediabunny-vendor.js.");
+
+  for (const path of [installedCodexBridge, installedCodexConnect, installedCodexLifecycle]) {
+    if (!existsSync(path)) throw new Error(`mesurer-skill install did not create ${path.split("/").pop()}.`);
+  }
 
   const sourceSkill = readFileSync(skillSource, "utf8");
   const copiedSkill = readFileSync(installedSkill, "utf8");
@@ -816,4 +829,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, in-process Codex Bridge, agent context, Edit movement, text edit intents, screenshot and MediaBunny recording tooling, and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, native and browser Codex transports, agent context, Edit movement, text edit intents, screenshot and MediaBunny recording tooling, and Agent Skill installer are self-contained.`);
