@@ -362,6 +362,7 @@ test("Codex Bridge restores a consumed shared queue item from exact client ident
   }]);
 
   const appServer = await createFakeAppServer(root, turnsPath);
+
   const options = {
     codex: join(root, "must-not-run"),
     codexHome: root,
