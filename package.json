@@ -14,7 +14,7 @@
     "build": "bun run build:packages && node extension/build.mjs",
     "extension:build": "node extension/build.mjs",
     "typecheck": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid-renderer' build && bun run --filter '@jhomra21/mesurer-solid' typecheck && bun run --filter 'mesurer-solid-renderer-example' typecheck",
-    "test": "bun run check:identity && bun run check:release && bun run check:browser-harness && bun run check:agent-plugin && node --test packages/mesurer/src/plugins/codex/bridge.test.mjs && bun run --filter '@jhomra21/mesurer-solid-core' test && bun run --filter '@jhomra21/mesurer-solid-dom' test && bun run --filter '@jhomra21/mesurer-solid-renderer' test",
+    "test": "bun run check:identity && bun run check:release && bun run check:browser-harness && bun run check:agent-plugin && node --test packages/mesurer/src/plugins/codex/bridge.test.mjs && bun run check:codex-companion && bun run --filter '@jhomra21/mesurer-solid-core' test && bun run --filter '@jhomra21/mesurer-solid-dom' test && bun run --filter '@jhomra21/mesurer-solid-renderer' test",
     "lint": "bun run lint:plugin && oxlint",
     "lint:plugin": "bun build tools/oxlint/anti-slop/index.ts --target node --format esm --external '@oxlint/plugins' --outfile tools/oxlint/anti-slop/dist/index.mjs",
     "dev": "bun run build:foundations && bun run --filter 'mesurer-solid-renderer-example' dev",
@@ -24,7 +24,8 @@
     "check:release": "node --test scripts/release.test.mjs",
     "check:browser-harness": "node --test scripts/browser-harness/browser-harness.test.mjs",
     "check:agent-plugin": "node --test scripts/mesurer-mcp/server.test.mjs",
-    "plugin:mcp": "node scripts/mesurer-mcp/server.mjs"
+    "plugin:mcp": "node scripts/mesurer-mcp/server.mjs",
+    "check:codex-companion": "node --test scripts/codex-bridge.test.mjs scripts/codex-connect.test.mjs"
   },
   "devDependencies": {
     "@oxlint/plugins": "1.79.0",
