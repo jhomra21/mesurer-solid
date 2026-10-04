@@ -7,6 +7,8 @@ const browser = await chromium.launch({ headless: true });
 
 const errors = [];
 
+const pluginAvailabilityKey = "mesurer-parity-playground:plugins:availability";
+
 const watchDiagnostics = (page) => {
   page.on("pageerror", (error) => errors.push(String(error)));
   page.on("console", (message) => {
@@ -127,9 +129,9 @@ try {
       }),
     });
   });
-  await settingsPage.addInitScript(() => {
-    localStorage.removeItem("mesurer-plugin-settings:availability");
-  });
+  await settingsPage.addInitScript((storageKey) => {
+    localStorage.removeItem(storageKey);
+  }, pluginAvailabilityKey);
   await settingsPage.goto(url, { waitUntil: "networkidle" });
 
   const toolbar = settingsPage.locator("[data-mesurer-toolbar='true']");
@@ -231,7 +233,7 @@ try {
         checked: toggle?.getAttribute("aria-checked") ?? null,
         disabled: toggle?.hasAttribute("disabled") ?? null,
         error: error?.textContent?.trim() ?? null,
-        stored: localStorage.getItem("mesurer-plugin-settings:availability"),
+        stored: localStorage.getItem("mesurer-parity-playground:plugins:availability"),
       };
     });
 
@@ -252,15 +254,15 @@ try {
   );
 
   try {
-    await settingsPage.waitForFunction(() => {
-      const raw = localStorage.getItem("mesurer-plugin-settings:availability");
+    await settingsPage.waitForFunction((storageKey) => {
+      const raw = localStorage.getItem(storageKey);
       const state = raw ? JSON.parse(raw) : null;
 
       return state?.enabled?.["mesurer.codex"] === true;
-    }, undefined, { timeout: 5_000 });
+    }, pluginAvailabilityKey, { timeout: 5_000 });
   } catch {
-    const persisted = await settingsPage.evaluate(() =>
-      localStorage.getItem("mesurer-plugin-settings:availability")
+    const persisted = await settingsPage.evaluate((storageKey) =>
+      localStorage.getItem(storageKey), pluginAvailabilityKey
     );
 
     throw new Error(`Browser Codex enabled state was not persisted: ${persisted ?? "<missing>"}`);
