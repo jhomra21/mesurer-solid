@@ -7,9 +7,13 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 const DEFAULT_BRIDGE = "http://127.0.0.1:47365";
+
 const BRIDGE_NAME = "mesurer-codex";
+
 const BRIDGE_PROTOCOL_VERSION = 1;
+
 const START_TIMEOUT_MS = 10_000;
+
 const POLL_INTERVAL_MS = 100;
 
 const usage = `Usage:
@@ -21,6 +25,7 @@ and makes that session the active Mesurer destination.
 Options:
   --thread <value>   Codex session UUID or exact session name
   --session-start    Read a Codex SessionStart hook event from stdin
+  --session-end      Read a Codex SessionEnd hook event from stdin
   --bridge <url>     Bridge URL (default: ${DEFAULT_BRIDGE})
   --codex <path>     Codex executable passed to a newly-started bridge
   --once             Start a new bridge with --once (primarily useful for tests)
@@ -34,6 +39,7 @@ const { values } = parseArgs({
   options: {
     thread: { type: "string" },
     "session-start": { type: "boolean", default: false },
+    "session-end": { type: "boolean", default: false },
     bridge: { type: "string", default: DEFAULT_BRIDGE },
     codex: { type: "string" },
     once: { type: "boolean", default: false },
@@ -57,29 +63,49 @@ const fail = (message, code = 1) => {
 const readStdin = async () => {
   process.stdin.setEncoding("utf8");
   let input = "";
+
   for await (const chunk of process.stdin) input += chunk;
+
   return input;
 };
 
 const explicitThread = values.thread?.trim() || null;
+
 const fromSessionStart = values["session-start"];
-if (explicitThread && fromSessionStart) {
-  fail("Use either --thread or --session-start, not both.", 2);
+
+const fromSessionEnd = values["session-end"];
+
+const routingModes = [Boolean(explicitThread), fromSessionStart, fromSessionEnd].filter(Boolean).length;
+
+if (routingModes > 1) {
+  fail("Use only one of --thread, --session-start, or --session-end.", 2);
 }
 
 let thread = explicitThread ?? process.env.CODEX_THREAD_ID?.trim() ?? null;
+
 let cwd = process.cwd();
-if (fromSessionStart) {
+
+if (fromSessionStart || fromSessionEnd) {
   const input = await readStdin();
   let event;
+
   try {
     event = JSON.parse(input);
   } catch {
-    fail("--session-start requires one Codex SessionStart JSON event on stdin.", 2);
+    fail(
+      fromSessionStart
+        ? "--session-start requires one Codex SessionStart JSON event on stdin."
+        : "--session-end requires one Codex SessionEnd JSON event on stdin.",
+      2,
+    );
   }
-  if (event?.hook_event_name !== "SessionStart") {
-    fail(`Expected hook_event_name SessionStart, got ${event?.hook_event_name ?? "<missing>"}.`, 2);
+
+  const expectedEvent = fromSessionStart ? "SessionStart" : "SessionEnd";
+
+  if (event?.hook_event_name !== expectedEvent) {
+    fail(`Expected hook_event_name ${expectedEvent}, got ${event?.hook_event_name ?? "<missing>"}.`, 2);
   }
+
   thread = event?.session_id?.trim?.() || null;
   cwd = event?.cwd?.trim?.() || cwd;
 }
@@ -88,13 +114,17 @@ if (!thread) {
   fail(
     fromSessionStart
       ? "Codex SessionStart input did not include a session_id."
-      : "mesurer-codex-connect requires --thread, CODEX_THREAD_ID, or --session-start.",
+      : fromSessionEnd
+        ? "Codex SessionEnd input did not include a session_id."
+        : "mesurer-codex-connect requires --thread, CODEX_THREAD_ID, --session-start, or --session-end.",
     2,
   );
 }
 
-const quiet = values.quiet || fromSessionStart;
+const quiet = values.quiet || fromSessionStart || fromSessionEnd;
+
 const bridge = values.bridge?.trim() || DEFAULT_BRIDGE;
+
 const bridgeUrl = new URL(bridge.endsWith("/") ? bridge : `${bridge}/`);
 
 const isLoopbackHost = (hostname) =>
@@ -106,23 +136,28 @@ const isLoopbackHost = (hostname) =>
 if (bridgeUrl.protocol !== "http:" || !isLoopbackHost(bridgeUrl.hostname)) {
   fail(`Automatic bridge startup requires a loopback HTTP URL, got ${bridge}.`, 2);
 }
+
 if (bridgeUrl.pathname !== "/" || bridgeUrl.search || bridgeUrl.hash) {
   fail(`Automatic bridge startup requires a root bridge URL, got ${bridge}.`, 2);
 }
 
 const port = bridgeUrl.port ? Number(bridgeUrl.port) : 80;
+
 if (!Number.isInteger(port) || port < 1 || port > 65_535) {
   fail(`Invalid bridge port in ${bridge}.`, 2);
 }
 
 const bridgeScript = fileURLToPath(new URL("./codex-bridge.mjs", import.meta.url));
+
 const expectedSourceHash = createHash("sha256")
   .update(await readFile(bridgeScript))
   .digest("hex");
 
 const readPayload = async (response) => {
   const text = await response.text();
+
   if (!text) return {};
+
   try {
     return JSON.parse(text);
   } catch {
@@ -132,27 +167,34 @@ const readPayload = async (response) => {
 
 const health = async () => {
   let response;
+
   try {
     response = await fetch(new URL("health", bridgeUrl));
   } catch {
     return null;
   }
+
   const payload = await readPayload(response);
+
   if (!response.ok || payload.ok !== true) {
     throw new Error(
       payload.error || `Unexpected service at ${bridgeUrl.origin}: HTTP ${response.status}.`,
     );
   }
+
   return payload;
 };
 
 const waitForBridge = async () => {
   const deadline = Date.now() + START_TIMEOUT_MS;
+
   while (Date.now() < deadline) {
     const payload = await health();
+
     if (payload) return payload;
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
+
   throw new Error(`Mesurer Codex bridge did not become ready at ${bridgeUrl.origin}.`);
 };
 
@@ -161,39 +203,82 @@ const isExactBridge = (payload) =>
   && payload.bridge.protocol === BRIDGE_PROTOCOL_VERSION
   && payload.bridge.sourceHash === expectedSourceHash;
 
+if (fromSessionEnd) {
+  let current;
+
+  try {
+    current = await health();
+  } catch {
+    process.exit(0);
+  }
+
+  if (!current || !isExactBridge(current)) process.exit(0);
+
+  let response;
+
+  try {
+    response = await fetch(new URL("threads/unregister", bridgeUrl), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thread }),
+      signal: AbortSignal.timeout(750),
+    });
+  } catch {
+    process.exit(0);
+  }
+
+  const payload = await readPayload(response);
+
+  if (!response.ok || payload.ok === false) {
+    fail(payload.error || `Mesurer Codex bridge returned HTTP ${response.status} while unregistering ${thread}.`);
+  }
+
+  process.exit(0);
+}
+
 const waitForBridgeToStop = async () => {
   const deadline = Date.now() + START_TIMEOUT_MS;
   let unavailableChecks = 0;
+
   while (Date.now() < deadline) {
     if (await health()) {
       unavailableChecks = 0;
     } else {
       unavailableChecks += 1;
+
       if (unavailableChecks >= 3) return;
     }
+
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
+
   throw new Error(`Stale Mesurer Codex bridge did not stop at ${bridgeUrl.origin}.`);
 };
 
 const replaceStaleBridge = async (payload) => {
   if (payload?.bridge?.name !== BRIDGE_NAME || payload.bridge.canShutdown !== true) return false;
   let response;
+
   try {
     response = await fetch(new URL("shutdown", bridgeUrl), { method: "POST" });
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : String(cause);
     throw new Error(`Could not stop stale Mesurer Codex bridge at ${bridgeUrl.origin}: ${error}`);
   }
+
   const body = await readPayload(response);
+
   if (!response.ok || body.ok === false) {
     throw new Error(body.error || `Stale Mesurer Codex bridge returned HTTP ${response.status} while stopping.`);
   }
+
   await waitForBridgeToStop();
+
   return true;
 };
 
 let current;
+
 try {
   current = await health();
 } catch (cause) {
@@ -202,11 +287,13 @@ try {
 
 if (current && !isExactBridge(current)) {
   let replaced = false;
+
   try {
     replaced = await replaceStaleBridge(current);
   } catch (cause) {
     fail(cause instanceof Error ? cause.message : String(cause));
   }
+
   if (replaced) {
     current = null;
   } else if (!current.bridge && Array.isArray(current.threads)) {
@@ -222,7 +309,9 @@ if (current && !isExactBridge(current)) {
 
 if (!current) {
   const args = [bridgeScript, "--port", String(port), "--thread", thread, "--cwd", cwd];
+
   if (values.codex?.trim()) args.push("--codex", values.codex.trim());
+
   if (values.once) args.push("--once");
 
   const child = spawn(process.execPath, args, {
@@ -232,6 +321,7 @@ if (!current) {
     stdio: "ignore",
     windowsHide: true,
   });
+
   child.unref();
 
   try {
@@ -239,18 +329,24 @@ if (!current) {
   } catch (cause) {
     fail(cause instanceof Error ? cause.message : String(cause));
   }
+
   if (!isExactBridge(current)) {
     fail(`Mesurer Codex bridge at ${bridgeUrl.origin} started with an unexpected source identity.`);
   }
 }
 
 const registration = { thread, cwd };
+
 const appToolsPipe = process.env.CODEX_APP_TOOLS_PIPE_PATH?.trim();
+
 if (appToolsPipe) registration.appToolsPipe = appToolsPipe;
+
 const codexHome = process.env.CODEX_HOME?.trim();
+
 if (codexHome) registration.codexHome = codexHome;
 
 let response;
+
 try {
   response = await fetch(new URL("threads/register", bridgeUrl), {
     method: "POST",
@@ -263,6 +359,7 @@ try {
 }
 
 const payload = await readPayload(response);
+
 if (!response.ok || payload.ok === false) {
   fail(payload.error || `Mesurer Codex bridge returned HTTP ${response.status}.`);
 }
