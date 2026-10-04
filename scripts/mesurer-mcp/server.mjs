@@ -45,6 +45,15 @@ const toolResult = (id, value, text) => {
   });
 };
 
+const toolErrorResult = (id, error) => {
+  const message = error instanceof Error ? error.message : String(error);
+
+  sendResult(id, {
+    content: [{ type: "text", text: message }],
+    isError: true,
+  });
+};
+
 const requireString = (value, name) => {
   if (value?.constructor !== String || value.trim().length === 0) {
     throw new Error(`${name} must be a non-empty string.`);
@@ -115,8 +124,7 @@ const closeSession = async () => {
 };
 
 const connectSession = async (args = {}) => {
-  await closeSession();
-
+  const previous = session;
   const { BrowserHarnessSession } = await import("../browser-harness/session.mjs");
 
   const globalName = optionalString(args.globalName)
@@ -140,17 +148,18 @@ const connectSession = async (args = {}) => {
     ?? false;
 
   const shouldInject = optionalBoolean(args.inject) ?? true;
-
-  const next = new BrowserHarnessSession({
-    url,
-    target,
-    injectPath,
-    globalName,
-    headless,
-    autoInject: false,
-  });
+  let next = null;
 
   try {
+    next = new BrowserHarnessSession({
+      url,
+      target,
+      injectPath,
+      globalName,
+      headless,
+      autoInject: false,
+    });
+
     await next.start();
     let status = await next.status();
 
@@ -159,14 +168,17 @@ const connectSession = async (args = {}) => {
       status = await next.status();
     }
 
+    const pages = await next.pages();
+
     session = next;
 
-    return {
-      status,
-      pages: await next.pages(),
-    };
+    if (previous) await previous.close().catch(() => {});
+
+    return { status, pages };
   } catch (error) {
-    await next.close().catch(() => {});
+    if (next) await next.close().catch(() => {});
+
+    session = previous;
     throw error;
   }
 };
@@ -647,7 +659,7 @@ const TOOLS = [
       },
       additionalProperties: false,
     },
-    { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   ),
   tool(
     "list_browser_pages",
@@ -814,11 +826,7 @@ const handleToolCall = async (id, params) => {
     const value = await handler(params?.arguments ?? {});
     toolResult(id, value);
   } catch (error) {
-    sendError(
-      id,
-      JsonRpcError.INVALID_PARAMS,
-      error instanceof Error ? error.message : String(error),
-    );
+    toolErrorResult(id, error);
   }
 };
 
