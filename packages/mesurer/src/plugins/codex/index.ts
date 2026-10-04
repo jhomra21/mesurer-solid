@@ -94,6 +94,8 @@ export type MesurerCodexDelivery = {
   turnId: string | null;
   /** Codex's durable queue identity when the current CLI reports it. */
   queuedSubmissionId?: string | null;
+  /** Codex client user-message identity used to correlate a consumed queue item with turn history. */
+  clientUserMessageId?: string | null;
   /** Codex delivery state after Codex durably accepted the queue item. */
   dispatch?: MesurerCodexDispatchStatus;
   /** Optional Codex lifecycle diagnostic. */
@@ -112,6 +114,8 @@ export type MesurerCodexQueueResult = {
   status: MesurerCodexDeliveryStatus;
   /** Codex's durable queue identity when the current CLI reports it. */
   queuedSubmissionId?: string | null;
+  /** Codex client user-message identity used to correlate a consumed queue item with turn history. */
+  clientUserMessageId?: string | null;
   /** Codex delivery state after Codex durably accepted the queue item. */
   dispatch?: MesurerCodexDispatchStatus;
   /** Non-fatal wake diagnostic when persistence succeeded but dispatch could not be verified. */
@@ -204,6 +208,7 @@ type BridgeResponse = {
   status?: MesurerCodexDeliveryStatus;
   turnId?: string | null;
   queuedSubmissionId?: string | null;
+  clientUserMessageId?: string | null;
   dispatch?: MesurerCodexDispatchStatus;
   dispatchError?: string | null;
   createdAt?: number;
@@ -226,6 +231,7 @@ type UiDeliveryState = {
   status: UiDeliveryStatus;
   annotationIds: string[];
   queuedSubmissionId: string | null;
+  clientUserMessageId: string | null;
   dispatch: MesurerCodexDispatchStatus | null;
   dispatchError: string | null;
 };
@@ -240,6 +246,7 @@ type PersistedCodexUiState = {
     status: "queued" | "working" | "interrupted";
     annotationIds: string[];
     queuedSubmissionId?: string | null;
+    clientUserMessageId?: string | null;
     dispatch?: MesurerCodexDispatchStatus | null;
     dispatchError?: string | null;
   } | null;
@@ -288,6 +295,7 @@ const readBrowserState = (): PersistedCodexUiState | null => {
           status: delivery.status,
           annotationIds: delivery.annotationIds.filter((id) => id.trim().length > 0),
           queuedSubmissionId: delivery.queuedSubmissionId?.trim() || null,
+          clientUserMessageId: delivery.clientUserMessageId?.trim() || null,
           dispatch: delivery.dispatch ?? null,
           dispatchError: delivery.dispatchError?.trim() || null,
         }
@@ -324,6 +332,7 @@ type CodexBridgeHostRequest = {
   message?: string;
   deliveryId?: string;
   queuedSubmissionId?: string;
+  clientUserMessageId?: string;
 };
 
 const browserCompanionUrl = (path: string) => {
@@ -375,6 +384,8 @@ const browserBridgeRequest = async (
         deliveryId: request.deliveryId,
         thread: request.thread,
         queuedSubmissionId: request.queuedSubmissionId,
+        clientUserMessageId: request.clientUserMessageId,
+        message: request.message,
       }),
     };
   } else {
@@ -485,6 +496,10 @@ const bridgeDelivery = (response: BridgeResponse): MesurerCodexDelivery => {
 
   if (response.queuedSubmissionId !== undefined) {
     delivery.queuedSubmissionId = response.queuedSubmissionId?.trim() || null;
+  }
+
+  if (response.clientUserMessageId !== undefined) {
+    delivery.clientUserMessageId = response.clientUserMessageId?.trim() || null;
   }
 
   if (response.dispatch !== undefined) delivery.dispatch = response.dispatch;
@@ -624,6 +639,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             status: persistedUiState.delivery.status,
             annotationIds: persistedUiState.delivery.annotationIds,
             queuedSubmissionId: persistedUiState.delivery.queuedSubmissionId ?? null,
+            clientUserMessageId: persistedUiState.delivery.clientUserMessageId ?? null,
             dispatch: persistedUiState.delivery.dispatch ?? null,
             dispatchError: persistedUiState.delivery.dispatchError ?? null,
           }
@@ -745,6 +761,27 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         if (delivery.queuedSubmissionId) request.queuedSubmissionId = delivery.queuedSubmissionId;
 
+        if (delivery.clientUserMessageId) {
+          request.clientUserMessageId = delivery.clientUserMessageId;
+        } else if (delivery.annotationIds.length > 0) {
+          const rebuilt = await feedbackPayload(
+            contextService,
+            { annotationIds: delivery.annotationIds },
+            instruction,
+          );
+
+          const exactAnnotationSet = rebuilt.annotationIds.length === delivery.annotationIds.length
+            && rebuilt.annotationIds.every((id, index) => id === delivery.annotationIds[index]);
+
+          if (!exactAnnotationSet) {
+            throw new Error(
+              "Cannot safely restore this Codex delivery because one or more saved Mesurer annotations are unavailable.",
+            );
+          }
+
+          request.message = rebuilt.message;
+        }
+
         return bridgeDelivery(await requestBridge(request));
       };
 
@@ -778,6 +815,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               status: activeDelivery.status,
               annotationIds: [...activeDelivery.annotationIds],
               queuedSubmissionId: activeDelivery.queuedSubmissionId,
+              clientUserMessageId: activeDelivery.clientUserMessageId,
               dispatch: activeDelivery.dispatch,
               dispatchError: activeDelivery.dispatchError,
             }
@@ -1119,6 +1157,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           thread: delivery.thread,
           status: delivery.status,
           queuedSubmissionId: delivery.queuedSubmissionId ?? activeDelivery.queuedSubmissionId,
+          clientUserMessageId: delivery.clientUserMessageId ?? activeDelivery.clientUserMessageId,
           dispatch: delivery.dispatch ?? activeDelivery.dispatch,
           dispatchError: delivery.dispatchError ?? activeDelivery.dispatchError,
         };
@@ -1269,6 +1308,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               result.queuedSubmissionId = response.queuedSubmissionId?.trim() || null;
             }
 
+            if (response.clientUserMessageId !== undefined) {
+              result.clientUserMessageId = response.clientUserMessageId?.trim() || null;
+            }
+
             if (response.dispatch !== undefined) result.dispatch = response.dispatch;
 
             if (response.dispatchError !== undefined) {
@@ -1302,6 +1345,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           status: "queueing",
           annotationIds: [],
           queuedSubmissionId: null,
+          clientUserMessageId: null,
           dispatch: null,
           dispatchError: null,
         };
@@ -1317,6 +1361,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               status: result.status,
               annotationIds: result.annotationIds,
               queuedSubmissionId: result.queuedSubmissionId ?? null,
+              clientUserMessageId: result.clientUserMessageId ?? null,
               dispatch: result.dispatch ?? null,
               dispatchError: result.dispatchError ?? null,
             };
