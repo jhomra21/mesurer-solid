@@ -82,7 +82,9 @@ The renderer plugin owns UI and Context delivery. The native Codex Bridge owns p
 
 - `examples/`. runnable hosts and browser fixtures, not reusable library code.
 - `tests/`. cross-package/browser/package acceptance suites.
-- `scripts/`. repository automation and developer commands.
+- `scripts/`. repository automation and developer commands, including the optional local Mesurer MCP server.
+- `skills/`. portable Agent Plugins skill copies used by the repository-level ChatGPT/Codex plugin.
+- `plugin.json`, `mcp.json`, and `.codex-plugin/`. portable/current-compatibility plugin manifests.
 - `tools/`. reusable development tooling.
 - `plugins/`. standalone integration distributions.
 - `extension/`. first-party browser extension.
@@ -294,7 +296,7 @@ Package-local tests stay in `packages/<package>/test/`. Cross-package browser/pa
 Avoid copying the same operating procedure into several documents.
 
 - `packages/mesurer/AGENT_INTEGRATION.md` is the canonical detailed agent integration guide.
-- `.agents/skills/mesurer-ui/SKILL.md` is the portable operational skill; its packaged copy must remain byte-identical.
+- `skills/mesurer-ui/SKILL.md`, `.agents/skills/mesurer-ui/SKILL.md`, and the packaged skill are the same operational skill on three distribution surfaces and must remain byte-identical.
 - feature behavior belongs in its guide under `docs/`.
 - `ARCHITECTURE.md` describes system boundaries.
 - `docs/REPOSITORY_STRUCTURE.md` describes directory ownership.
