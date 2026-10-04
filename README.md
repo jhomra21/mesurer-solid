@@ -203,6 +203,14 @@ Codex Bridge runs inside the native host process. Shared Codex sessions use the 
 
 See [Queue Context feedback to Codex](./docs/CODEX.md) for native-host wiring, loaded-thread routing, recovery, and the typed `codex:v1` service.
 
+## ChatGPT and Codex plugin prototype
+
+The repository includes a local-first plugin prototype for ChatGPT Desktop and Codex. Mesurer remains browser-first: an agent with browser/computer-use controls can operate the actual Mesurer UI directly, while the optional local MCP provides structured shortcuts for exact inspection, measurements, Context, selection, saved intent, and Live review.
+
+The prototype runs beside the browser or Electron application on the same machine, VM, or sandbox. It does not require a hosted Mesurer relay.
+
+See [ChatGPT and Codex plugin](./docs/CHATGPT_CODEX_PLUGIN.md).
+
 ## Documentation
 
 Start with the [documentation index](./docs/README.md).
