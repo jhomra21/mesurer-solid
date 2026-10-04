@@ -99,14 +99,25 @@ const exerciseDirectBrowserUi = async () => {
 
     assert.equal(await page.locator("[data-mesurer-island='true']").count(), 1);
 
-    const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
+    const xrayButton = page.locator("button[data-mesurer-builtin='xray']").first();
+    const xrayBefore = await xrayButton.getAttribute("aria-pressed");
 
     await xrayButton.click();
     await page.waitForFunction(
-      () => document.querySelector("[data-mesurer-builtin='xray'] button")?.getAttribute("aria-pressed") === "true",
+      (before) =>
+        document.querySelector("button[data-mesurer-builtin='xray']")?.getAttribute("aria-pressed") !== before,
+      xrayBefore,
     );
 
-    const settingsButton = page.locator("[data-mesurer-builtin='settings'] button");
+    const xrayAfter = await xrayButton.getAttribute("aria-pressed");
+    const xrayVisible = await page.evaluate(
+      () => document.body.classList.contains("mesurer-solid-xray"),
+    );
+
+    assert.notEqual(xrayAfter, xrayBefore);
+    assert.equal(xrayVisible, xrayAfter === "true");
+
+    const settingsButton = page.locator("button[data-mesurer-builtin='settings']").first();
 
     await settingsButton.click();
     await page.getByRole("dialog", { name: "Settings" }).waitFor({ state: "visible" });
