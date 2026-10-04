@@ -31,6 +31,10 @@ const DEFAULT_VISIBLE_THREADS = 5;
 
 const DEFAULT_BROWSER_COMPANION = "http://127.0.0.1:47365";
 
+const BROWSER_COMPANION_PROBE_TIMEOUT_MS = 1_500;
+
+const BROWSER_COMPANION_REQUEST_TIMEOUT_MS = 15_000;
+
 const DEFAULT_INSTRUCTION = [
   "Implement the current human feedback from Mesurer in this project.",
   "Treat the rendered page as the source of truth, preserve unrelated Mesurer review state,",
@@ -378,7 +382,12 @@ const browserBridgeRequest = async (
   }
 
   const controller = new AbortController();
-  const timeout = globalThis.setTimeout(() => controller.abort(), 15_000);
+
+  const timeoutMs = request.action === "health" || request.action === "threads"
+    ? BROWSER_COMPANION_PROBE_TIMEOUT_MS
+    : BROWSER_COMPANION_REQUEST_TIMEOUT_MS;
+
+  const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
@@ -418,7 +427,7 @@ const bridgeRequest = async (
 ): Promise<BridgeResponse> => {
   const bridge = window.__MESURER_HOST__?.codexBridge;
 
-  if (!bridge) throw new Error(MISSING_HOST_BRIDGE_ERROR);
+  if (!bridge) throw new Error("Codex native host bridge is unavailable.");
 
   const response = await bridge(request);
 
