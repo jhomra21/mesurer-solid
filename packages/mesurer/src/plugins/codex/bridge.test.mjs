@@ -5,6 +5,12 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+
+delete process.env.CODEX_THREAD_ID;
+delete process.env.CODEX_APP_TOOLS_PIPE_PATH;
+
+const testTmpdir = () => process.platform === "win32" ? tmpdir() : "/tmp";
+
 import {
   MESURER_CODEX_BRIDGE_CHANNEL,
   codexBridge,
@@ -187,7 +193,7 @@ const writeTurns = async (path, turns) => {
 };
 
 test("Codex Bridge uses the existing shared app-server directly", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-bridge-"));
+  const root = await mkdtemp(join(testTmpdir(), "mesurer-codex-bridge-"));
   const turnsPath = join(root, "turns.json");
 
   await writeTurns(turnsPath, []);
@@ -328,7 +334,7 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
 });
 
 test("Electron host adapter scopes leases to one WebContents and releases them on navigation", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-host-"));
+  const root = await mkdtemp(join(testTmpdir(), "mesurer-codex-host-"));
   const turnsPath = join(root, "turns.json");
 
   await writeTurns(turnsPath, []);
