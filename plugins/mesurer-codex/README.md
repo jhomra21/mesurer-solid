@@ -1,6 +1,6 @@
-# Mesurer Codex plugin
+# Mesurer Codex Bridge
 
-This repo-local Codex plugin keeps Mesurer's local Codex companion ready for the current Codex session.
+This optional local helper powers Mesurer's own **Settings -> Codex** integration in browser-hosted apps. It is separate from the **Mesurer Solid** ChatGPT/Codex agent plugin.
 
 Its `SessionStart` hook runs for `startup`, `resume`, and `clear`. The hook reads Codex's `session_id` from stdin, starts or reuses the matching loopback bridge at `127.0.0.1:47365`, and registers that session as the active **Queue to Codex** destination. Reuse is source-identity checked so an older healthy bridge cannot silently take lifecycle ownership. Successful startup is silent, so the hook does not add developer context to the Codex session.
 
