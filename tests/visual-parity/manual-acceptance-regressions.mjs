@@ -222,18 +222,12 @@ try {
     "Browser Codex availability must not be reported as an Electron preload error",
   );
 
-  const persistedCodexEnabled = await settingsPage.evaluate(() => {
+  await settingsPage.waitForFunction(() => {
     const raw = localStorage.getItem("mesurer-plugin-settings:availability");
     const state = raw ? JSON.parse(raw) : null;
 
     return state?.enabled?.["mesurer.codex"] === true;
   });
-
-  assert.equal(
-    persistedCodexEnabled,
-    true,
-    "Browser Codex enabled state should persist even when the local companion is temporarily unavailable",
-  );
 
   const contextToggle = dialog.getByRole("switch", { name: "Context", exact: true });
   await contextToggle.click();
