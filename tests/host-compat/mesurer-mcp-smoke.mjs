@@ -65,7 +65,13 @@ const startMcp = () => {
   const call = (name, args = {}) => request("tools/call", {
     name,
     arguments: args,
-  }).then((result) => result.structuredContent);
+  }).then((result) => {
+    if (result.isError) {
+      throw new Error(result.content?.[0]?.text ?? `Mesurer MCP tool failed: ${name}`);
+    }
+
+    return result.structuredContent;
+  });
 
   const close = async () => {
     output.close();
@@ -176,6 +182,21 @@ const exerciseMcpFallback = async () => {
 
     assert.equal(status.connected, true);
     assert.equal(status.mesurer.capabilities.protocol, "mesurer.agent/v1");
+
+    await assert.rejects(
+      () => mcp.call("connect_mesurer_page", {
+        url: "not a valid url",
+        headless: true,
+        inject: true,
+      }),
+      /Invalid URL/,
+    );
+
+    const recoveredStatus = await mcp.call("get_mesurer_status");
+
+    assert.equal(recoveredStatus.connected, true);
+    assert.equal(recoveredStatus.mesurer.capabilities.protocol, "mesurer.agent/v1");
+    assert.equal(recoveredStatus.browser.page.url.startsWith(hostUrl), true);
 
     const describedIds = new Set(status.mesurer.description.tools.map((item) => item.id));
 
