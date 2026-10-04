@@ -29,6 +29,14 @@ First-party plugins add Context, Edit, Layout Guides, Screenshot, Recording, and
 
 Rulers, ordinary Guides, and Layout Guides remain available while the human is in Edit; X-ray, Color Picker, Typography, Screenshot, and Recording remain Select-lane tools. For normal coding-agent work, use `window.__MESURER__`. Use `window.__MESURER_INSTANCE__` only when the task requires mounted-instance or plugin-host operations.
 
+## Use the visible Mesurer UI when it is the best interface
+
+Mesurer does not require an agent-specific transport for ordinary interaction. A browser or computer-use harness can click and drag the live Mesurer interface exactly as a person can. Use that path for exploratory visual work, mode/tool changes, Guides/Layout Guides, Edit movement, Typography, Screenshot, Recording, Settings, and other inspector UI.
+
+Use `window.__MESURER__` when the answer is better represented as exact structured evidence: selectors, geometry, distances, computed styles, Context, saved intent, or review deltas.
+
+Stable Mesurer-owned automation hooks are documented in [Browser and agent integration](../../docs/BROWSER_HARNESS.md). The optional local ChatGPT/Codex plugin adds semantic MCP shortcuts over this same contract; it does not replace browser control. See [ChatGPT and Codex plugin](../../docs/CHATGPT_CODEX_PLUGIN.md).
+
 ## Reuse a live instance
 
 Before injecting anything, check whether Mesurer is already connected:
