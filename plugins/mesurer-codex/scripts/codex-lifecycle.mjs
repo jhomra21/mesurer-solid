@@ -15,7 +15,9 @@ const { values } = parseArgs({
 const readStdin = async () => {
   process.stdin.setEncoding("utf8");
   let input = "";
+
   for await (const chunk of process.stdin) input += chunk;
+
   return input;
 };
 
@@ -23,10 +25,12 @@ try {
   const input = await readStdin();
   const event = JSON.parse(input);
   const eventName = event?.hook_event_name;
+
   if (!["UserPromptSubmit", "Stop", "Interrupt"].includes(eventName)) process.exit(0);
 
   const sessionId = event?.session_id?.trim?.() || null;
   const turnId = event?.turn_id?.trim?.() || null;
+
   if (!sessionId || !turnId) process.exit(0);
 
   const bridge = values.bridge?.trim() || DEFAULT_BRIDGE;
