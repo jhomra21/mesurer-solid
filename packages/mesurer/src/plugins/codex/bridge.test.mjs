@@ -255,6 +255,7 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
     assert.equal(queued.thread, "thread-b");
     assert.equal(queued.status, "queued");
     assert.equal(queued.queuedSubmissionId, "queue-thread-b");
+    assert.match(queued.clientUserMessageId, /^[0-9a-f-]+$/);
     assert.equal(queued.dispatch, "persisted");
 
     const nowSeconds = Math.floor(Date.now() / 1_000);
@@ -318,6 +319,7 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
     ));
 
     assert.equal(state.deliveries[0]?.queuedSubmissionId, "queue-thread-b");
+    assert.equal(state.deliveries[0]?.clientUserMessageId, queued.clientUserMessageId);
 
     const released = await codexBridge({ action: "deactivate", leaseId }, options);
 
@@ -326,6 +328,77 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
     await assert.rejects(
       request({ action: "threads", limit: 10 }),
       /lease is not active for this host client/,
+    );
+  } finally {
+    await appServer.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+
+test("Codex Bridge restores a consumed shared queue item from exact client identity", async () => {
+  const root = await mkdtemp(join(testTmpdir(), "mesurer-codex-history-restore-"));
+  const turnsPath = join(root, "turns.json");
+  const nowSeconds = Math.floor(Date.now() / 1_000);
+
+  await writeTurns(turnsPath, [{
+    id: "turn-history-restore",
+    items: [{
+      type: "userMessage",
+      id: "user-history-restore",
+      clientId: "client-history-restore",
+      content: [{
+        type: "text",
+        text: "restore already consumed feedback",
+        textElements: [],
+      }],
+    }],
+    itemsView: "summary",
+    status: "completed",
+    error: null,
+    startedAt: nowSeconds - 1,
+    completedAt: nowSeconds,
+    durationMs: 1_000,
+  }]);
+
+  const appServer = await createFakeAppServer(root, turnsPath);
+  const options = {
+    codex: join(root, "must-not-run"),
+    codexHome: root,
+    clientId: "history-client",
+  };
+
+  try {
+    const activation = await codexBridge({ action: "activate" }, options);
+    const leaseId = activation.leaseId;
+
+    assert.ok(leaseId);
+
+    const restored = await codexBridge({
+      action: "restore",
+      leaseId,
+      deliveryId: "delivery-history-restore",
+      thread: "thread-a",
+      queuedSubmissionId: "queue-already-consumed",
+      clientUserMessageId: "client-history-restore",
+    }, options);
+
+    assert.equal(restored.restored, true);
+    assert.equal(restored.deliveryId, "delivery-history-restore");
+    assert.equal(restored.queuedSubmissionId, "queue-already-consumed");
+    assert.equal(restored.clientUserMessageId, "client-history-restore");
+    assert.equal(restored.turnId, "turn-history-restore");
+    assert.equal(restored.status, "completed");
+
+    const persisted = JSON.parse(await readFile(
+      join(root, "mesurer", "codex-deliveries.json"),
+      "utf8",
+    ));
+
+    assert.equal(persisted.deliveries.length, 1);
+    assert.equal(
+      persisted.deliveries[0]?.clientUserMessageId,
+      "client-history-restore",
     );
   } finally {
     await appServer.close();
