@@ -4,6 +4,8 @@ Framework-agnostic UI inspection, measurement, visual intent, and agent-readable
 
 Mesurer Solid ships its own isolated Solid 2 renderer. Host applications can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without providing Solid.
 
+**Current stable:** `mesurer-solid@0.2.1` on the `latest` dist-tag.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/jhomra21/mesurer-solid/main/docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">
 </p>
@@ -70,7 +72,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. First-party Recording uses MediaBunny for encoded video, trim, resize, and WebM/MP4 export; its capture adapters only acquire pixels. Electron apps should import `mesurer-solid/electron` once from the main-process entrypoint before creating BrowserWindows; Mesurer then owns its narrow Recording preload/IPC automatically, so the app does not add Recording code to its own preload. The toolbar groups those controls into Select and Edit. Typography stays read-only in Select; Edit owns movement and direct text/style changes. Color Picker uses application-local capture when `window.__MESURER_HOST__.captureScreenshot` is available; other supported browser hosts use an operational `EyeDropper`. A successful sample is copied to the clipboard using `colorPickerClickFormat`.
+The base inspector includes Select, X-ray, Color Picker, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. First-party Recording uses MediaBunny for encoded video, trim, resize, and WebM/MP4 export; its capture adapters only acquire pixels. Electron apps should import `mesurer-solid/electron` once from the main-process entrypoint before creating BrowserWindows; Mesurer then owns its narrow Recording preload/IPC automatically, so the app does not add Recording code to its own preload. The toolbar groups those controls into Select and Edit. Typography stays read-only in Select; Edit owns movement and direct text/style changes. Color Picker uses application-local capture when `window.__MESURER_HOST__.captureScreenshot` is available; other supported browser hosts use an operational `EyeDropper`. A successful sample is copied to the clipboard using `colorPickerClickFormat`.
 
 `mesurer-solid/plugins` also exports the built-in factories for lower-level composition. Normal mounts already include the built-ins. Use `excludeBuiltins` with names such as `"xray"`, `"typography"`, and `"colorPicker"` when a mount should omit one.
 
@@ -103,15 +105,15 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Add page-scoped columns, rows, or pixel grids with the optional `layoutGuides()` plugin. Guide edits participate in plugin undo/redo, and Context includes the current page's saved guides with their visibility state.
 - Inspect rendered typography in Select. Edit previews reversible direct copy and style changes.
 - Use Edit to move selected UI and change direct text, typography, and text color without changing source.
-- Capture page regions through the optional Screenshot plugin. It selects native host capture, the Chromium extension adapter, or browser display capture internally.
-- Record selected regions through the optional Recording plugin. Browser and extension/native-host APIs only acquire the stream; MediaBunny owns encoding, inspection, trim, resize, and WebM/MP4 export.
+- Capture page regions through the optional Screenshot plugin. It selects native host capture, the Chromium extension adapter, or browser display capture internally, and flattens transparent native captures against the renderer backdrop before preview, copy, or save.
+- Record adjustable selected regions through the optional Recording plugin at 60 fps by default or 120 fps when selected and supported. Browser, extension, and Electron APIs only acquire the stream; MediaBunny owns encoding, inspection, trim, 1×/2×/3× resize, and WebM/MP4 export.
 - Read selection, measurements, guides, annotations, layout, styles, and saved human intent through Context and agent APIs.
 - Keep saved annotations across same-tab reloads and conservatively rebind them to their original DOM targets; markers, cards, and ownership evidence stay attached through scrolling, repeated-note markers stay local, Add Note remains available while a note is open, and cards/composers occlude Select hover and selection chrome.
 - Extend the runtime with tools, settings, overlays, commands, hooks, state, and services.
 - Compact the toolbar to active controls without changing tool state or order.
 - Choose System, Light, or Dark appearance while keeping the same theme across isolated and document-backed Mesurer UI.
 
-Use `1` for Select and `2` for Edit. Select contains inspection tools. Edit owns movement and direct text/style changes. Context and Codex remain visible in both modes. The grouped toolbar changes modes in 150 ms. `Shift+A` still enters Edit as a compatibility shortcut.
+Use `1` for Select and `2` for Edit. Select owns X-ray, Color Picker, Typography, Screenshot, and Recording. Edit owns movement and direct text/style changes. Rulers, Guides, and Layout Guides remain usable in both modes; Context and Codex remain visible in both modes. The grouped toolbar changes modes in 150 ms. `Shift+A` still enters Edit as a compatibility shortcut.
 
 Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
 
@@ -156,6 +158,7 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | `Cmd/Ctrl + ,` | Settings |
 | `Shift + A` | Edit compatibility shortcut |
 | `Shift + S` | Screenshot |
+| `Shift + R` | Recording |
 | `C` | Copy Context |
 | `Shift + C` | Copy Selection |
 | `N` | Add Note |
@@ -174,7 +177,7 @@ const selected = await mesurer.select("#pricing-card")
 Install the portable Agent Skill with:
 
 ```bash
-npx --yes --package=mesurer-solid mesurer-skill install
+npx --yes --package=mesurer-solid@latest mesurer-skill install
 ```
 
 The skill preserves existing human state, reads Edit movement, text, and annotation intent before source changes, and verifies the real Live result after implementation.
@@ -201,12 +204,15 @@ See [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/
 - [Edit](https://github.com/jhomra21/mesurer-solid/blob/main/docs/EDIT.md) and [Layout Guides](https://github.com/jhomra21/mesurer-solid/blob/main/docs/LAYOUT_GUIDES.md)
 - [Measurements and distance geometry](https://github.com/jhomra21/mesurer-solid/blob/main/docs/MEASUREMENTS.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
+- [Recording](https://github.com/jhomra21/mesurer-solid/blob/main/docs/RECORDING.md)
 - [Electron renderer example](https://github.com/jhomra21/mesurer-solid/blob/main/examples/electron-renderer/README.md)
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
 - [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md)
 - [Browser and agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/docs/BROWSER_HARNESS.md)
 - [Host isolation](https://github.com/jhomra21/mesurer-solid/blob/main/docs/HOST_ISOLATION.md)
 - [Trusted Types](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TRUSTED_TYPES.md)
+- [Browser extension](https://github.com/jhomra21/mesurer-solid/blob/main/extension/README.md)
+- [Upstream parity](https://github.com/jhomra21/mesurer-solid/blob/main/docs/UPSTREAM_PARITY.md)
 
 Mesurer Solid is a source-first Solid port and extension of [Mesurer](https://github.com/ibelick/mesurer). Upstream adoption and deliberate differences are tracked in [Upstream parity](https://github.com/jhomra21/mesurer-solid/blob/main/docs/UPSTREAM_PARITY.md).
 

@@ -1,6 +1,6 @@
 # Documentation
 
-Mesurer Solid is a browser inspection and visual-intent tool. Start with setup, then open the guide for the task you are doing.
+Mesurer Solid is a browser inspection and visual-intent tool. The current stable package is `mesurer-solid@0.2.1` on `latest`. Start with setup, then open the guide for the task you are doing.
 
 ## Start here
 
@@ -16,7 +16,7 @@ Mesurer Solid is a browser inspection and visual-intent tool. Start with setup, 
 - [Layout guides](./LAYOUT_GUIDES.md) explains how to overlay page-scoped columns, rows, or a pixel grid and expose them through Context.
 - [Measurements and distance geometry](./MEASUREMENTS.md) defines box, guide, container, and multi-selection spacing evidence.
 - [Screenshots](./SCREENSHOTS.md) explains page-region capture, output settings, and host capture selection.
-- [Recording](./RECORDING.md) explains selected-region video capture, the `recording:v1` service, MediaBunny export, and browser/extension acquisition.
+- [Recording](./RECORDING.md) explains selected-region video capture, the `recording:v1` service, MediaBunny export, and browser/extension/Electron acquisition.
 - [Context](./CONTEXT_WORKFLOW.md) explains how to read selection, measurements, annotations, review state, and shared human-agent evidence.
 - [Queue Context feedback to Codex](./CODEX.md) documents delivery to the originating or another recent same-project Codex thread.
 - [Design feedback loop](./DESIGN_FEEDBACK_LOOP.md) describes how to use Mesurer while implementing and reviewing UI.
@@ -27,7 +27,7 @@ Mesurer Solid is a browser inspection and visual-intent tool. Start with setup, 
 - [Mesurer UI skill](../.agents/skills/mesurer-ui/SKILL.md) contains the portable instructions shipped for coding agents.
 - [Browser and agent integration](./BROWSER_HARNESS.md) explains how to reuse an existing browser and inject Mesurer only when needed.
 - [Browser extension](../extension/README.md) explains how to inject Mesurer into Chromium tabs without application source changes.
-- [Electron renderer example](../examples/electron-renderer/README.md) shows how to mount Mesurer in a renderer and provide native Screenshot capture through preload and main.
+- [Electron renderer example](../examples/electron-renderer/README.md) shows renderer mounting, native Screenshot/Color Picker capture, the package-owned `mesurer-solid/electron` Recording bootstrap, and optional Codex host wiring.
 
 ## Browser compatibility
 

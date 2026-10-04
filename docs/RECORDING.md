@@ -40,9 +40,9 @@ The typed `recording:v1` service exposes:
 
 Status is one of `idle`, `selecting`, `recording`, `ready`, `exporting`, or `error`.
 
-Interactive toolbar capture deliberately has two steps. Dragging a region selects it but does not start video immediately. Mesurer keeps the selection in the `selecting` state so the user can move it, resize it from eight handles, or edit its width, height, left, and top values. **Start recording** or Enter confirms that region. Escape cancels.
+Interactive toolbar capture deliberately has two steps. Dragging a region selects it but does not start video immediately. Mesurer keeps the selection in the `selecting` state so the user can move it, resize it from eight handles, or edit its width, height, left, and top values. The selected region keeps a visible accent outline while the rest of the page is dimmed, including on dark backgrounds. **Start recording** or Enter confirms that region. Escape cancels.
 
-Once capture is recording, the selection layer stops owning pointer input. The application underneath remains fully interactive so the recording can demonstrate real clicks, typing, menus, drag operations, and other UAT flows. Mesurer keeps only its own Recording controls interactive; the full-screen Recording mount remains pointer-transparent.
+Once capture is recording, the selection layer stops owning pointer input. The application underneath remains fully interactive so the recording can demonstrate real clicks, typing, menus, drag operations, and other UAT flows. Mesurer restores the normal toolbar and keeps the Stop/timer surface above the capture mask while the full-screen Recording mount remains pointer-transparent. Leaving Recording restores the Select interaction layer's exact previous hit-testing state, so tools such as Screenshot work immediately afterward.
 
 Passing an explicit rectangle to `service.start(rect)` remains the programmatic direct-start path and skips the interactive adjustment step.
 
@@ -118,9 +118,9 @@ Stopping a recording opens the compact upstream-style Mesurer editor. The collap
 - hover/focus Close action;
 - export progress overlay and inline export errors.
 
-The export menu opens above or below its anchor according to available viewport space. The editor follows the same persisted System/Light/Dark Appearance setting as the toolbar and other Mesurer inspector surfaces.
+The timeline keeps timestamps outside the scrub rail and trim controls above the rail so trimming does not block normal scrubbing. The export menu opens above or below its anchor according to available viewport space. Toolbar menus and Settings paint above the Recording card while open. The editor follows the same persisted System/Light/Dark Appearance setting as the toolbar and other Mesurer inspector surfaces.
 
-The editor is viewport-owned inspector UI. Its object URLs, window/document listeners, and drag state are released when the clip is replaced, dismissed, or the plugin is disposed.
+The editor is viewport-owned inspector UI. Dismissing it animates the card toward the Recording control with compositor-friendly transform/opacity motion before cleanup. Its object URLs, window/document listeners, and drag state are released when the clip is replaced, dismissed, or the plugin is disposed.
 
 Programmatic export returns the output Blob, format, duration, dimensions, and generated filename. The toolbar editor downloads the returned Blob after a successful export.
 
@@ -151,6 +151,7 @@ The dedicated Chromium contract uses an animated canvas as a deterministic displ
 - browser display acquisition;
 - extension-stream acquisition without falling back to the display picker;
 - packed Electron acquisition through `mesurer-solid/electron` with no application-owned Recording preload or IPC, using a renderer-bound WebContents stream id. The contract enables Select before capture, verifies the Select interaction overlay stays pointer-transparent, sends a native Electron click through the recorded region, checks the 60 fps default and 120 fps setting, and retains the WebM artifact;
+- Screenshot remains immediately interactive after a finished Recording is dismissed;
 - Escape/cancel and clean browser diagnostics.
 
 Build/package checks also reject `MediaRecorder` in the Recording implementation and reject accidental MediaBunny bundling across the MPL/MIT boundary.

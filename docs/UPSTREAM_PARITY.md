@@ -75,7 +75,7 @@ Upstream `03c0581837c01325ce4a8fa18bc893955335eb21` still uses the grouped toolb
 | --- | --- | --- |
 | Two-button grouped toolbar switch with moving selection pill | **Adopted with product mapping** | Mesurer Solid maps upstream's Inspect/Annotate switch to Select/Edit. It keeps the upstream 28px buttons, 2px gap/padding, 3px active pill radius, neutral ink states, focus treatment, and Select inspection icon. Edit intentionally uses Mesurer Solid's movement glyph instead of upstream Annotate, with the Edit options chevron owned by the same split control. |
 | Group content slides while the active lane changes width | **Adopted with 150 ms motion** | Mesurer Solid keeps the same grouped-toolbar structure and interruptible width/translate transition, but uses the project's existing 150 ms motion instead of upstream timing. Reduced motion disables the transition. |
-| Inspect-owned versus Annotate-owned tool lanes | **Adopted as Select/Edit ownership** | Select owns inspection tools. Edit owns movement and direct text/style editing. Typography stays in Select as inspection-only. |
+| Inspect-owned versus Annotate-owned tool lanes | **Adopted as Select/Edit ownership** | Select owns selection-first inspection/capture tools. Edit owns movement and direct text/style editing. Typography stays in Select as inspection-only, while Rulers, ordinary Guides, and Layout Guides deliberately remain available in both Mesurer Solid modes. |
 | Persistent controls outside the changing group | **Adopted with Mesurer Solid plugin ownership** | Context and Codex remain visible in both modes. Third-party tools without mode metadata retain the historical always-visible behavior so existing plugin surfaces do not disappear after upgrade. |
 | Existing Arrange ids and agent APIs | **Preserved compatibility layer** | The public UI and new plugin factory use Edit, but `mesurer.arrange.*` state, service ids, persisted movement intent, `arrange()`, and agent methods remain valid. |
 | Upstream post-audit ColorField event cleanup, Mesurer mark refresh, toolbar-restore offset, and marketing/site work | **Not part of this mode port** | None of these changes alter the grouped mode switch or its icons/motion. They remain separate audit items rather than being bundled into the Select/Edit feature. |
@@ -198,7 +198,7 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | DOM-attached threaded comments | Intentionally not adopted; Mesurer Solid uses Context annotations instead |
 | Iframe selection/comment targeting | Intentionally not adopted |
 | Inspect/Annotate group switching | **Presentation adopted with different semantics.** Mesurer Solid uses the upstream grouped switch structure, icons, and width-changing motion for Select/Edit, but does not adopt upstream threaded Annotate behavior. |
-| Select/Edit mode semantics | **Mesurer Solid extension.** Select owns inspection. Edit owns movement and direct text/style changes. Context and Codex remain visible in both modes. Existing Arrange ids and agent contracts stay as compatibility surfaces. |
+| Select/Edit mode semantics | **Mesurer Solid extension.** Select owns selection-first inspection/capture tools; Edit owns movement and direct text/style changes. Rulers, ordinary Guides, and Layout Guides remain usable in both modes, while Context and Codex remain pinned across both. Existing Arrange ids and agent contracts stay as compatibility surfaces. |
 | Arrow, pen, and freeform drawing annotations | Intentionally not adopted |
 | Site, analytics, footer, and repository-only changes | Not library parity |
 
@@ -208,7 +208,7 @@ Framework-neutral mounting, the plugin runtime, Context, Edit movement and direc
 
 Upstream has continued evolving its grouped Inspect/Annotate toolbar, floating cards, and comment controls. Mesurer Solid adopts the grouped switch presentation for its own Select/Edit product model without inheriting upstream comment-mode behavior.
 
-The shipping toolbar has Select and Edit groups. Select contains inspection tools; Edit contains movement and direct text/style editing. Context and Codex stay pinned across both groups. Compact presentation preserves the active mode and active controls. Mode changes use a 150ms interruptible transition and respect reduced motion.
+The shipping toolbar has Select and Edit groups. Select contains selection-first inspection/capture tools; Edit contains movement and direct text/style editing. Rulers, ordinary Guides, and Layout Guides remain available in both groups. Context and Codex stay pinned across both groups. Compact presentation preserves the active mode and active controls. Mode changes use a 150ms interruptible transition and respect reduced motion.
 
 The historical `605d202` parity suite still covers shared page/result and Settings behavior, but it predates the current toolbar shell. Toolbar chrome is excluded only from that historical geometry comparison and is covered by a dedicated current Chromium toolbar contract instead.
 

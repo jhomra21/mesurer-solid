@@ -17,9 +17,9 @@ Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron
              │                                 │
              ├───────────────┬─────────────────┤
              ▼               ▼                 ▼
-        Context plugin     Edit plugin     Screenshot plugin
-             │               │
-             │         Layout Guides plugin
+        Context plugin     Edit plugin      Capture plugins
+             │               │              ├─ Screenshot
+             │         Layout Guides        └─ Recording
              │
              └── optional Codex plugin ──► native host Bridge ──► Codex shared app-server
              │               │                 │
@@ -44,8 +44,13 @@ Users install `mesurer-solid`.
 | `mesurer-solid/inject` | Programmatic injection helper |
 | `mesurer-solid/inject-script` | Classic Mesurer browser payload; raw evaluators load the separate MediaBunny vendor first |
 | `mesurer-solid/mediabunny-vendor` | Separate MPL-2.0 MediaBunny classic runtime for Recording injection/extension use |
+| `mesurer-solid/electron` | Preferred Electron main-process bootstrap for package-owned Recording capture |
+| `mesurer-solid/plugins/codex/bridge` | Native Codex transport and Electron main-process host adapter |
+| `mesurer-solid/plugins/codex/preload` | Bundle-friendly Electron preload adapter for the Codex host capability |
+| `mesurer-solid/plugins/recording/bridge` | Advanced Electron Recording host adapter for custom sender/lifecycle policy |
+| `mesurer-solid/plugins/recording/preload` | Advanced Electron Recording preload adapter |
 
-The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, and `mesurer-solid/plugins/codex/bridge` for native-host Codex access. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
+The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
 
 Public first-party plugin factories use their feature name directly. Applications import `context`, `edit`, `layoutGuides`, `screenshot`, `recording`, `codex`, and explicit built-ins such as `select` or `typography` from `mesurer-solid/plugins`; `arrange()` remains a compatibility alias; redundant `*Plugin` public factory names and one-plugin-per-subpath exports are not part of the package contract.
 
@@ -77,7 +82,7 @@ Within the renderer runtime, direct editing is grouped under `runtime/text-editi
 
 Human-facing built-ins are Select, X-ray, Color Picker when supported, Rulers, Typography, Guides, Distance, and Settings. Typography retains the internal compatibility id `text-inspector`. Distance geometry is specified in [Measurements and distance geometry](./docs/MEASUREMENTS.md).
 
-The toolbar has two top-level modes. Select owns inspection and capture tools such as X-ray, Color Picker, Rulers, Typography, Guides, Layout Guides, Screenshot, and Recording. Edit owns element movement and direct text/style editing. Context and Codex stay visible in both modes. The mode switch follows the audited upstream grouped-toolbar design while Mesurer Solid keeps 150 ms motion. Compact presentation preserves the active mode and pinned tools. Dragging begins only after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership.
+The toolbar has two top-level modes. Select owns selection-first inspection and capture tools such as X-ray, Color Picker, Typography, Screenshot, and Recording. Edit owns element movement and direct text/style editing. Rulers, ordinary Guides, and Layout Guides stay available in both modes; Context and Codex also stay visible in both modes. The mode switch follows the audited upstream grouped-toolbar design while Mesurer Solid keeps 150 ms motion. Compact presentation preserves the active mode and pinned tools. Dragging begins only after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership.
 
 Plugin tools render through the same toolbar path as built-ins instead of maintaining a second renderer.
 

@@ -1,6 +1,6 @@
 # Mesurer browser extension
 
-The first-party Manifest V3 extension injects the same Mesurer renderer and runtime into arbitrary Chromium pages without changing application source.
+The first-party Manifest V3 extension injects the same Mesurer renderer and runtime into arbitrary Chromium pages without changing application source. This guide matches `mesurer-solid@0.2.1` stable.
 
 ## Build and load
 
@@ -35,7 +35,7 @@ Edit movement remains optional unless `edit()` or the `arrange()` compatibility 
 
 ## Direct text editing
 
-Enter Edit before changing direct text or typography. Typography in Select remains inspection-only. Context remains visible across Select and Edit. The browser extension does not expose the native Codex host capability, so Codex remains listed in Settings but starts off and does not contribute a toolbar action.
+Enter Edit before changing direct text or typography. Typography in Select remains inspection-only. Rulers, ordinary Guides, and Layout Guides remain usable while Edit is active. Context remains visible across Select and Edit. The browser extension does not expose the native Codex host capability, so Codex remains listed in Settings but starts off and does not contribute a toolbar action.
 
 Mesurer keeps native editing boundaries intact. Form controls and descendants that inherit `contenteditable` remain under the page/browser editor. A nested `contenteditable="false"` boundary ends inherited editability and can use Mesurer direct editing when the normal direct-text rules pass. Mixed inline copy can edit the exact direct text run around an inline child without replacing that child or the host element's native DOM APIs.
 
