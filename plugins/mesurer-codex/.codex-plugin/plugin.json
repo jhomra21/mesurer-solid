@@ -1,7 +1,7 @@
 {
   "name": "mesurer-codex",
-  "version": "0.1.8-beta.1",
-  "description": "Queues Mesurer browser feedback to Codex and reports the matching turn lifecycle through a local loopback companion.",
+  "version": "0.2.1",
+  "description": "Powers Mesurer Settings → Codex from browser pages by keeping a local loopback bridge connected to Codex Desktop or CLI sessions.",
   "author": {
     "name": "Mesurer Solid"
   },
@@ -15,9 +15,9 @@
     "feedback"
   ],
   "interface": {
-    "displayName": "Mesurer Codex",
-    "shortDescription": "Queue Mesurer feedback to the current Codex thread",
-    "longDescription": "Starts or reuses Mesurer's loopback Codex companion, registers the current session, queues Mesurer feedback, and reports matching queued-turn lifecycle state so completed annotations can be retired safely.",
+    "displayName": "Mesurer Codex Bridge",
+    "shortDescription": "Connect Mesurer's in-app Codex feature to local Codex sessions",
+    "longDescription": "Local transport helper for Mesurer's own Settings → Codex integration. It starts or reuses the loopback companion, registers Codex sessions, and lets browser-hosted Mesurer queue Context feedback to Codex Desktop or CLI. This is separate from the Mesurer Solid ChatGPT/Codex agent plugin.",
     "developerName": "Mesurer Solid",
     "category": "Developer Tools",
     "capabilities": [],
