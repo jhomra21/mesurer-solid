@@ -1,0 +1,127 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import readline from "node:readline";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(here, "../..");
+const serverPath = path.join(here, "server.mjs");
+
+const startServer = () => {
+  const child = spawn(process.execPath, [serverPath], {
+    cwd: root,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const lines = readline.createInterface({
+    input: child.stdout,
+    crlfDelay: Infinity,
+  });
+  const pending = new Map();
+
+  lines.on("line", (line) => {
+    const message = JSON.parse(line);
+    const waiter = pending.get(message.id);
+
+    if (!waiter) return;
+    pending.delete(message.id);
+    waiter.resolve(message);
+  });
+
+  let nextId = 1;
+
+  const request = (method, params) => {
+    const id = nextId++;
+    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
+
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+    });
+  };
+
+  const close = async () => {
+    lines.close();
+
+    if (child.exitCode === null) {
+      child.kill("SIGTERM");
+      await new Promise((resolve) => child.once("exit", resolve));
+    }
+  };
+
+  return { child, request, close };
+};
+
+test("Mesurer plugin manifest reuses the canonical agent skill", async () => {
+  const manifest = JSON.parse(await readFile(path.join(root, ".codex-plugin/plugin.json"), "utf8"));
+  const mcp = JSON.parse(await readFile(path.join(root, ".mcp.json"), "utf8"));
+  const marketplace = JSON.parse(await readFile(path.join(root, ".agents/plugins/marketplace.json"), "utf8"));
+
+  assert.equal(manifest.name, "mesurer-solid");
+  assert.equal(manifest.skills, "./.agents/skills/");
+  assert.equal(manifest.mcpServers, "./.mcp.json");
+  assert.deepEqual(mcp.mcpServers["mesurer-local"], {
+    cwd: ".",
+    command: "node",
+    args: ["./scripts/mesurer-mcp/server.mjs"],
+  });
+  assert.equal(marketplace.plugins[0]?.source?.path, ".");
+});
+
+test("local MCP server advertises the focused Mesurer shortcut surface", async () => {
+  const server = startServer();
+
+  try {
+    const initialized = await server.request("initialize", {
+      protocolVersion: "2025-11-25",
+      capabilities: {},
+      clientInfo: { name: "mesurer-test", version: "0.0.0" },
+    });
+
+    assert.equal(initialized.result.serverInfo.name, "Mesurer Solid Local");
+    assert.match(initialized.result.instructions, /UI-first/);
+
+    const listed = await server.request("tools/list");
+    const tools = listed.result.tools;
+    const names = tools.map((tool) => tool.name);
+
+    assert.deepEqual(names, [
+      "connect_mesurer_page",
+      "list_browser_pages",
+      "get_mesurer_status",
+      "inspect_ui",
+      "measure_ui",
+      "get_ui_context",
+      "select_ui",
+      "use_mesurer_tool",
+      "get_saved_ui_intent",
+      "run_mesurer_command",
+      "review_ui",
+    ]);
+
+    for (const tool of tools) {
+      assert.equal(typeof tool.description, "string");
+      assert.ok(tool.description.length > 20);
+      assert.equal(tool.inputSchema.type, "object");
+      assert.equal(tool.annotations.openWorldHint, false);
+    }
+
+    const status = await server.request("tools/call", {
+      name: "get_mesurer_status",
+      arguments: {},
+    });
+
+    assert.equal(status.result.structuredContent.connected, false);
+    assert.match(status.result.structuredContent.message, /normal browser harness/);
+
+    const unavailable = await server.request("tools/call", {
+      name: "inspect_ui",
+      arguments: { selector: "body" },
+    });
+
+    assert.match(unavailable.error.message, /connect_mesurer_page/);
+  } finally {
+    await server.close();
+  }
+});
