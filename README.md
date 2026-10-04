@@ -193,11 +193,11 @@ See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the package
 
 ### Queue human feedback to Codex
 
-Codex starts enabled when a native host exposes `window.__MESURER_HOST__.codexBridge(request)`. Browser-only hosts list Codex in Settings but leave it off.
+Codex is Mesurer's human-triggered **Settings -> Plugins** integration for queueing Context into local Codex threads. It is separate from the Mesurer Solid ChatGPT/Codex agent plugin.
 
-Electron applications can install `installMesurerCodexHost()` from `mesurer-solid/plugins/codex/bridge` in main and expose `createMesurerCodexPreloadBridge()` from `mesurer-solid/plugins/codex/preload` through preload. Turning Codex on waits for a native activation lease and Codex readiness. Turning it off waits for lease release. The host adapter also releases a renderer's leases on navigation, renderer exit, or destruction.
+Browser hosts list Codex and start it off by default. Enabling it connects to the local **Mesurer Codex Bridge** companion on `127.0.0.1:47365`; if the helper is temporarily unavailable, the plugin stays enabled and can retry. Electron hosts can instead expose `window.__MESURER_HOST__.codexBridge(request)` from preload and use the in-process native transport directly.
 
-Codex Bridge runs inside the native host process. Shared Codex sessions use the existing local app-server and `thread/queue/add`. An inherited Codex Desktop thread uses one durable native queue operation and wakes that same thread with `codex://threads/<id>`. Mesurer never opens the private Desktop app-tools pipe and never creates a localhost bridge server or helper Electron process.
+Electron applications install `installMesurerCodexHost()` from `mesurer-solid/plugins/codex/bridge` in main and expose `createMesurerCodexPreloadBridge()` from `mesurer-solid/plugins/codex/preload`. Both transports expose the same `codex:v1` service and **Queue to Codex** UI. Neither transport opens Codex Desktop's private app-tools pipe.
 
 **Queue to Codex** targets only a destination Mesurer can identify safely. Shared delivery tracks exact Queued, Working, Finished, or Interrupted lifecycle state. Desktop current-thread delivery keeps its durable queue receipt visible without inventing lifecycle state that remains private to Desktop. Mesurer never creates a new thread or invokes Steer.
 
