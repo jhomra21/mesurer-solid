@@ -112,6 +112,7 @@ const exerciseDirectBrowserUi = async () => {
     );
 
     const xrayAfter = await xrayButton.getAttribute("aria-pressed");
+
     const xrayVisible = await page.evaluate(
       () => document.body.classList.contains("mesurer-solid-xray"),
     );
