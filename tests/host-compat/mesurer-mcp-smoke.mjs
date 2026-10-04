@@ -100,6 +100,7 @@ const exerciseDirectBrowserUi = async () => {
     assert.equal(await page.locator("[data-mesurer-island='true']").count(), 1);
 
     const xrayButton = page.locator("button[data-mesurer-builtin='xray']").first();
+
     const xrayBefore = await xrayButton.getAttribute("aria-pressed");
 
     const xrayVisibleBefore = await page.evaluate(
