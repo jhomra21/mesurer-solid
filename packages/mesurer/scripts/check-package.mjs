@@ -439,7 +439,9 @@ if (!existsSync(repositorySkill)) throw new Error("Missing repository Agent Skil
 if (!existsSync(portablePluginSkill)) throw new Error("Missing portable plugin Agent Skill: skills/mesurer-ui/SKILL.md");
 
 const packagedSkillSource = readFileSync(skillSource, "utf8");
+
 const repositorySkillSource = readFileSync(repositorySkill, "utf8");
+
 const portablePluginSkillSource = readFileSync(portablePluginSkill, "utf8");
 
 if (repositorySkillSource !== packagedSkillSource || portablePluginSkillSource !== packagedSkillSource) {
