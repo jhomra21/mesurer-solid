@@ -111,7 +111,7 @@ test("local MCP server advertises the focused Mesurer shortcut surface", async (
       "select_ui",
       "use_mesurer_tool",
       "get_saved_ui_intent",
-      "run_mesurer_command",
+      "set_mesurer_plugin",
       "review_ui",
     ]);
 
