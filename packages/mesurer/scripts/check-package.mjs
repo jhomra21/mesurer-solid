@@ -432,10 +432,20 @@ if (!existsSync(skillSource)) throw new Error("Missing packaged Agent Skill: ski
 
 const repositorySkill = new URL("../../../.agents/skills/mesurer-ui/SKILL.md", import.meta.url);
 
+const portablePluginSkill = new URL("../../../skills/mesurer-ui/SKILL.md", import.meta.url);
+
 if (!existsSync(repositorySkill)) throw new Error("Missing repository Agent Skill: .agents/skills/mesurer-ui/SKILL.md");
 
-if (readFileSync(repositorySkill, "utf8") !== readFileSync(skillSource, "utf8")) {
-  throw new Error("Repository and packaged Mesurer Agent Skills must remain byte-identical.");
+if (!existsSync(portablePluginSkill)) throw new Error("Missing portable plugin Agent Skill: skills/mesurer-ui/SKILL.md");
+
+const packagedSkillSource = readFileSync(skillSource, "utf8");
+
+const repositorySkillSource = readFileSync(repositorySkill, "utf8");
+
+const portablePluginSkillSource = readFileSync(portablePluginSkill, "utf8");
+
+if (repositorySkillSource !== packagedSkillSource || portablePluginSkillSource !== packagedSkillSource) {
+  throw new Error("Repository, portable-plugin, and packaged Mesurer Agent Skills must remain byte-identical.");
 }
 
 const codexBridgeScript = new URL("../src/plugins/codex/bridge.mjs", import.meta.url);

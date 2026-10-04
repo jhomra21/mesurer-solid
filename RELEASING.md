@@ -22,7 +22,7 @@ For a stable release:
 - every public package subpath introduced since the prior stable release must be documented and package-guarded;
 - the npm-facing `packages/mesurer/README.md` must describe only behavior actually present in the stable candidate;
 - `packages/mesurer/AGENT_INTEGRATION.md` and the Agent Skill must reflect the current agent contract;
-- `.agents/skills/mesurer-ui/SKILL.md` and `packages/mesurer/skills/mesurer-ui/SKILL.md` must remain byte-identical;
+- `skills/mesurer-ui/SKILL.md`, `.agents/skills/mesurer-ui/SKILL.md`, and `packages/mesurer/skills/mesurer-ui/SKILL.md` must remain byte-identical;
 - extension-specific behavior must be reflected in `extension/README.md`;
 - feature-specific guides and architecture docs must not contradict the public README;
 - [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md) must pin an audit of upstream `ibelick/mesurer` current `main` from the final stable-readiness sweep;

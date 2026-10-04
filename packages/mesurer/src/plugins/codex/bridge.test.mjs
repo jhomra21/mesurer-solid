@@ -11,6 +11,12 @@ import {
   installMesurerCodexHost,
 } from "./bridge.mjs";
 
+for (const name of ["CODEX_THREAD_ID", "CODEX_APP_TOOLS_PIPE_PATH"]) {
+  delete process.env[name];
+}
+
+const testTmpdir = () => process.platform === "win32" ? tmpdir() : "/tmp";
+
 const createFakeAppServer = async (root, turnsPath) => {
   const controlDir = join(root, "app-server-control");
   const socketPath = join(controlDir, "app-server-control.sock");
@@ -187,7 +193,7 @@ const writeTurns = async (path, turns) => {
 };
 
 test("Codex Bridge uses the existing shared app-server directly", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-bridge-"));
+  const root = await mkdtemp(join(testTmpdir(), "mesurer-codex-bridge-"));
   const turnsPath = join(root, "turns.json");
 
   await writeTurns(turnsPath, []);
@@ -328,7 +334,7 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
 });
 
 test("Electron host adapter scopes leases to one WebContents and releases them on navigation", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-host-"));
+  const root = await mkdtemp(join(testTmpdir(), "mesurer-codex-host-"));
   const turnsPath = join(root, "turns.json");
 
   await writeTurns(turnsPath, []);

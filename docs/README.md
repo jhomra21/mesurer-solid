@@ -26,6 +26,7 @@ Mesurer Solid is a browser inspection and visual-intent tool. The current stable
 - [Agent integration](../packages/mesurer/AGENT_INTEGRATION.md) explains how agents preserve human state, read saved intent, and verify Live output.
 - [Mesurer UI skill](../.agents/skills/mesurer-ui/SKILL.md) contains the portable instructions shipped for coding agents.
 - [Browser and agent integration](./BROWSER_HARNESS.md) explains how to reuse an existing browser and inject Mesurer only when needed.
+- [ChatGPT and Codex plugin](./CHATGPT_CODEX_PLUGIN.md) documents the desktop/local plugin prototype, direct UI automation contract, and optional MCP shortcuts.
 - [Browser extension](../extension/README.md) explains how to inject Mesurer into Chromium tabs without application source changes.
 - [Electron renderer example](../examples/electron-renderer/README.md) shows renderer mounting, native Screenshot/Color Picker capture, the package-owned `mesurer-solid/electron` Recording bootstrap, and optional Codex host wiring.
 

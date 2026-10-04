@@ -104,6 +104,15 @@ For the accepted direct-edit window-scroll path, the packed consumer contract in
 
 Pointer movement has the same ownership principle: hover may update hover chrome, but pure pointer motion must not restabilize or rewrite source-linked Typography placement when the edited source itself did not move.
 
+## Local agent plugin contracts
+
+The local ChatGPT/Codex plugin has two validation layers:
+
+- protocol/package checks verify the portable and compatibility manifests, MCP tool schemas, disconnected behavior, and byte-identical skill copies;
+- the host-compat browser lane first proves a normal browser harness can operate the rendered Mesurer UI directly, then separately launches the optional MCP fallback browser, injects the built Mesurer artifact when absent, invokes a rendered toolbar control, and verifies exact inspection/measurement/Context.
+
+This MCP browser contract supplements rather than replaces the existing feature contracts. Screenshot, Recording, Edit, Layout Guides, and other human UI behavior remain proven by their dedicated browser/package suites because agents are expected to operate those exact rendered controls directly.
+
 ## Release rule
 
 Do not hand off a candidate SHA for manual acceptance merely because CI is green. Before handoff:

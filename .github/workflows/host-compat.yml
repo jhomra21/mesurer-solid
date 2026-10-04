@@ -9,6 +9,14 @@ on:
       - "packages/mesurer/**"
       - "examples/solid1/**"
       - "tests/host-compat/**"
+      - "scripts/browser-harness/**"
+      - "scripts/mesurer-mcp/**"
+      - "plugin.json"
+      - "mcp.json"
+      - ".codex-plugin/**"
+      - ".mcp.json"
+      - ".agents/plugins/**"
+      - "skills/**"
       - ".github/workflows/host-compat.yml"
   push:
     branches: [main]
@@ -58,3 +66,7 @@ jobs:
         env:
           SOLID1_URL: http://127.0.0.1:4180
         run: bun tests/host-compat/inject-reuse-smoke.mjs
+      - name: Exercise local agent plugin through MCP and direct UI
+        env:
+          SOLID1_URL: http://127.0.0.1:4180
+        run: bun tests/host-compat/mesurer-mcp-smoke.mjs

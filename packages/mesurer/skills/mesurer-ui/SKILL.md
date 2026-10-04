@@ -27,6 +27,28 @@ Select, point inspection, and Context can target general DOM elements, including
 
 Human Select lifecycle is explicit. Invoking Select clears the current element and Guide selection before toggling the tool. Holding Shift while clicking rendered targets adds or removes them from the human multi-selection. Do not expect hidden selection state to return after Select is turned off or after an off-state reload.
 
+## Prefer the visible Mesurer UI
+
+When the coding harness already has browser or computer-use controls, treat Mesurer exactly like any other UI in that page. Do not route ordinary interaction through MCP just because the plugin includes MCP shortcuts.
+
+Prefer the visible controls when the task is visual or exploratory:
+
+- click Select/Edit and the toolbar tools;
+- turn X-ray, Rulers, ordinary Guides, and Layout Guides on or off;
+- open Typography and Settings;
+- drag Edit targets and direct-edit text;
+- draw and adjust Screenshot or Recording regions;
+- play, trim, resize, export, dismiss, and otherwise review captured media;
+- use the actual page and Mesurer overlays to compare visual variations.
+
+Use accessible roles and labels first. When a browser harness needs a stable automation hook, Mesurer exposes `[data-mesurer-island="true"]`, `[data-mesurer-builtin="<id>"]`, and `[data-mesurer-tool-id="<id>"]` on its inspector shell and toolbar controls. These identify Mesurer UI; they are not inspected-page targets.
+
+Use `window.__MESURER__` for exact evidence that is better represented as data than as clicks: Context, geometry, distances, rendered styles, saved annotations, Edit Before/Desired/Live intent, text intent, and review. Do not estimate a numeric spacing value from a screenshot when Mesurer can report it.
+
+The optional local Mesurer MCP exposes the same division of responsibility. `use_mesurer_tool` invokes a visible toolbar button; `set_mesurer_plugin` drives a visible Settings switch; and `inspect_ui`, `measure_ui`, `get_ui_context`, `select_ui`, `get_saved_ui_intent`, and `review_ui` are structured shortcuts. The MCP deliberately does not mirror the generic Mesurer command bus. If the normal browser harness already controls the right page, keep using that browser instead of launching a second MCP-owned browser.
+
+For visual alternatives, keep each experiment reversible. Use Edit or the page's normal controls to create a variation, capture it with the existing browser screenshot facility or the human Screenshot tool when that feature itself is under review, then restore or switch presentation before trying the next variation. Once the user chooses a direction, implement it in application source and verify the resulting Live render.
+
 ## Reuse the live instance
 
 Never reinject, dispose, or replace Mesurer just because this skill loaded. A person may already have selected elements, guides, measurements, annotations, Edit movement intent, text/style Desired intent, plugin state, a screenshot preview, or a recording preview open.
