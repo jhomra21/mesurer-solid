@@ -513,7 +513,8 @@ const setMesurerPlugin = async (args = {}) => {
     }
 
     const selector = `[data-mesurer-plugin-toggle="${CSS.escape(pluginId)}"]`;
-    const toggle = dialog.querySelector(selector);
+    const findToggle = () => dialog.querySelector(selector);
+    const toggle = findToggle();
 
     if (!(toggle instanceof HTMLButtonElement)) {
       throw new Error(`Mesurer plugin is not registered: ${pluginId}`);
@@ -527,14 +528,28 @@ const setMesurerPlugin = async (args = {}) => {
       for (let frame = 0; frame < 180; frame += 1) {
         await new Promise((resolve) => requestAnimationFrame(resolve));
 
-        if (toggle.getAttribute("aria-checked") === String(enabled) && !toggle.disabled) break;
+        const liveToggle = findToggle();
+
+        if (
+          liveToggle instanceof HTMLButtonElement
+          && liveToggle.getAttribute("aria-checked") === String(enabled)
+          && !liveToggle.disabled
+        ) {
+          break;
+        }
       }
+    }
+
+    const settledToggle = findToggle();
+
+    if (!(settledToggle instanceof HTMLButtonElement)) {
+      throw new Error(`Mesurer plugin switch disappeared: ${pluginId}`);
     }
 
     const result = {
       pluginId,
-      enabled: toggle.getAttribute("aria-checked") === "true",
-      busy: toggle.disabled,
+      enabled: settledToggle.getAttribute("aria-checked") === "true",
+      busy: settledToggle.disabled,
       error: dialog.querySelector(`[data-mesurer-plugin-error="${CSS.escape(pluginId)}"]`)?.textContent?.trim() ?? null,
     };
 
