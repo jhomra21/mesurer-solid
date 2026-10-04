@@ -40,10 +40,11 @@ Do not create a new root directory when an existing package, `tests`, `scripts`,
 
 When user-facing behavior changes, update the owning guide in `docs/`. Core measurement changes belong in [Measurements and distance geometry](./docs/MEASUREMENTS.md); shared Mesurer UI rules belong in [Design language](./docs/DESIGN_LANGUAGE.md). Update the root or package README when its public examples change. Add a `CHANGELOG.md` entry when the change belongs in release notes. Keep detailed agent procedure in `packages/mesurer/AGENT_INTEGRATION.md` and the portable skill.
 
-Keep the two Agent Skill copies byte-identical:
+Keep all Mesurer UI Agent Skill copies byte-identical:
 
-- `.agents/skills/mesurer-ui/SKILL.md`
-- `packages/mesurer/skills/mesurer-ui/SKILL.md`
+- `skills/mesurer-ui/SKILL.md` for the portable ChatGPT/Codex plugin;
+- `.agents/skills/mesurer-ui/SKILL.md` for repository agents;
+- `packages/mesurer/skills/mesurer-ui/SKILL.md` for the npm-installed skill.
 
 Keep Codex implementation under the Codex plugin. Renderer behavior belongs in `packages/mesurer/src/plugins/codex/index.ts`, and native host transport belongs in `packages/mesurer/src/plugins/codex/`. Keep `mesurer-solid/plugins/codex/bridge` in-process. Electron main uses the package-owned host adapter; sandboxed preloads bundle the package-owned preload adapter. Codex enable must acquire a renderer-scoped lease and prove readiness before the plugin load commits. Disable must release that lease before plugin removal. Do not add a standalone Mesurer bridge process, localhost listener, marketplace copy, or hook-owned copy. Shared-daemon startup may use a complete standalone Codex installation, but it must never use a Desktop-bundled executable for daemon bootstrap. The Desktop current-thread adapter may invoke that resolved executable only for one exact durable queue operation after inherited Desktop ownership is established. It must never attach to the private app-tools pipe or stop the shared daemon when a Mesurer lease ends.
 
