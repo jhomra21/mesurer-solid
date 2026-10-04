@@ -243,7 +243,7 @@ type PersistedCodexUiState = {
   delivery: {
     id: string;
     thread: string;
-    status: "queued" | "working" | "interrupted" | "failed";
+    status: "queued" | "working" | "completed" | "interrupted" | "failed";
     annotationIds: string[];
     queuedSubmissionId?: string | null;
     clientUserMessageId?: string | null;
@@ -287,6 +287,7 @@ const readBrowserState = (): PersistedCodexUiState | null => {
       && delivery.thread.trim()
       && (delivery.status === "queued"
         || delivery.status === "working"
+        || delivery.status === "completed"
         || delivery.status === "interrupted"
         || delivery.status === "failed")
       && Array.isArray(delivery.annotationIds)
@@ -809,6 +810,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         const persistedDelivery = activeDelivery?.id
           && (activeDelivery.status === "queued"
             || activeDelivery.status === "working"
+            || activeDelivery.status === "completed"
             || activeDelivery.status === "interrupted"
             || activeDelivery.status === "failed")
           ? {
@@ -1174,9 +1176,42 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         }
 
         if (delivery.status === "completed") {
-          if (clearCompletedAnnotations) {
+          persistUiState();
+          syncTool();
+
+          if (clearCompletedAnnotations && activeDelivery.annotationIds.length > 0) {
+            let cleanupFailed = false;
+
             for (const annotationId of activeDelivery.annotationIds) {
-              await contextService.removeAnnotation(annotationId);
+              try {
+                await contextService.removeAnnotation(annotationId);
+              } catch {
+                cleanupFailed = true;
+              }
+            }
+
+            let remainingAnnotationIds = activeDelivery.annotationIds;
+
+            try {
+              const savedIds = new Set(
+                (await contextService.annotations()).map((annotation) => annotation.id),
+              );
+
+              remainingAnnotationIds = activeDelivery.annotationIds
+                .filter((annotationId) => savedIds.has(annotationId));
+            } catch {
+              cleanupFailed = true;
+            }
+
+            if (cleanupFailed || remainingAnnotationIds.length > 0) {
+              persistUiState();
+              syncTool();
+              deliveryPollTimer = globalThis.setTimeout(() => {
+                deliveryPollTimer = 0;
+                void pollDelivery(delivery.id);
+              }, DELIVERY_POLL_MS);
+
+              return;
             }
           }
 
