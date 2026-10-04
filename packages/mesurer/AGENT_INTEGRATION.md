@@ -2,7 +2,7 @@
 
 Mesurer's agent integration is the rendered page itself. This guide matches `mesurer-solid@0.2.1` stable. The coding agent reads `window.__MESURER__` through the browser control it already has, consumes human visual intent, edits normal application source, and verifies the real Live result.
 
-The normal agent workflow requires no Mesurer MCP server, localhost daemon, Send-to-agent callback, or browser-tool-specific transport. The optional `codex()` plugin is a separate human convenience path for sending Context feedback through the native host's Codex transport; it does not replace the browser-state contract described here.
+The normal agent workflow requires no Mesurer MCP server, Send-to-agent callback, or special browser transport. The optional `codex()` plugin is a separate human convenience path for sending Context feedback into local Codex threads; it does not replace the browser-state contract described here. In Electron it can use the native preload bridge. In an ordinary browser it can use the local Mesurer Codex Bridge companion on loopback. Neither path is the Mesurer Solid ChatGPT/Codex agent plugin.
 
 ## Install the agent skill
 
@@ -18,7 +18,9 @@ The installer writes a self-contained skill and injection artifact:
 ├── SKILL.md
 └── assets/
     ├── mediabunny-vendor.js
-    └── inject-script.js
+    ├── inject-script.js
+    ├── codex-bridge.mjs
+    └── codex-connect.mjs
 ```
 
 ## Know the available capabilities
@@ -254,17 +256,15 @@ The optional human `screenshot()` plugin from `mesurer-solid/plugins` is a separ
 
 ## Optional human-to-Codex delivery
 
-The first-party `codex()` plugin starts enabled when the native host capability exists. Browser-only hosts list it in Settings but start with it off. It is a human-triggered delivery path and does not add a generic send method to `window.__MESURER__`.
+The first-party `codex()` plugin is Mesurer's **Settings -> Codex** feature. It is not the OpenAI Mesurer Solid agent plugin.
 
-Native hosts expose `window.__MESURER_HOST__.codexBridge(request)`. Electron main can install `installMesurerCodexHost()`, and a bundled preload can expose `createMesurerCodexPreloadBridge()`. Turning Codex on waits for a native lease and transport readiness. Turning it off waits for lease release before Mesurer removes the plugin. Shared sessions use Codex's existing local app-server. When the host inherits both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH` from Codex Desktop, Mesurer exposes only that exact Desktop thread, queues once through Codex's native queue command, and wakes the same thread with `codex://threads/<id>`. The app-tools pipe is an ownership signal only and is never opened. There is no Mesurer Codex daemon, localhost listener, marketplace plugin, or Codex SessionStart/SessionEnd hook.
+Electron hosts with `window.__MESURER_HOST__.codexBridge(request)` can use the in-process native bridge and start Codex enabled. Browser hosts still show Codex in Settings but start with it off. When enabled, the browser plugin talks to the local Mesurer Codex Bridge companion at `127.0.0.1:47365`. If that helper is absent, the plugin stays enabled in an unavailable/retry state instead of failing with an Electron-preload requirement.
 
-Shared delivery exposes currently loaded Codex threads. Desktop fallback exposes only the exact inherited current thread and refuses any other destination. Page affinity and explicit destination overrides remain fail-closed.
+The optional local **Mesurer Codex Bridge** helper can be installed into Codex so SessionStart starts or reuses the loopback companion and registers the current local Codex session. The npm package also exposes `mesurer-codex` and `mesurer-codex-connect` for diagnostics.
 
-Shared delivery calls `thread/queue/add` directly. Desktop current-thread delivery uses the native queue command only for that exact inherited thread. Mesurer never calls `turn/steer`, never creates a thread, and never reconstructs a second user-message queue. The typed `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and canonical `queue(request?)`. `send(request?)` remains a compatibility alias.
+Both renderer transports expose the same `codex:v1` service. Shared sessions queue through Codex's local app-server. Exact Desktop-current-thread delivery can use one durable Codex queue operation plus the native `codex://threads/<id>` wake. The private app-tools pipe is never opened.
 
-Shared queue submission is single-flight while Mesurer tracks lifecycle. Desktop current-thread delivery keeps its durable queued receipt visible without blocking a later explicit queue action. A matched completed turn may remove only the annotation ids sent with that delivery; interrupted, failed, ambiguous, or unreadable work keeps them. Turn completion is transport state, not proof that the requested UI result is correct.
-
-See [Queue Context feedback to Codex](../../docs/CODEX.md) for host wiring, routing, recovery, privacy, and failure behavior.
+Browser companion state and the native Electron bridge are local-machine transports only. Neither is a hosted Mesurer relay, and neither changes how coding agents consume `window.__MESURER__`.
 
 ## Revalidate after source edits
 
