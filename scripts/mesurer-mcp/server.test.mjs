@@ -119,8 +119,18 @@ test("local MCP server advertises the focused Mesurer shortcut surface", async (
       assert.equal(tool.description?.constructor, String);
       assert.ok(tool.description.length > 20);
       assert.equal(tool.inputSchema.type, "object");
-      assert.equal(tool.annotations.openWorldHint, false);
+      assert.equal(tool.annotations.openWorldHint?.constructor, Boolean);
     }
+
+    assert.equal(
+      tools.find((tool) => tool.name === "connect_mesurer_page")?.annotations.openWorldHint,
+      true,
+    );
+    assert.equal(
+      tools.filter((tool) => tool.name !== "connect_mesurer_page")
+        .every((tool) => tool.annotations.openWorldHint === false),
+      true,
+    );
 
     const status = await server.request("tools/call", {
       name: "get_mesurer_status",
@@ -143,7 +153,8 @@ test("local MCP server advertises the focused Mesurer shortcut surface", async (
       arguments: { selector: "body" },
     });
 
-    assert.match(unavailable.error.message, /connect_mesurer_page/);
+    assert.equal(unavailable.result.isError, true);
+    assert.match(unavailable.result.content[0]?.text, /connect_mesurer_page/);
   } finally {
     await server.close();
   }
