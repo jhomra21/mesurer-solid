@@ -1331,6 +1331,7 @@ const restoreDelivery = async (request, options, desktop = null) => {
     }
 
     const now = Date.now();
+
     const delivery = {
       id: deliveryId,
       thread,
@@ -1395,6 +1396,7 @@ const restoreDelivery = async (request, options, desktop = null) => {
   }
 
   const now = Date.now();
+
   const delivery = {
     id: deliveryId,
     thread,
