@@ -4,6 +4,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Restore Mesurer's browser **Settings -> Codex** path through the local Mesurer Codex Bridge companion while keeping Electron on its native preload bridge. Browser users can enable Codex without an Electron host; a missing companion stays in an unavailable/retry state instead of rolling the plugin back with a preload error.
+- Keep the Mesurer Solid ChatGPT/Codex agent plugin separate from the Mesurer Codex Bridge helper so agent-side Mesurer usage and human-triggered Queue to Codex remain independent features.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1 - 2026-10-03
