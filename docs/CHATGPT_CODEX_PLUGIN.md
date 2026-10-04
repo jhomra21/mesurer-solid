@@ -48,9 +48,11 @@ From a checkout of this repository:
 
 Codex can add the Git-backed marketplace with:
 
-    codex plugin marketplace add jhomra21/mesurer-solid --ref feat/local-agent-plugin-prototype
+    codex plugin marketplace add jhomra21/mesurer-solid
 
-Restart ChatGPT Desktop, open the Plugins Directory, choose the Mesurer Solid marketplace, and install **Mesurer Solid**. This prototype is for local authoring/testing, not public-directory submission.
+Restart ChatGPT Desktop after adding the marketplace or changing local plugin files, then install **Mesurer Solid** from that marketplace. This local-first plugin is not a public-directory submission.
+
+Codex may still require approval before an MCP tool launches or navigates the fallback browser. Plugin-scoped MCP approval policy controls that behavior. If the active agent already has browser/computer-use access to the application, keep using that browser and operate Mesurer directly instead of relying on `connect_mesurer_page`.
 
 ## Direct browser interaction
 
