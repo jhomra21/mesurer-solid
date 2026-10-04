@@ -374,16 +374,6 @@ export default function ComposableMesurer(props: MesurerProps) {
             // availability value once so the restored default remains enabled.
             if (parsed.version === 2 && id === "mesurer.codex") continue;
 
-            // Beta.1 could persist Codex as enabled even in browser-only hosts,
-            // because Codex previously defaulted on before native capability
-            // discovery became part of activation. Keep that preference stored,
-            // but do not replay it while this renderer has no native bridge.
-            if (
-              id === "mesurer.codex"
-              && enabled
-              && ownerWindow.__MESURER_HOST__?.codexBridge === undefined
-            ) continue;
-
             storedEnabled.set(id, enabled);
           }
 
