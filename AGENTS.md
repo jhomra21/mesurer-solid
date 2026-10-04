@@ -144,14 +144,14 @@ Renderer-aware plugin UI must cross the existing opaque renderer service boundar
 
 The accepted Codex integration has specific correctness properties. Preserve them unless deliberately redesigning the feature and its acceptance suite.
 
-- Codex starts enabled only when the native host capability exists. Browser-only hosts keep it registered in Settings but default it off.
-- All Codex implementation belongs to the Codex plugin; the native helper lives under `packages/mesurer/src/plugins/codex/`.
-- Keep the public Codex service runtime-neutral. Callers must not choose CLI versus Desktop, and host applications must not gain separate runtime-specific Codex APIs.
-- The Codex plugin owns runtime discovery, transport selection, and supported bootstrap behavior. Runtime diagnostics stay in the native bridge and private plugin state; do not expose CLI/Desktop selection through `codex:v1`.
-- Do not introduce a Mesurer localhost bridge server, standalone bridge process, Electron helper process, marketplace package, or SessionStart/SessionEnd hook dependency.
-- Renderer code crosses only `window.__MESURER_HOST__.codexBridge(request)`; native filesystem, process, and socket access stay in the host process.
-- Enabling Codex is transactional. Plugin setup must acquire a native lease and prove transport readiness before the managed plugin becomes enabled.
-- Disabling Codex is transactional. The managed plugin must release its native lease before Mesurer removes the renderer service, command, toolbar action, or persisted enabled state.
+- Codex is Mesurer's own human-triggered local delivery plugin; do not conflate it with the Mesurer Solid OpenAI agent plugin.
+- Electron hosts with `window.__MESURER_HOST__.codexBridge` start Codex enabled. Browser hosts keep it registered in Settings but default it off and use the local loopback companion when enabled.
+- Keep the public Codex service runtime-neutral. Callers must not choose browser/Electron, CLI/Desktop, or a concrete transport.
+- Electron renderer code crosses only the narrow `window.__MESURER_HOST__.codexBridge(request)` capability. Native filesystem, process, and socket access stay in the host process.
+- Browser renderer code may talk only to the loopback Mesurer Codex Bridge companion. Keep it bound locally, origin-restricted, and limited to the existing bounded Codex operations.
+- The optional `plugins/mesurer-codex` helper may start/reuse the browser companion and register local Codex sessions. Keep it separate from the repository-level Mesurer Solid agent plugin.
+- Native enablement remains transactional: acquire a renderer lease and prove readiness before committing enabled state. Browser enablement persists immediately and may settle into an unavailable/retry state while the local companion is absent.
+- Disabling Codex removes that page's service/UI. Native hosts release their lease first; browser pages must not kill a shared companion that another local page/session can use.
 - Bind native leases to one host renderer. `installMesurerCodexHost()` must require application sender validation, reject subframes and unapproved senders, and release a renderer's leases on navigation, renderer exit, or destruction.
 - Do not stop Codex's shared app-server when a Mesurer lease is released.
 - Discover sendable destinations from Codex's shared local app-server; `thread/loaded/list` is authoritative.
