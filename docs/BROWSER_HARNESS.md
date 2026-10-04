@@ -33,6 +33,22 @@ The ES-module `mesurer-solid/inject` entry is available to browser tools that su
 
 Injected Mesurer carries its own isolated Solid 2 renderer/runtime. It does not require the host application's framework runtime.
 
+## Mesurer is normal browser UI
+
+A capable browser/computer-use harness can operate Mesurer directly. MCP is not required to turn tools on or off, open menus, drag guides, move Edit targets, change text, choose Screenshot/Recording regions, or review capture UI.
+
+Prefer accessible roles and labels. When automation needs a stable Mesurer-owned fallback, use:
+
+| Surface | Hook |
+| --- | --- |
+| Inspector island | `[data-mesurer-island="true"]` |
+| Built-in toolbar item | `[data-mesurer-builtin="<id>"]` |
+| Plugin/toolbar item | `[data-mesurer-tool-id="<id>"]` |
+
+These attributes identify Mesurer controls, not inspected-page content. They are part of the browser automation contract and are already used by Mesurer's real Chromium acceptance suites.
+
+The optional local ChatGPT/Codex plugin keeps the same model. Its MCP shortcuts can return exact geometry, Context, intent, or review state, but an agent that already controls the page should keep using that browser rather than opening a second one. See [ChatGPT and Codex plugin](./CHATGPT_CODEX_PLUGIN.md).
+
 ## Browser ownership
 
 The browser controller owns:
