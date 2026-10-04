@@ -109,7 +109,7 @@ Pointer movement has the same ownership principle: hover may update hover chrome
 The local ChatGPT/Codex plugin has two validation layers:
 
 - protocol/package checks verify the portable and compatibility manifests, MCP tool schemas, disconnected behavior, and byte-identical skill copies;
-- the host-compat browser lane attaches the local MCP to a real Chromium session, injects the built Mesurer artifact when absent, invokes a rendered toolbar control, and verifies exact inspection/measurement/Context against that same page.
+- the host-compat browser lane first proves a normal browser harness can operate the rendered Mesurer UI directly, then separately launches the optional MCP fallback browser, injects the built Mesurer artifact when absent, invokes a rendered toolbar control, and verifies exact inspection/measurement/Context.
 
 This MCP browser contract supplements rather than replaces the existing feature contracts. Screenshot, Recording, Edit, Layout Guides, and other human UI behavior remain proven by their dedicated browser/package suites because agents are expected to operate those exact rendered controls directly.
 
