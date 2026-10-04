@@ -101,12 +101,14 @@ const exerciseDirectBrowserUi = async () => {
 
     const xrayButton = page.locator("button[data-mesurer-builtin='xray']").first();
     const xrayBefore = await xrayButton.getAttribute("aria-pressed");
+    const xrayVisibleBefore = await page.evaluate(
+      () => document.body.classList.contains("mesurer-solid-xray"),
+    );
 
     await xrayButton.click();
     await page.waitForFunction(
-      (before) =>
-        document.querySelector("button[data-mesurer-builtin='xray']")?.getAttribute("aria-pressed") !== before,
-      xrayBefore,
+      (before) => document.body.classList.contains("mesurer-solid-xray") !== before,
+      xrayVisibleBefore,
     );
 
     const xrayAfter = await xrayButton.getAttribute("aria-pressed");
@@ -115,6 +117,7 @@ const exerciseDirectBrowserUi = async () => {
     );
 
     assert.notEqual(xrayAfter, xrayBefore);
+    assert.notEqual(xrayVisible, xrayVisibleBefore);
     assert.equal(xrayVisible, xrayAfter === "true");
 
     const settingsButton = page.locator("button[data-mesurer-builtin='settings']").first();
