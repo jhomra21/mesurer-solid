@@ -22,6 +22,15 @@ if (packageJson.bin?.["mesurer-skill"] !== skillBinPath) {
   throw new Error(`Expected mesurer-skill bin path ${skillBinPath}, got ${packageJson.bin?.["mesurer-skill"] ?? "<missing>"}.`);
 }
 
+for (const [name, path] of [
+  ["mesurer-codex", "scripts/codex-bridge.mjs"],
+  ["mesurer-codex-connect", "scripts/codex-connect.mjs"],
+]) {
+  if (packageJson.bin?.[name] !== path) {
+    throw new Error(`Expected ${name} bin path ${path}, got ${packageJson.bin?.[name] ?? "<missing>"}.`);
+  }
+}
+
 if (packageJson.private === true) throw new Error("The public Mesurer package workspace cannot be private.");
 
 const runtimeDependencies = packageJson.dependencies ?? {};
@@ -668,6 +677,19 @@ if (stagedPackageJson.name !== "mesurer-solid") {
 
 if (stagedPackageJson.bin?.["mesurer-skill"] !== skillBinPath) {
   throw new Error(`Expected staged mesurer-skill bin path ${skillBinPath}, got ${stagedPackageJson.bin?.["mesurer-skill"] ?? "<missing>"}.`);
+}
+
+for (const [name, path] of [
+  ["mesurer-codex", "scripts/codex-bridge.mjs"],
+  ["mesurer-codex-connect", "scripts/codex-connect.mjs"],
+]) {
+  if (stagedPackageJson.bin?.[name] !== path) {
+    throw new Error(`Expected staged ${name} bin path ${path}, got ${stagedPackageJson.bin?.[name] ?? "<missing>"}.`);
+  }
+
+  if (!existsSync(new URL(`../.publish/${path}`, import.meta.url))) {
+    throw new Error(`Staged npm package is missing Codex companion executable: ${path}.`);
+  }
 }
 
 const stagedMediaBunnyLicense = new URL("../.publish/dist/mediabunny-LICENSE.txt", import.meta.url);
