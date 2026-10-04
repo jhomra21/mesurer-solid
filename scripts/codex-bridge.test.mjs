@@ -1350,6 +1350,7 @@ if (args[0] === "app-server") {
     assert.equal(restored.restored, true);
     assert.equal(restored.deliveryId, "delivery-restored-1");
     assert.equal(restored.queuedSubmissionId, "queue-restored-1");
+    assert.equal(restored.clientUserMessageId, "client-restored-1");
     assert.equal(restored.status, "queued");
     assert.equal(restored.dispatch, "resumed");
 
@@ -1391,6 +1392,141 @@ if (args[0] === "app-server") {
 
     assert.equal(queueInit?.params?.capabilities?.experimentalApi, true);
     assert.equal(daemonInit?.params?.capabilities?.experimentalApi, true);
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await waitForExit(child).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+
+test("Codex bridge restores a consumed queue item from one exact completed turn without enqueueing again", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-restore-history-"));
+  const argsPath = join(root, "args.jsonl");
+  const protocolPath = join(root, "protocol.jsonl");
+  const fakeCodex = join(root, "fake-codex.mjs");
+  await writeFile(fakeCodex, \`#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+const args = process.argv.slice(2);
+appendFileSync(process.env.MESURER_FAKE_CODEX_ARGS, JSON.stringify(args) + "\\n");
+const write = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
+
+if (args[0] === "app-server") {
+  process.stdin.setEncoding("utf8");
+  let buffer = "";
+  process.stdin.on("data", (chunk) => {
+    buffer += chunk;
+    while (true) {
+      const newline = buffer.indexOf("\\n");
+      if (newline < 0) break;
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (!line) continue;
+      const message = JSON.parse(line);
+      appendFileSync(process.env.MESURER_FAKE_CODEX_PROTOCOL, JSON.stringify(message) + "\\n");
+
+      if (message.id === "mesurer-queue-init") {
+        write({ id: message.id, result: { userAgent: "fake-codex" } });
+      } else if (String(message.id).startsWith("mesurer-queue-list-")) {
+        write({ id: message.id, result: { data: [], nextCursor: null } });
+      } else if (message.id === "mesurer-history-init") {
+        write({ id: message.id, result: { userAgent: "fake-codex" } });
+      } else if (message.id === "mesurer-history-turns") {
+        write({
+          id: message.id,
+          result: {
+            data: [{
+              id: "turn-consumed-1",
+              items: [{
+                type: "userMessage",
+                id: "user-consumed-1",
+                clientId: "client-consumed-1",
+                content: [{
+                  type: "text",
+                  text: "recover consumed Mesurer feedback",
+                  textElements: [],
+                }],
+              }],
+              itemsView: "summary",
+              status: "completed",
+              error: null,
+              startedAt: 100,
+              completedAt: 101,
+              durationMs: 1000,
+            }],
+            nextCursor: null,
+            backwardsCursor: null,
+          },
+        });
+      }
+    }
+  });
+} else if (args[0] === "queue") {
+  process.stderr.write("history restore must not enqueue a second message\\n");
+  process.exit(99);
+} else if (args[0] === "stdio-to-uds") {
+  process.stderr.write("completed history restore must not wake the thread\\n");
+  process.exit(98);
+}
+\`);
+  await chmod(fakeCodex, 0o755);
+
+  const child = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--thread", "thread-consumed",
+    "--codex", fakeCodex,
+  ], {
+    env: {
+      ...testProcessEnv(root),
+      MESURER_FAKE_CODEX_ARGS: argsPath,
+      MESURER_FAKE_CODEX_PROTOCOL: protocolPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
+    const restore = await fetch(\`\${bridgeUrl}/deliveries/restore\`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173",
+      },
+      body: JSON.stringify({
+        deliveryId: "delivery-consumed-1",
+        thread: "thread-consumed",
+        queuedSubmissionId: "queue-consumed-1",
+        message: "recover consumed Mesurer feedback",
+      }),
+    });
+
+    assert.equal(restore.status, 200, stderr);
+    const restored = await restore.json();
+
+    assert.equal(restored.restored, true);
+    assert.equal(restored.deliveryId, "delivery-consumed-1");
+    assert.equal(restored.queuedSubmissionId, "queue-consumed-1");
+    assert.equal(restored.clientUserMessageId, "client-consumed-1");
+    assert.equal(restored.turnId, "turn-consumed-1");
+    assert.equal(restored.status, "completed");
+    assert.equal(restored.dispatch, "persisted");
+
+    const invocations = await readInvocations(argsPath);
+    assert.equal(invocations.some((args) => args[0] === "queue"), false);
+    assert.equal(invocations.some((args) => args[0] === "stdio-to-uds"), false);
+
+    const protocol = await readInvocations(protocolPath);
+    assert.equal(protocol.some((message) => message.method === "thread/queue/add"), false);
+    assert.equal(protocol.some((message) => message.method === "thread/queue/list"), true);
+    assert.equal(
+      protocol.some((message) =>
+        message.method === "thread/turns/list"
+        || (message.method === "thread/read" && message.params?.includeTurns === true)),
+      true,
+    );
   } finally {
     if (child.exitCode === null) child.kill("SIGKILL");
     await waitForExit(child).catch(() => {});
