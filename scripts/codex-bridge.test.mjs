@@ -1238,6 +1238,7 @@ const write = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
 if (args[0] === "app-server") {
   process.stdin.setEncoding("utf8");
   let buffer = "";
+  let experimentalApi = false;
   process.stdin.on("data", (chunk) => {
     buffer += chunk;
     while (true) {
@@ -1249,8 +1250,20 @@ if (args[0] === "app-server") {
       const message = JSON.parse(line);
       appendFileSync(process.env.MESURER_FAKE_CODEX_PROTOCOL, JSON.stringify(message) + "\\n");
       if (message.id === "mesurer-queue-init") {
+        experimentalApi = message.params?.capabilities?.experimentalApi === true;
         write({ id: message.id, result: { userAgent: "fake-codex" } });
       } else if (String(message.id).startsWith("mesurer-queue-list-")) {
+        if (!experimentalApi) {
+          write({
+            id: message.id,
+            error: {
+              code: -32600,
+              message: "thread/queue/list requires experimentalApi capability",
+            },
+          });
+          continue;
+        }
+
         write({
           id: message.id,
           result: {
@@ -1371,6 +1384,13 @@ if (args[0] === "app-server") {
     assert.equal(invocations.some((args) => args[0] === "queue"), false);
     assert.equal(invocations.some((args) => args[0] === "app-server"), true);
     assert.equal(invocations.some((args) => args[0] === "stdio-to-uds"), true);
+
+    const protocol = await readInvocations(protocolPath);
+    const queueInit = protocol.find((message) => message.id === "mesurer-queue-init");
+    const daemonInit = protocol.find((message) => message.id === "mesurer-daemon-init");
+
+    assert.equal(queueInit?.params?.capabilities?.experimentalApi, true);
+    assert.equal(daemonInit?.params?.capabilities?.experimentalApi, true);
   } finally {
     if (child.exitCode === null) child.kill("SIGKILL");
     await waitForExit(child).catch(() => {});
