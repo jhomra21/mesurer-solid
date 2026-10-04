@@ -420,8 +420,9 @@ const getSavedIntent = async (args = {}) => {
     throw new Error("kind must be annotations, edit, or text.");
   }
 
-  return browserPage().evaluate(async ({ globalName, kind, id }) => {
+  const value = await browserPage().evaluate(async ({ globalName, kind, id }) => {
     const api = globalThis[globalName];
+
     await api.ready();
 
     if (kind === "annotations") {
@@ -440,6 +441,10 @@ const getSavedIntent = async (args = {}) => {
 
     return api.textEdits();
   }, { globalName: status.globalName, kind, id });
+
+  return id
+    ? { kind, id, item: value }
+    : { kind, items: value };
 };
 
 const setMesurerPlugin = async (args = {}) => {
@@ -570,8 +575,9 @@ const reviewUi = async (args = {}) => {
     throw new Error("review_ui accepts annotationId or editId, not both.");
   }
 
-  return browserPage().evaluate(async ({ globalName, annotationId, editId, tolerance }) => {
+  const value = await browserPage().evaluate(async ({ globalName, annotationId, editId, tolerance }) => {
     const api = globalThis[globalName];
+
     await api.ready();
 
     if (editId) return api.reviewArrange(editId, tolerance);
@@ -583,6 +589,12 @@ const reviewUi = async (args = {}) => {
     editId,
     tolerance,
   });
+
+  if (editId) return { kind: "edit", id: editId, review: value };
+
+  if (annotationId) return { kind: "annotation", id: annotationId, review: value };
+
+  return { kind: "annotations", reviews: value };
 };
 
 const tool = (name, title, description, inputSchema, annotations) => ({
