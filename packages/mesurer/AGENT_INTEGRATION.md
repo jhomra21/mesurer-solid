@@ -20,7 +20,8 @@ The installer writes a self-contained skill and injection artifact:
     ├── mediabunny-vendor.js
     ├── inject-script.js
     ├── codex-bridge.mjs
-    └── codex-connect.mjs
+    ├── codex-connect.mjs
+    └── codex-lifecycle.mjs
 ```
 
 ## Know the available capabilities
