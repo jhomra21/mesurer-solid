@@ -74,8 +74,8 @@ The server exposes focused shortcuts rather than mirroring renderer internals:
 
 | Tool | Purpose |
 | --- | --- |
-| `connect_mesurer_page` | Attach to Chromium over CDP or launch Chromium, reuse Mesurer when present, optionally inject when absent. |
-| `list_browser_pages` | Discover pages in the optional MCP-owned/CDP browser. |
+| `connect_mesurer_page` | Launch an isolated fallback Chromium page, reuse Mesurer when present, optionally inject when absent. |
+| `list_browser_pages` | Discover pages in the optional MCP-owned fallback browser. |
 | `get_mesurer_status` | Read capabilities, plugin description/state, and visible toolbar controls. |
 | `inspect_ui` | Read exact rendered geometry, typography, appearance, layout, and overflow. |
 | `measure_ui` | Measure an exact pair of rendered targets. |
@@ -92,13 +92,13 @@ The server exposes focused shortcuts rather than mirroring renderer internals:
 
 The existing browser harness remains authoritative for navigation/authentication, clicking and typing in the host application, arbitrary Mesurer UI interaction, screenshots/artifacts, source editing, and dev-server lifecycle.
 
-The MCP-owned browser is useful only when no other browser control exists or a CDP endpoint is already available. It should not create a second browser just because MCP is installed.
+The MCP-owned browser is a fallback only when no normal browser/computer-use control exists. It deliberately does not attach to or take over another harness's browser. If a browser harness already controls the application, keep using that browser and interact with Mesurer directly.
 
-`connect_mesurer_page` accepts an existing `cdpUrl`. Without one it can launch Chromium through the repository's existing Playwright browser harness. Environment defaults are `MESURER_URL`, `MESURER_CDP_URL`, `MESURER_PAGE`, `MESURER_GLOBAL_NAME`, `MESURER_TARGET`, `MESURER_INJECT_PATH`, and `MESURER_HEADLESS`.
+`connect_mesurer_page` launches Chromium through the repository's existing Playwright browser harness. Environment defaults are `MESURER_URL`, `MESURER_GLOBAL_NAME`, `MESURER_TARGET`, `MESURER_INJECT_PATH`, and `MESURER_HEADLESS`.
 
 ## Injection
 
-Connection does not replace an existing Mesurer instance. The MCP session starts with automatic injection disabled, checks the selected page first, and only loads the injector when `inject` is true and no Mesurer agent global exists.
+Connection does not replace an existing Mesurer instance inside the MCP-owned fallback page. The MCP session starts with automatic injection disabled, checks that page first, and only loads the injector when `inject` is true and no Mesurer agent global exists.
 
 The default built assets are `packages/mesurer/dist/inject-script.js` and `packages/mesurer/dist/mediabunny-vendor.js`. Pass `injectPath` or `MESURER_INJECT_PATH` when they live elsewhere. Source-mounted applications that already expose `window.__MESURER__` do not need injector assets.
 
