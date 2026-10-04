@@ -396,6 +396,7 @@ const browserBridgeRequest = async (
 
     if (text) {
       try {
+        // SAFETY: the local companion response is validated again by each bounded adapter before its fields are consumed.
         payload = JSON.parse(text) as BridgeResponse;
       } catch {
         payload = { error: text };
