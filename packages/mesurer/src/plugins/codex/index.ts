@@ -1373,10 +1373,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       if (withUi) {
         syncTool();
 
-        try {
-          await refreshRuntime(true);
-        } catch (cause) {
-          if (nativeBridgeAvailable) {
+        if (nativeBridgeAvailable) {
+          try {
+            await refreshRuntime(true);
+          } catch (cause) {
             try {
               await deactivateBridge();
             } catch (cleanupCause) {
@@ -1393,6 +1393,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
             throw cause;
           }
+        } else {
+          // Browser enablement is independent of companion availability. Probe in
+          // the background so Settings can commit ON even when Codex is not open yet.
+          void refreshRuntime(true).catch(() => undefined);
         }
 
         if (activeDelivery?.id) {
