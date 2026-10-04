@@ -3,8 +3,11 @@ import process from "node:process";
 import readline from "node:readline";
 
 const SERVER_NAME = "Mesurer Solid Local";
+
 const SERVER_VERSION = "0.1.0";
+
 const DEFAULT_GLOBAL_NAME = "__MESURER__";
+
 const JsonRpcError = {
   METHOD_NOT_FOUND: -32601,
   INVALID_PARAMS: -32602,
@@ -26,7 +29,7 @@ const sendError = (id, code, message) => {
 };
 
 const asObject = (value) =>
-  value !== null && typeof value === "object" && !Array.isArray(value)
+  value !== null && value?.constructor === Object
     ? value
     : { result: value ?? null };
 
@@ -43,7 +46,7 @@ const toolResult = (id, value, text) => {
 };
 
 const requireString = (value, name) => {
-  if (typeof value !== "string" || value.trim().length === 0) {
+  if (value?.constructor !== String || value.trim().length === 0) {
     throw new Error(`${name} must be a non-empty string.`);
   }
 
@@ -51,13 +54,13 @@ const requireString = (value, name) => {
 };
 
 const optionalString = (value) =>
-  typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+  value?.constructor === String && value.trim().length > 0 ? value.trim() : undefined;
 
 const optionalBoolean = (value) =>
-  typeof value === "boolean" ? value : undefined;
+  value?.constructor === Boolean ? value : undefined;
 
 const optionalNumber = (value) =>
-  typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  value?.constructor === Number && Number.isFinite(value) ? value : undefined;
 
 const envBoolean = (name) => {
   const value = process.env[name];
@@ -115,25 +118,33 @@ const connectSession = async (args = {}) => {
   await closeSession();
 
   const { BrowserHarnessSession } = await import("../browser-harness/session.mjs");
+
   const globalName = optionalString(args.globalName)
     ?? optionalString(process.env.MESURER_GLOBAL_NAME)
     ?? DEFAULT_GLOBAL_NAME;
+
   const url = optionalString(args.url)
     ?? optionalString(process.env.MESURER_URL)
     ?? null;
+
   const cdp = optionalString(args.cdpUrl)
     ?? optionalString(process.env.MESURER_CDP_URL)
     ?? null;
+
   const page = args.page ?? optionalString(process.env.MESURER_PAGE) ?? null;
+
   const target = optionalString(args.target)
     ?? optionalString(process.env.MESURER_TARGET)
     ?? null;
+
   const injectPath = optionalString(args.injectPath)
     ?? optionalString(process.env.MESURER_INJECT_PATH)
     ?? null;
+
   const headless = optionalBoolean(args.headless)
     ?? envBoolean("MESURER_HEADLESS")
     ?? false;
+
   const shouldInject = optionalBoolean(args.inject) ?? true;
 
   const next = new BrowserHarnessSession({
@@ -260,6 +271,7 @@ const listPages = async (args = {}) => {
   }
 
   const { BrowserHarnessSession } = await import("../browser-harness/session.mjs");
+
   const probe = new BrowserHarnessSession({
     cdp: cdpUrl,
     autoInject: false,
@@ -333,7 +345,9 @@ const getUiContext = async (args = {}) => {
 
   return browserPage().evaluate(async ({ globalName, scope, annotationId }) => {
     const api = globalThis[globalName];
+
     await api.ready();
+
     const request = annotationId
       ? { annotation: annotationId }
       : scope === "selection"
@@ -346,6 +360,7 @@ const getUiContext = async (args = {}) => {
 
 const selectUi = async (args = {}) => {
   const status = await waitForMesurer();
+
   const selectors = Array.isArray(args.selectors)
     ? args.selectors.map((value) => requireString(value, "selectors[]"))
     : [requireString(args.selector, "selector")];
@@ -777,4 +792,5 @@ const shutdown = async () => {
 };
 
 process.once("SIGINT", () => { void shutdown(); });
+
 process.once("SIGTERM", () => { void shutdown(); });
