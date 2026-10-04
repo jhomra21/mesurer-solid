@@ -215,9 +215,28 @@ try {
   );
 
   await codexToggle.click();
-  await settingsPage.waitForFunction(() =>
-    document.querySelector("[data-mesurer-plugin-toggle='mesurer.codex']")?.getAttribute("aria-checked") === "true"
-  );
+
+  try {
+    await settingsPage.waitForFunction(
+      () => document.querySelector("[data-mesurer-plugin-toggle='mesurer.codex']")?.getAttribute("aria-checked") === "true",
+      undefined,
+      { timeout: 5_000 },
+    );
+  } catch {
+    const state = await settingsPage.evaluate(() => {
+      const toggle = document.querySelector("[data-mesurer-plugin-toggle='mesurer.codex']");
+      const error = document.querySelector("[data-mesurer-plugin-error='mesurer.codex']");
+
+      return {
+        checked: toggle?.getAttribute("aria-checked") ?? null,
+        disabled: toggle?.hasAttribute("disabled") ?? null,
+        error: error?.textContent?.trim() ?? null,
+        stored: localStorage.getItem("mesurer-plugin-settings:availability"),
+      };
+    });
+
+    throw new Error(`Browser Codex did not remain enabled after the Settings toggle: ${JSON.stringify(state)}`);
+  }
 
   const browserCodexTool = settingsPage.locator("button[data-mesurer-tool-id='codex.send']");
   await browserCodexTool.waitFor({ state: "visible" });
