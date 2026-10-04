@@ -612,10 +612,19 @@ export default function ComposableMesurer(props: MesurerProps) {
           .sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
 
         for (const entry of entries) {
-          if (!runtimeHost.has(entry.id) && !await loadManagedPlugin(entry)) continue;
+          const enabledByDefault = initialEnabledPluginIds.has(entry.id);
+
+          if (!runtimeHost.has(entry.id)) {
+            retainedPluginState.delete(entry.id);
+
+            if (!enabledByDefault) continue;
+
+            if (!await loadManagedPlugin(entry)) continue;
+          }
+
           await resetPluginSectionDefaults(managedSettingsIds.get(entry.id));
 
-          if (initialEnabledPluginIds.has(entry.id)) {
+          if (enabledByDefault) {
             retainedPluginState.delete(entry.id);
           } else {
             await disableManagedPlugin(entry.id);
