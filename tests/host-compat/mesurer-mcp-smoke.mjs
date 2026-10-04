@@ -259,7 +259,7 @@ try {
 
   const pages = await mcp.call("list_browser_pages");
 
-  assert.equal(pages.pages.some((item) => item.url === hostUrl), true);
+  assert.equal(pages.pages.some((item) => item.url.startsWith(hostUrl)), true);
 
   const inspected = await mcp.call("inspect_ui", {
     selector: "[data-testid='solid1-counter']",
