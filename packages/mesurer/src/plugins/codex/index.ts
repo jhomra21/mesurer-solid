@@ -1405,7 +1405,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         }
 
         const interval = globalThis.setInterval(() => {
-          if (!everConnected) return;
+          if (!everConnected && nativeBridgeAvailable) return;
           void refreshRuntime().catch(() => undefined);
         }, HEALTH_POLL_MS);
 
