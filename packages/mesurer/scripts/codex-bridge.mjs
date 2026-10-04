@@ -3,18 +3,23 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
 const DEFAULT_PORT = 47365;
+
 const DEFAULT_BRIDGE = `http://127.0.0.1:${DEFAULT_PORT}`;
+
 const BRIDGE_NAME = "mesurer-codex";
+
 const BRIDGE_PROTOCOL_VERSION = 1;
+
 const BRIDGE_SOURCE_HASH = createHash("sha256")
   .update(await readFile(new URL(import.meta.url)))
   .digest("hex");
+
 const BRIDGE_IDENTITY = Object.freeze({
   name: BRIDGE_NAME,
   protocol: BRIDGE_PROTOCOL_VERSION,
@@ -22,19 +27,42 @@ const BRIDGE_IDENTITY = Object.freeze({
   pid: process.pid,
   canShutdown: true,
 });
+
 const MAX_MESSAGE_BYTES = 64 * 1024;
+
 const CODEX_TIMEOUT_MS = 30_000;
+
 const APP_SERVER_TIMEOUT_MS = 5_000;
+
 const DAEMON_RESUME_TIMEOUT_MS = 10_000;
+
 const DAEMON_START_TIMEOUT_MS = 15_000;
+
 const DELIVERY_STATE_VERSION = 1;
+
 const MAX_DISCOVERED_THREADS = 10;
+
 const MAX_DELIVERIES = 100;
+
 const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
+
 const DELIVERY_TTL_MS = 2 * 60 * 60_000;
+
 const DESKTOP_LIFECYCLE_POLL_MS = 1_000;
+
 const DESKTOP_TURN_HISTORY_LIMIT = 10;
+
 const DELIVERY_TURN_START_SKEW_MS = 60_000;
+
+const LAST_OWNER_SHUTDOWN_DELAY_MS = 250;
+
+const configuredOwnerHealthPollMs = Number(process.env.MESURER_CODEX_OWNER_POLL_MS);
+
+const OWNER_HEALTH_POLL_MS = Number.isFinite(configuredOwnerHealthPollMs) && configuredOwnerHealthPollMs > 0
+  ? Math.max(50, configuredOwnerHealthPollMs)
+  : 5_000;
+
+const OWNED_CHILD_SHUTDOWN_GRACE_MS = 250;
 
 const usage = `Usage:
   mesurer-codex [--thread <session-id-or-name>] [options]
@@ -87,9 +115,13 @@ if (values.help) {
 }
 
 const normalizeThread = (value) => value?.trim() || null;
+
 const normalizeCwd = (value) => value?.trim() || null;
+
 const envThread = normalizeThread(process.env.CODEX_THREAD_ID);
+
 const requestedRegistration = normalizeThread(values.register);
+
 const registerCurrent = values["register-current"];
 
 if (requestedRegistration && registerCurrent) {
@@ -98,6 +130,7 @@ if (requestedRegistration && registerCurrent) {
 }
 
 const registrationThread = registerCurrent ? envThread : requestedRegistration;
+
 if (registerCurrent && !registrationThread) {
   process.stderr.write("--register-current requires CODEX_THREAD_ID. Run it from a Codex shell/tool command or use --register <thread>.\n");
   process.exit(2);
@@ -107,6 +140,7 @@ if (registrationThread) {
   const bridge = values.bridge?.trim() || DEFAULT_BRIDGE;
   const cwd = normalizeCwd(values.cwd) ?? process.cwd();
   let response;
+
   try {
     response = await fetch(new URL("threads/register", bridge.endsWith("/") ? bridge : `${bridge}/`), {
       method: "POST",
@@ -121,6 +155,7 @@ if (registrationThread) {
 
   const text = await response.text();
   let payload = {};
+
   if (text) {
     try {
       payload = JSON.parse(text);
@@ -128,6 +163,7 @@ if (registrationThread) {
       payload = { error: text };
     }
   }
+
   if (!response.ok || payload.ok === false) {
     process.stderr.write(`${payload.error || `Mesurer Codex bridge returned HTTP ${response.status}.`}\n`);
     process.exit(1);
@@ -139,28 +175,150 @@ if (registrationThread) {
 }
 
 const parsedPort = Number(values.port);
+
 if (!Number.isInteger(parsedPort) || parsedPort < 0 || parsedPort > 65_535) {
   process.stderr.write(`Invalid --port: ${values.port}\n`);
   process.exit(2);
 }
 
 const initialThread = normalizeThread(values.thread) ?? envThread;
+
 const initialCwd = initialThread ? (normalizeCwd(values.cwd) ?? process.cwd()) : null;
+
 const initialAppToolsPipe = normalizeThread(process.env.CODEX_APP_TOOLS_PIPE_PATH);
+
 const initialCodexHome = normalizeCwd(process.env.CODEX_HOME);
+
 const codexBin = values.codex?.trim() || process.env.CODEX_BIN?.trim() || "codex";
+
 const additionalOrigins = new Set(values.origin ?? []);
+
 const registeredThreads = new Map();
+
 const discoveredThreads = new Map();
+
 const deliveries = new Map();
+
 const terminalTurnEvents = new Map();
+
 const desktopDispatchTimers = new Map();
+
 const desktopLifecycleChecks = new Map();
+
 const desktopLifecycleLastCheckedAt = new Map();
+
+const ownedChildren = new Set();
+
 let activeThread = null;
+
 let activeCwd = null;
 
+let idleShutdownTimer = null;
+
+let ownerHealthTimer = null;
+
+let server = null;
+
+let shutdownStarted = false;
+
+const spawnOwned = (...args) => {
+  const child = spawn(...args);
+  ownedChildren.add(child);
+
+  const release = () => ownedChildren.delete(child);
+  child.once("close", release);
+  child.once("error", release);
+
+  return child;
+};
+
+const cancelIdleShutdown = () => {
+  if (!idleShutdownTimer) return;
+  clearTimeout(idleShutdownTimer);
+  idleShutdownTimer = null;
+};
+
+const ownerAnchorExists = async (path) => {
+  try {
+    await stat(path);
+
+    return true;
+  } catch (cause) {
+    return cause?.code !== "ENOENT" && cause?.code !== "ENOTDIR";
+  }
+};
+
+const refreshOwnerHealthMonitor = () => {
+  const needsMonitor = process.platform !== "win32"
+    && [...registeredThreads.values()].some((record) => record.appToolsPipe);
+
+  if (!needsMonitor) {
+    if (ownerHealthTimer) clearInterval(ownerHealthTimer);
+    ownerHealthTimer = null;
+
+    return;
+  }
+
+  if (ownerHealthTimer) return;
+
+  ownerHealthTimer = setInterval(() => {
+    void pruneMissingDesktopOwners();
+  }, OWNER_HEALTH_POLL_MS);
+  ownerHealthTimer.unref?.();
+};
+
+const scheduleIdleShutdown = () => {
+  if (shutdownStarted || registeredThreads.size > 0 || idleShutdownTimer) return;
+
+  idleShutdownTimer = setTimeout(() => {
+    idleShutdownTimer = null;
+
+    if (registeredThreads.size === 0) void shutdownBridge();
+  }, LAST_OWNER_SHUTDOWN_DELAY_MS);
+  idleShutdownTimer.unref?.();
+};
+
+const unregisterThread = (thread) => {
+  const record = registeredThreads.get(thread);
+
+  if (!record) return false;
+
+  registeredThreads.delete(thread);
+
+  const dispatchTimer = desktopDispatchTimers.get(thread);
+
+  if (dispatchTimer) {
+    clearTimeout(dispatchTimer);
+    desktopDispatchTimers.delete(thread);
+  }
+
+  if (activeThread === thread) {
+    const next = [...registeredThreads.values()]
+      .sort((left, right) => right.seenAt - left.seenAt)[0] ?? null;
+
+    activeThread = next?.id ?? null;
+    activeCwd = next?.cwd ?? null;
+  }
+
+  refreshOwnerHealthMonitor();
+  scheduleIdleShutdown();
+
+  return true;
+};
+
+async function pruneMissingDesktopOwners() {
+  for (const record of registeredThreads.values()) {
+    if (!record.appToolsPipe) continue;
+
+    if (!(await ownerAnchorExists(record.appToolsPipe))) {
+      unregisterThread(record.id);
+    }
+  }
+}
+
 const registerThread = (thread, cwd, registration = {}) => {
+  cancelIdleShutdown();
+
   const previous = registeredThreads.get(thread);
   const nextCwd = normalizeCwd(cwd) ?? previous?.cwd ?? null;
   const appToolsPipe = normalizeThread(registration.appToolsPipe) ?? previous?.appToolsPipe ?? null;
@@ -173,7 +331,10 @@ const registerThread = (thread, cwd, registration = {}) => {
     seenAt: Date.now(),
   });
   activeThread = thread;
+
   if (nextCwd) activeCwd = nextCwd;
+
+  refreshOwnerHealthMonitor();
 };
 
 if (initialThread) {
@@ -186,6 +347,7 @@ if (initialThread) {
 const isLoopbackOrigin = (origin) => {
   try {
     const url = new URL(origin);
+
     return url.hostname === "localhost"
       || url.hostname === "127.0.0.1"
       || url.hostname === "::1"
@@ -197,6 +359,7 @@ const isLoopbackOrigin = (origin) => {
 
 const originAllowed = (origin) => {
   if (!origin) return true;
+
   return additionalOrigins.has(origin) || isLoopbackOrigin(origin);
 };
 
@@ -221,18 +384,25 @@ const writeJson = (response, status, payload, origin) => {
 const readJsonBody = async (request) => {
   const chunks = [];
   let bytes = 0;
+
   for await (const chunk of request) {
     bytes += chunk.length;
+
     if (bytes > MAX_MESSAGE_BYTES) throw new Error("Mesurer Codex message is too large.");
     chunks.push(chunk);
   }
+
   const text = Buffer.concat(chunks).toString("utf8");
+
   if (!text) return {};
+
   return JSON.parse(text);
 };
 
 const defaultCodexHome = normalizeCwd(process.env.CODEX_HOME) ?? join(homedir(), ".codex");
+
 const deliveryStatePath = join(defaultCodexHome, "mesurer", "codex-deliveries.json");
+
 let deliveryStateWrite = Promise.resolve();
 
 const persistedDelivery = (delivery) => ({
@@ -251,12 +421,19 @@ const persistedDelivery = (delivery) => ({
 });
 
 const persistDeliveryState = () => {
+  const persistedDeliveries = [];
+
+  for (const delivery of deliveries.values()) {
+    if (delivery.transport === "desktop-app") {
+      persistedDeliveries.push(persistedDelivery(delivery));
+    }
+  }
+
   const state = {
     version: DELIVERY_STATE_VERSION,
-    deliveries: [...deliveries.values()]
-      .filter((delivery) => delivery.transport === "desktop-app")
-      .map(persistedDelivery),
+    deliveries: persistedDeliveries,
   };
+
   deliveryStateWrite = deliveryStateWrite.then(async () => {
     const directory = join(defaultCodexHome, "mesurer");
     await mkdir(directory, { recursive: true });
@@ -264,6 +441,7 @@ const persistDeliveryState = () => {
     await writeFile(temporaryPath, `${JSON.stringify(state)}\n`, "utf8");
     await rename(temporaryPath, deliveryStatePath);
   });
+
   return deliveryStateWrite;
 };
 
@@ -276,6 +454,7 @@ const persistDeliveryStateSoon = () => {
 
 const loadDeliveryState = async () => {
   let text;
+
   try {
     text = await readFile(deliveryStatePath, "utf8");
   } catch (cause) {
@@ -284,8 +463,10 @@ const loadDeliveryState = async () => {
   }
 
   const state = JSON.parse(text);
+
   if (state?.version !== DELIVERY_STATE_VERSION || !Array.isArray(state.deliveries)) return;
   const now = Date.now();
+
   for (const value of state.deliveries) {
     const id = normalizeThread(value?.id);
     const thread = normalizeThread(value?.thread);
@@ -294,10 +475,14 @@ const loadDeliveryState = async () => {
     const status = value?.status;
     const createdAt = Number(value?.createdAt);
     const updatedAt = Number(value?.updatedAt);
+
     if (!id || !thread || !message.trim()) continue;
+
     if (!["queued", "working", "completed", "interrupted"].includes(status)) continue;
+
     if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) continue;
     const terminal = status === "completed" || status === "interrupted";
+
     if (now - updatedAt > (terminal ? TERMINAL_DELIVERY_TTL_MS : DELIVERY_TTL_MS)) continue;
     deliveries.set(id, {
       id,
@@ -318,23 +503,27 @@ const loadDeliveryState = async () => {
 
 const queuedSubmissionFromOutput = (output, thread) => {
   const match = output.match(/Queued message (\S+) for thread (\S+)\.?/);
+
   if (!match) return null;
   const queuedThread = match[2].replace(/\.$/, "");
+
   return queuedThread === thread ? match[1] : null;
 };
 
 const codexControlSocketPath = () => {
   const codexHome = process.env.CODEX_HOME?.trim() || join(homedir(), ".codex");
+
   return join(codexHome, "app-server-control", "app-server-control.sock");
 };
 
 const runCodexDaemonStart = () => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["app-server", "daemon", "start"], {
+  const child = spawnOwned(codexBin, ["app-server", "daemon", "start"], {
     env: process.env,
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
+
   let stdout = "";
   let stderr = "";
   let settled = false;
@@ -343,7 +532,9 @@ const runCodexDaemonStart = () => new Promise((resolve, reject) => {
   const finish = (error, output) => {
     if (settled) return;
     settled = true;
+
     if (timeout) clearTimeout(timeout);
+
     if (error) reject(error);
     else resolve(output);
   };
@@ -354,8 +545,10 @@ const runCodexDaemonStart = () => new Promise((resolve, reject) => {
   child.on("close", (code, signal) => {
     if (code === 0) {
       finish(null, stdout.trim());
+
       return;
     }
+
     const detail = stderr.trim() || stdout.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
     finish(new Error(`codex app-server daemon start failed: ${detail}`));
   });
@@ -368,6 +561,7 @@ const runCodexDaemonStart = () => new Promise((resolve, reject) => {
 
 const missingDaemonSocket = (cause) => {
   if (!(cause instanceof Error)) return false;
+
   return cause.message.includes("No such file or directory")
     || cause.message.includes("ENOENT")
     || cause.message.includes("os error 2");
@@ -376,15 +570,17 @@ const missingDaemonSocket = (cause) => {
 const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject) => {
   if (process.platform === "win32") {
     resolve({ action: "unsupported", threadStatus: null });
+
     return;
   }
 
-  const child = spawn(codexBin, ["stdio-to-uds", codexControlSocketPath()], {
+  const child = spawnOwned(codexBin, ["stdio-to-uds", codexControlSocketPath()], {
     env: process.env,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
   });
+
   let stdoutBuffer = "";
   let stderr = "";
   let settled = false;
@@ -393,8 +589,11 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
   const finish = (error, result) => {
     if (settled) return;
     settled = true;
+
     if (timeout) clearTimeout(timeout);
+
     if (child.exitCode === null) child.kill("SIGTERM");
+
     if (error) reject(error);
     else resolve(result);
   };
@@ -407,8 +606,10 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
     if (message?.id === "mesurer-daemon-init") {
       if (message.error) {
         finish(new Error(message.error.message || "Codex daemon initialize failed."));
+
         return;
       }
+
       send({ method: "initialized" });
       send({
         id: "mesurer-thread-read",
@@ -418,44 +619,57 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
           includeTurns: false,
         },
       });
+
       return;
     }
 
     if (message?.id === "mesurer-thread-read") {
       if (message.error) {
         finish(new Error(message.error.message || "Codex daemon thread/read failed."));
+
         return;
       }
+
       const threadStatus = message.result?.thread?.status?.type ?? null;
+
       if (threadStatus !== "notLoaded") {
         finish(null, { action: "already-loaded", threadStatus });
+
         return;
       }
+
       send({
         id: "mesurer-thread-resume",
         method: "thread/resume",
         params: { threadId: thread },
       });
+
       return;
     }
 
     if (message?.id === "mesurer-thread-resume") {
       if (message.error) {
         finish(new Error(message.error.message || "Codex daemon thread/resume failed."));
+
         return;
       }
+
       finish(null, { action: "resumed", threadStatus: "notLoaded" });
     }
   };
 
   child.stdout.on("data", (chunk) => {
     stdoutBuffer += chunk.toString();
+
     while (true) {
       const newline = stdoutBuffer.indexOf("\n");
+
       if (newline < 0) break;
       const line = stdoutBuffer.slice(0, newline).trim();
       stdoutBuffer = stdoutBuffer.slice(newline + 1);
+
       if (!line) continue;
+
       try {
         handleMessage(JSON.parse(line));
       } catch {
@@ -500,17 +714,19 @@ const resumeColdCodexThread = async (thread) => {
   } catch (cause) {
     if (!missingDaemonSocket(cause)) throw cause;
     await runCodexDaemonStart();
+
     return resumeColdCodexThreadViaDaemon(thread);
   }
 };
 
 const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["queue", "--thread", thread, "--message", message], {
+  const child = spawnOwned(codexBin, ["queue", "--thread", thread, "--message", message], {
     env: process.env,
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
+
   let stdout = "";
   let stderr = "";
   let settled = false;
@@ -519,7 +735,9 @@ const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
   const finish = (error, output) => {
     if (settled) return;
     settled = true;
+
     if (timeout) clearTimeout(timeout);
+
     if (error) reject(error);
     else resolve(output);
   };
@@ -530,8 +748,10 @@ const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
   child.on("close", (code, signal) => {
     if (code === 0) {
       finish(null, stdout.trim());
+
       return;
     }
+
     const detail = stderr.trim() || stdout.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
     finish(new Error(`codex queue failed: ${detail}`));
   });
@@ -543,12 +763,13 @@ const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
 });
 
 const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
     env: process.env,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
   });
+
   let stdoutBuffer = "";
   let stderr = "";
   let settled = false;
@@ -557,8 +778,11 @@ const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
   const finish = (error, result) => {
     if (settled) return;
     settled = true;
+
     if (timeout) clearTimeout(timeout);
+
     if (child.exitCode === null) child.kill("SIGTERM");
+
     if (error) reject(error);
     else resolve(result);
   };
@@ -571,8 +795,10 @@ const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
     if (message?.id === "mesurer-init") {
       if (message.error) {
         finish(new Error(message.error.message || "Codex app-server initialize failed."));
+
         return;
       }
+
       send({ method: "initialized" });
       send({
         id: "mesurer-thread-list",
@@ -584,25 +810,33 @@ const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
           cwd,
         },
       });
+
       return;
     }
+
     if (message?.id === "mesurer-thread-list") {
       if (message.error) {
         finish(new Error(message.error.message || "Codex app-server thread/list failed."));
+
         return;
       }
+
       finish(null, message.result ?? {});
     }
   };
 
   child.stdout.on("data", (chunk) => {
     stdoutBuffer += chunk.toString();
+
     while (true) {
       const newline = stdoutBuffer.indexOf("\n");
+
       if (newline < 0) break;
       const line = stdoutBuffer.slice(0, newline).trim();
       stdoutBuffer = stdoutBuffer.slice(newline + 1);
+
       if (!line) continue;
+
       try {
         handleMessage(JSON.parse(line));
       } catch {
@@ -642,12 +876,13 @@ const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
 });
 
 const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
     env: process.env,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
   });
+
   let stdoutBuffer = "";
   let stderr = "";
   let settled = false;
@@ -658,8 +893,11 @@ const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((
   const finish = (error, result) => {
     if (settled) return;
     settled = true;
+
     if (timeout) clearTimeout(timeout);
+
     if (child.exitCode === null) child.kill("SIGTERM");
+
     if (error) reject(error);
     else resolve(result);
   };
@@ -670,10 +908,12 @@ const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((
 
   const requestPage = () => {
     page += 1;
+
     const params = {
       threadId: thread,
       limit: queuedSubmissionId ? 100 : 2,
     };
+
     if (cursor) params.cursor = cursor;
     send({
       id: `mesurer-queue-list-${page}`,
@@ -686,41 +926,56 @@ const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((
     if (message?.id === "mesurer-queue-init") {
       if (message.error) {
         finish(new Error(message.error.message || "Codex app-server initialize failed."));
+
         return;
       }
+
       send({ method: "initialized" });
       requestPage();
+
       return;
     }
 
     const messageId = message?.id == null ? "" : String(message.id);
+
     if (!messageId.startsWith("mesurer-queue-list-")) return;
+
     if (message.error) {
       finish(new Error(message.error.message || "Codex app-server thread/queue/list failed."));
+
       return;
     }
 
     const data = Array.isArray(message.result?.data) ? message.result.data : [];
     const nextCursor = normalizeThread(message.result?.nextCursor);
+
     if (queuedSubmissionId) {
       const submission = data.find((candidate) => candidate?.id === queuedSubmissionId);
+
       if (submission) {
         finish(null, { submission, ambiguous: false });
+
         return;
       }
+
       if (nextCursor) {
         cursor = nextCursor;
         requestPage();
+
         return;
       }
+
       finish(null, { submission: null, ambiguous: false });
+
       return;
     }
 
     if (data.length === 1 && !nextCursor) {
       finish(null, { submission: data[0], ambiguous: false });
+
       return;
     }
+
     finish(null, {
       submission: null,
       ambiguous: data.length > 1 || Boolean(nextCursor),
@@ -729,12 +984,16 @@ const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((
 
   child.stdout.on("data", (chunk) => {
     stdoutBuffer += chunk.toString();
+
     while (true) {
       const newline = stdoutBuffer.indexOf("\n");
+
       if (newline < 0) break;
       const line = stdoutBuffer.slice(0, newline).trim();
       stdoutBuffer = stdoutBuffer.slice(newline + 1);
+
       if (!line) continue;
+
       try {
         handleMessage(JSON.parse(line));
       } catch {
@@ -777,16 +1036,18 @@ const queuedSubmissionMessage = (submission) => {
   if (!Array.isArray(submission?.input) || submission.input.length !== 1) return null;
   const input = submission.input[0];
   const text = String(input?.text ?? "");
+
   return input?.type === "text" && text.trim() ? text : null;
 };
 
 const runCodexTurnHistory = (thread) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
     env: process.env,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
   });
+
   let stdoutBuffer = "";
   let stderr = "";
   let settled = false;
@@ -795,8 +1056,11 @@ const runCodexTurnHistory = (thread) => new Promise((resolve, reject) => {
   const finish = (error, turns) => {
     if (settled) return;
     settled = true;
+
     if (timeout) clearTimeout(timeout);
+
     if (child.exitCode === null) child.kill("SIGTERM");
+
     if (error) reject(error);
     else resolve(turns);
   };
@@ -809,8 +1073,10 @@ const runCodexTurnHistory = (thread) => new Promise((resolve, reject) => {
     if (message?.id === "mesurer-history-init") {
       if (message.error) {
         finish(new Error(message.error.message || "Codex app-server initialize failed."));
+
         return;
       }
+
       send({ method: "initialized" });
       send({
         id: "mesurer-history-turns",
@@ -822,6 +1088,7 @@ const runCodexTurnHistory = (thread) => new Promise((resolve, reject) => {
           itemsView: "summary",
         },
       });
+
       return;
     }
 
@@ -835,29 +1102,38 @@ const runCodexTurnHistory = (thread) => new Promise((resolve, reject) => {
             includeTurns: true,
           },
         });
+
         return;
       }
+
       finish(null, Array.isArray(message.result?.data) ? message.result.data : []);
+
       return;
     }
 
     if (message?.id === "mesurer-history-read") {
       if (message.error) {
         finish(new Error(message.error.message || "Codex app-server thread history read failed."));
+
         return;
       }
+
       finish(null, Array.isArray(message.result?.thread?.turns) ? message.result.thread.turns : []);
     }
   };
 
   child.stdout.on("data", (chunk) => {
     stdoutBuffer += chunk.toString();
+
     while (true) {
       const newline = stdoutBuffer.indexOf("\n");
+
       if (newline < 0) break;
       const line = stdoutBuffer.slice(0, newline).trim();
       stdoutBuffer = stdoutBuffer.slice(newline + 1);
+
       if (!line) continue;
+
       try {
         handleMessage(JSON.parse(line));
       } catch {
@@ -920,19 +1196,23 @@ const openDesktopThread = (thread) => new Promise((resolveOpen, rejectOpen) => {
     rejectOpen(new Error(
       `Codex Desktop thread wake is unsupported on platform ${process.platform}.`,
     ));
+
     return;
   }
 
-  const child = spawn(command, args, {
+  const child = spawnOwned(command, args, {
     env: process.env,
     shell: false,
     stdio: ["ignore", "ignore", "pipe"],
     windowsHide: true,
   });
+
   let stderr = "";
   let settled = false;
+
   const timeout = setTimeout(() => {
     child.kill("SIGTERM");
+
     if (settled) return;
     settled = true;
     rejectOpen(new Error("Codex Desktop thread open timed out."));
@@ -951,12 +1231,16 @@ const openDesktopThread = (thread) => new Promise((resolveOpen, rejectOpen) => {
     if (settled) return;
     settled = true;
     clearTimeout(timeout);
+
     if (code === 0) {
       resolveOpen({ url });
+
       return;
     }
+
     const detail = stderr.trim()
       || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
+
     rejectOpen(new Error(`Codex Desktop thread open failed: ${detail}`));
   });
 });
@@ -965,16 +1249,20 @@ let maybeDispatchDesktopThread = async (_thread) => {};
 
 const scheduleDesktopDispatch = (thread, delay = 0) => {
   if (desktopDispatchTimers.has(thread)) return;
+
   const timer = setTimeout(() => {
     desktopDispatchTimers.delete(thread);
     void maybeDispatchDesktopThread(thread);
   }, delay);
+
   desktopDispatchTimers.set(thread, timer);
 };
 
 maybeDispatchDesktopThread = async (thread) => {
   const record = registeredThreads.get(thread);
+
   if (!record?.appToolsPipe) return;
+
   const delivery = [...deliveries.values()]
     .filter((candidate) =>
       candidate.thread === thread
@@ -982,15 +1270,18 @@ maybeDispatchDesktopThread = async (thread) => {
       && candidate.status === "queued"
       && candidate.dispatch !== "desktop-opened")
     .sort((left, right) => left.createdAt - right.createdAt)[0];
+
   if (!delivery) return;
 
   try {
     if (!delivery.queuedSubmissionId) {
       const output = await runCodexQueue(thread, delivery.message);
       delivery.queuedSubmissionId = queuedSubmissionFromOutput(output, thread);
+
       if (!delivery.queuedSubmissionId) {
         throw new Error("Codex queue succeeded but did not return a queued submission id.");
       }
+
       delivery.dispatch = "persisted";
       delivery.dispatchError = null;
       delivery.updatedAt = Date.now();
@@ -1013,19 +1304,25 @@ maybeDispatchDesktopThread = async (thread) => {
 const normalizeTitle = (value) => {
   if (value == null) return null;
   const title = String(value).replace(/\s+/g, " ").trim();
+
   if (!title) return null;
+
   return title.length > 80 ? `${title.slice(0, 79)}…` : title;
 };
 
 const normalizeTimestamp = (value) => Number.isFinite(value) ? Number(value) : null;
+
 const shortThread = (thread) => thread.length > 16 ? `${thread.slice(0, 8)}…${thread.slice(-4)}` : thread;
 
 const appServerSummary = (thread, cwd) => {
   const id = normalizeThread(thread?.id);
+
   if (!id) return null;
+
   const title = normalizeTitle(thread?.name)
     ?? normalizeTitle(thread?.preview)
     ?? `Codex ${shortThread(id)}`;
+
   return {
     id,
     title,
@@ -1049,6 +1346,7 @@ const listThreadSummaries = async (scopeThread, limit) => {
     : activeThread
       ? registeredThreads.get(activeThread) ?? discoveredThreads.get(activeThread)
       : null;
+
   const scopeCwd = scopeRecord?.cwd ?? activeCwd;
   const preferredThread = scopeThread ?? activeThread;
   const summaries = [];
@@ -1059,8 +1357,10 @@ const listThreadSummaries = async (scopeThread, limit) => {
       const listed = await runCodexThreadList(scopeCwd, MAX_DISCOVERED_THREADS);
       const data = Array.isArray(listed?.data) ? listed.data : [];
       appHasMore = Boolean(listed?.nextCursor);
+
       for (const item of data) {
         const summary = appServerSummary(item, scopeCwd);
+
         if (!summary) continue;
         discoveredThreads.set(summary.id, summary);
         summaries.push(summary);
@@ -1073,6 +1373,7 @@ const listThreadSummaries = async (scopeThread, limit) => {
   const byId = new Map(summaries.map((summary) => [summary.id, summary]));
   const ordered = [];
   const seen = new Set();
+
   const push = (summary) => {
     if (!summary || seen.has(summary.id)) return;
     seen.add(summary.id);
@@ -1089,7 +1390,9 @@ const listThreadSummaries = async (scopeThread, limit) => {
       ?? (registeredThreads.get(preferredThread) ? registeredSummary(registeredThreads.get(preferredThread)) : null)
       ?? discoveredThreads.get(preferredThread));
   }
+
   for (const summary of summaries) push(summary);
+
   for (const record of registeredThreads.values()) {
     if (scopeCwd && record.cwd && record.cwd !== scopeCwd) continue;
     push(byId.get(record.id) ?? registeredSummary(record));
@@ -1108,7 +1411,9 @@ const threadPayload = () => ({
 });
 
 const hashMessage = (message) => createHash("sha256").update(message).digest("hex");
+
 const turnKey = (thread, turnId) => `${thread}:${turnId}`;
+
 const publicDelivery = (delivery) => ({
   deliveryId: delivery.id,
   thread: delivery.thread,
@@ -1124,19 +1429,24 @@ const publicDelivery = (delivery) => ({
 
 const pruneDeliveries = () => {
   const now = Date.now();
+
   for (const [id, delivery] of deliveries) {
     const terminal = delivery.status === "completed" || delivery.status === "interrupted";
+
     if (now - delivery.updatedAt > (terminal ? TERMINAL_DELIVERY_TTL_MS : DELIVERY_TTL_MS)) {
       deliveries.delete(id);
       desktopLifecycleChecks.delete(id);
       desktopLifecycleLastCheckedAt.delete(id);
     }
   }
+
   for (const [key, event] of terminalTurnEvents) {
     if (now - event.at > TERMINAL_DELIVERY_TTL_MS) terminalTurnEvents.delete(key);
   }
+
   if (deliveries.size <= MAX_DELIVERIES) return;
   const oldest = [...deliveries.values()].sort((a, b) => a.updatedAt - b.updatedAt);
+
   for (const delivery of oldest.slice(0, deliveries.size - MAX_DELIVERIES)) {
     deliveries.delete(delivery.id);
   }
@@ -1145,6 +1455,7 @@ const pruneDeliveries = () => {
 const createDelivery = (thread, message, transport = "codex-queue") => {
   pruneDeliveries();
   const now = Date.now();
+
   const delivery = {
     id: randomUUID(),
     thread,
@@ -1159,8 +1470,11 @@ const createDelivery = (thread, message, transport = "codex-queue") => {
     createdAt: now,
     updatedAt: now,
   };
+
   deliveries.set(delivery.id, delivery);
+
   if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
+
   return delivery;
 };
 
@@ -1173,20 +1487,25 @@ const xmlEscape = (value) => value
 
 const promptMatchesDelivery = (delivery, prompt) => {
   if (delivery.messageHash === hashMessage(prompt)) return true;
+
   if (delivery.transport !== "desktop-app" || !delivery.message) return false;
+
   return prompt.includes(delivery.message)
     || prompt.includes(`<input>${xmlEscape(delivery.message)}</input>`);
 };
 
 const turnUserMessages = (turn) => {
   if (!Array.isArray(turn?.items)) return [];
+
   return turn.items.flatMap((item) => {
     if (item?.type !== "userMessage" || !Array.isArray(item.content)) return [];
+
     const text = item.content
       .filter((input) => input?.type === "text")
       .map((input) => String(input.text ?? ""))
       .join("\n")
       .trim();
+
     return text ? [text] : [];
   });
 };
@@ -1197,14 +1516,18 @@ const deliveryTurn = (delivery, turns) => {
   }
 
   const earliestStartedAt = delivery.createdAt - DELIVERY_TURN_START_SKEW_MS;
+
   const matches = turns.filter((turn) => {
     const turnId = normalizeThread(turn?.id);
     const startedAt = Number(turn?.startedAt);
+
     if (!turnId || !Number.isFinite(startedAt) || startedAt * 1_000 < earliestStartedAt) {
       return false;
     }
+
     return turnUserMessages(turn).some((prompt) => promptMatchesDelivery(delivery, prompt));
   });
+
   return matches.length === 1 ? matches[0] : null;
 };
 
@@ -1214,30 +1537,40 @@ const reconcileDesktopDelivery = async (delivery) => {
   }
 
   const turns = await runCodexTurnHistory(delivery.thread);
+
   if (deliveries.get(delivery.id) !== delivery) return;
   const turn = deliveryTurn(delivery, turns);
+
   if (!turn) return;
 
   const turnId = normalizeThread(turn.id);
   const ended = turn.completedAt != null && Number.isFinite(Number(turn.completedAt));
   let nextStatus = null;
+
   if (turn.status === "inProgress") nextStatus = "working";
+
   if (turn.status === "interrupted" && !ended) nextStatus = "working";
+
   if (turn.status === "completed") nextStatus = "completed";
+
   if ((turn.status === "interrupted" && ended) || turn.status === "failed") {
     nextStatus = "interrupted";
   }
+
   if (!turnId || !nextStatus) return;
 
   const failed = turn.status === "failed";
   const failureMessage = normalizeThread(turn?.error?.message) ?? "Codex turn failed.";
+
   const changed = delivery.turnId !== turnId
     || delivery.status !== nextStatus
     || (failed && delivery.dispatchError !== failureMessage);
+
   if (!changed) return;
 
   delivery.turnId = turnId;
   delivery.status = nextStatus;
+
   if (failed) delivery.dispatchError = failureMessage;
   delivery.updatedAt = Date.now();
   await persistDeliveryState();
@@ -1252,6 +1585,7 @@ const scheduleDesktopLifecycleCheck = (delivery) => {
 
   const now = Date.now();
   const lastCheckedAt = desktopLifecycleLastCheckedAt.get(delivery.id) ?? 0;
+
   if (now - lastCheckedAt < DESKTOP_LIFECYCLE_POLL_MS) return;
   desktopLifecycleLastCheckedAt.set(delivery.id, now);
 
@@ -1262,6 +1596,7 @@ const scheduleDesktopLifecycleCheck = (delivery) => {
         desktopLifecycleChecks.delete(delivery.id);
       }
     });
+
   desktopLifecycleChecks.set(delivery.id, check);
 };
 
@@ -1272,18 +1607,23 @@ const markPromptStarted = (thread, turnId, prompt) => {
       && promptMatchesDelivery(candidate, prompt)
       && candidate.status === "queued")
     .sort((a, b) => a.createdAt - b.createdAt)[0];
+
   if (!delivery) return null;
   delivery.status = "working";
   delivery.turnId = turnId;
   delivery.updatedAt = Date.now();
+
   if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
   const terminal = terminalTurnEvents.get(turnKey(thread, turnId));
+
   if (terminal) {
     delivery.status = terminal.status;
     delivery.updatedAt = Math.max(delivery.updatedAt, terminal.at);
     terminalTurnEvents.delete(turnKey(thread, turnId));
+
     if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
   }
+
   return delivery;
 };
 
@@ -1292,13 +1632,18 @@ const markTurnTerminal = (thread, turnId, status) => {
     candidate.thread === thread
     && candidate.turnId === turnId
     && candidate.status === "working");
+
   if (delivery) {
     delivery.status = status;
     delivery.updatedAt = Date.now();
+
     if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
+
     return delivery;
   }
+
   terminalTurnEvents.set(turnKey(thread, turnId), { status, at: Date.now() });
+
   return null;
 };
 
@@ -1308,40 +1653,47 @@ const desktopOwnsLifecycle = (thread) =>
     delivery.thread === thread && delivery.transport === "desktop-app");
 
 await loadDeliveryState();
+
 for (const delivery of deliveries.values()) scheduleDesktopLifecycleCheck(delivery);
 
 let successfulSends = 0;
-const server = createServer(async (request, response) => {
+
+server = createServer(async (request, response) => {
   const originHeaderPresent = Object.hasOwn(request.headers, "origin");
   const origin = [request.headers.origin].flat().find((value) => value !== undefined);
+
   if (!originAllowed(origin)) {
     writeJson(response, 403, { ok: false, error: `Origin is not allowed: ${origin}` }, origin);
+
     return;
   }
 
   if (request.method === "OPTIONS") {
     response.writeHead(204, corsHeaders(origin));
     response.end();
+
     return;
   }
 
   if (request.method === "POST" && request.url === "/shutdown") {
     if (originHeaderPresent) {
       writeJson(response, 403, { ok: false, error: "Bridge shutdown is local-process-only." }, origin);
+
       return;
     }
+
     response.setHeader("Connection", "close");
     response.once("finish", () => {
-      server.close();
-      server.closeAllConnections?.();
-      setImmediate(() => process.exit(0));
+      void shutdownBridge();
     });
     writeJson(response, 200, { ok: true }, origin);
+
     return;
   }
 
   if (request.method === "GET" && request.url === "/health") {
     writeJson(response, 200, { ok: true, bridge: BRIDGE_IDENTITY, ...threadPayload() }, origin);
+
     return;
   }
 
@@ -1351,12 +1703,16 @@ const server = createServer(async (request, response) => {
     const prefix = "/deliveries/";
     const deliveryId = decodeURIComponent(url.pathname.slice(prefix.length));
     const delivery = deliveries.get(deliveryId);
+
     if (!delivery) {
       writeJson(response, 404, { ok: false, error: `Codex delivery is not available: ${deliveryId}` }, origin);
+
       return;
     }
+
     scheduleDesktopLifecycleCheck(delivery);
     writeJson(response, 200, { ok: true, ...publicDelivery(delivery) }, origin);
+
     return;
   }
 
@@ -1366,42 +1722,53 @@ const server = createServer(async (request, response) => {
       const deliveryId = normalizeThread(body?.deliveryId);
       const thread = normalizeThread(body?.thread);
       const queuedSubmissionId = normalizeThread(body?.queuedSubmissionId);
+
       if (!deliveryId || !thread) {
         writeJson(response, 400, { ok: false, error: "deliveryId and thread are required." }, origin);
+
         return;
       }
+
       if (!registeredThreads.has(thread) && !discoveredThreads.has(thread)) {
         writeJson(response, 409, {
           ok: false,
           error: `Codex thread is not available to this bridge: ${thread}`,
         }, origin);
+
         return;
       }
 
       const existing = deliveries.get(deliveryId);
+
       if (existing) {
         if (existing.transport === "desktop-app") scheduleDesktopDispatch(existing.thread);
         writeJson(response, 200, { ok: true, restored: false, ...publicDelivery(existing) }, origin);
+
         return;
       }
 
       const lookup = await runCodexQueueLookup(thread, queuedSubmissionId);
+
       if (!lookup.submission) {
         const error = lookup.ambiguous
           ? "Multiple queued Codex submissions exist for this thread; an exact queuedSubmissionId is required to restore the delivery safely."
           : queuedSubmissionId
             ? `Codex queued submission is not available: ${queuedSubmissionId}`
             : "No queued Codex submission is available to restore for this thread.";
+
         writeJson(response, 409, { ok: false, error }, origin);
+
         return;
       }
 
       const message = queuedSubmissionMessage(lookup.submission);
+
       if (!message) {
         writeJson(response, 409, {
           ok: false,
           error: "The queued Codex submission is not a single text message and cannot be restored safely.",
         }, origin);
+
         return;
       }
 
@@ -1409,6 +1776,7 @@ const server = createServer(async (request, response) => {
       const now = Date.now();
       const record = registeredThreads.get(thread);
       const transport = record?.appToolsPipe ? "desktop-app" : "codex-queue";
+
       const delivery = {
         id: deliveryId,
         thread,
@@ -1423,6 +1791,7 @@ const server = createServer(async (request, response) => {
         createdAt: now,
         updatedAt: now,
       };
+
       deliveries.set(delivery.id, delivery);
       await persistDeliveryState();
 
@@ -1441,6 +1810,7 @@ const server = createServer(async (request, response) => {
           delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
           delivery.updatedAt = Date.now();
         }
+
         persistDeliveryStateSoon();
       }
 
@@ -1453,26 +1823,70 @@ const server = createServer(async (request, response) => {
       const error = cause instanceof Error ? cause.message : String(cause);
       writeJson(response, 502, { ok: false, error }, origin);
     }
+
     return;
   }
 
   if (request.method === "GET" && request.url?.startsWith("/threads")) {
     const url = new URL(request.url, DEFAULT_BRIDGE);
+
     if (url.pathname !== "/threads") {
       writeJson(response, 404, { ok: false, error: "Not found." }, origin);
+
       return;
     }
+
     const requestedLimit = Number(url.searchParams.get("limit") ?? "5");
+
     const limit = Number.isInteger(requestedLimit)
       ? Math.min(MAX_DISCOVERED_THREADS, Math.max(1, requestedLimit))
       : 5;
+
     const scopeThread = normalizeThread(url.searchParams.get("thread")) ?? activeThread;
+
     if (scopeThread && !registeredThreads.has(scopeThread) && !discoveredThreads.has(scopeThread)) {
       writeJson(response, 409, { ok: false, error: `Codex thread is not known to this bridge: ${scopeThread}` }, origin);
+
       return;
     }
+
     const payload = await listThreadSummaries(scopeThread, limit);
     writeJson(response, 200, { ok: true, ...payload }, origin);
+
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/threads/unregister") {
+    if (originHeaderPresent) {
+      writeJson(response, 403, {
+        ok: false,
+        error: "Thread unregistration is available only to a local process, not a browser Origin.",
+      }, origin);
+
+      return;
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      const thread = normalizeThread(body?.thread);
+
+      if (!thread) {
+        writeJson(response, 400, { ok: false, error: "thread must be a non-empty string." }, origin);
+
+        return;
+      }
+
+      const removed = unregisterThread(thread);
+      writeJson(response, 200, {
+        ok: true,
+        removed,
+        ...threadPayload(),
+      }, origin);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      writeJson(response, 400, { ok: false, error }, origin);
+    }
+
     return;
   }
 
@@ -1482,25 +1896,32 @@ const server = createServer(async (request, response) => {
         ok: false,
         error: "Thread registration is available only to a local process, not a browser Origin.",
       }, origin);
+
       return;
     }
+
     try {
       const body = await readJsonBody(request);
       const thread = normalizeThread(body?.thread);
       const cwd = normalizeCwd(body?.cwd);
       const appToolsPipe = normalizeThread(body?.appToolsPipe);
       const codexHome = normalizeCwd(body?.codexHome);
+
       if (!thread) {
         writeJson(response, 400, { ok: false, error: "thread must be a non-empty string." }, origin);
+
         return;
       }
+
       registerThread(thread, cwd, { appToolsPipe, codexHome });
+
       if (appToolsPipe) scheduleDesktopDispatch(thread);
       writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
     } catch (cause) {
       const error = cause instanceof Error ? cause.message : String(cause);
       writeJson(response, 400, { ok: false, error }, origin);
     }
+
     return;
   }
 
@@ -1510,15 +1931,19 @@ const server = createServer(async (request, response) => {
         ok: false,
         error: "Codex lifecycle updates are available only to a local process, not a browser Origin.",
       }, origin);
+
       return;
     }
+
     try {
       const body = await readJsonBody(request);
       const event = body?.event;
       const thread = normalizeThread(body?.sessionId);
       const turnId = normalizeThread(body?.turnId);
+
       if (!thread || !turnId) {
         writeJson(response, 400, { ok: false, error: "sessionId and turnId are required." }, origin);
+
         return;
       }
 
@@ -1528,16 +1953,21 @@ const server = createServer(async (request, response) => {
           matched: false,
           ignored: "desktop-history-authoritative",
         }, origin);
+
         return;
       }
 
       let delivery = null;
+
       if (event === "UserPromptSubmit") {
         const prompt = body?.prompt?.trim?.() ?? "";
+
         if (!prompt) {
           writeJson(response, 400, { ok: false, error: "UserPromptSubmit requires prompt." }, origin);
+
           return;
         }
+
         delivery = markPromptStarted(thread, turnId, prompt);
       } else if (event === "Stop") {
         delivery = markTurnTerminal(thread, turnId, "completed");
@@ -1547,9 +1977,12 @@ const server = createServer(async (request, response) => {
         scheduleDesktopDispatch(thread);
       } else {
         writeJson(response, 400, { ok: false, error: `Unsupported Codex lifecycle event: ${event ?? "<missing>"}` }, origin);
+
         return;
       }
+
       pruneDeliveries();
+
       if (delivery) {
         writeJson(response, 200, {
           ok: true,
@@ -1563,6 +1996,7 @@ const server = createServer(async (request, response) => {
       const error = cause instanceof Error ? cause.message : String(cause);
       writeJson(response, 400, { ok: false, error }, origin);
     }
+
     return;
   }
 
@@ -1570,30 +2004,39 @@ const server = createServer(async (request, response) => {
     try {
       const body = await readJsonBody(request);
       const thread = normalizeThread(body?.thread);
+
       if (!thread) {
         writeJson(response, 400, { ok: false, error: "thread must be a non-empty string." }, origin);
+
         return;
       }
+
       const record = registeredThreads.get(thread);
+
       if (!record) {
         writeJson(response, 409, {
           ok: false,
           error: `Codex thread is not registered with this bridge: ${thread}`,
         }, origin);
+
         return;
       }
+
       activeThread = thread;
+
       if (record.cwd) activeCwd = record.cwd;
       writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
     } catch (cause) {
       const error = cause instanceof Error ? cause.message : String(cause);
       writeJson(response, 400, { ok: false, error }, origin);
     }
+
     return;
   }
 
   if (request.method !== "POST" || request.url !== "/send") {
     writeJson(response, 404, { ok: false, error: "Not found." }, origin);
+
     return;
   }
 
@@ -1602,29 +2045,37 @@ const server = createServer(async (request, response) => {
     const message = body?.message?.trim?.() ?? "";
     const requestedThread = normalizeThread(body?.thread);
     const thread = requestedThread ?? activeThread;
+
     if (!message) {
       writeJson(response, 400, { ok: false, error: "message must be a non-empty string." }, origin);
+
       return;
     }
+
     if (!thread) {
       writeJson(response, 409, {
         ok: false,
         error: "No Codex thread is registered. Start the bridge from Codex, pass --thread, or run mesurer-codex --register-current.",
       }, origin);
+
       return;
     }
+
     if (!registeredThreads.has(thread) && !discoveredThreads.has(thread)) {
       writeJson(response, 409, {
         ok: false,
         error: `Codex thread is not available to this bridge: ${thread}`,
       }, origin);
+
       return;
     }
 
     const record = registeredThreads.get(thread);
+
     if (record?.appToolsPipe) {
       const delivery = createDelivery(thread, message, "desktop-app");
       let output;
+
       try {
         output = await runCodexQueue(thread, message);
       } catch (cause) {
@@ -1632,12 +2083,15 @@ const server = createServer(async (request, response) => {
         persistDeliveryStateSoon();
         throw cause;
       }
+
       delivery.queuedSubmissionId = queuedSubmissionFromOutput(output, thread);
+
       if (!delivery.queuedSubmissionId) {
         deliveries.delete(delivery.id);
         persistDeliveryStateSoon();
         throw new Error("Codex queue succeeded but did not return a queued submission id.");
       }
+
       delivery.dispatch = "persisted";
       delivery.updatedAt = Date.now();
       await persistDeliveryState();
@@ -1650,12 +2104,15 @@ const server = createServer(async (request, response) => {
         delivery: "queued",
         ...publicDelivery(delivery),
       }, origin);
-      if (values.once && successfulSends >= 1) setImmediate(() => server.close());
+
+      if (values.once && successfulSends >= 1) setImmediate(() => void shutdownBridge());
+
       return;
     }
 
     const delivery = createDelivery(thread, message, "codex-queue");
     let output;
+
     try {
       output = await runCodexQueue(thread, message);
     } catch (cause) {
@@ -1663,6 +2120,7 @@ const server = createServer(async (request, response) => {
       persistDeliveryStateSoon();
       throw cause;
     }
+
     delivery.queuedSubmissionId = queuedSubmissionFromOutput(output, thread);
     delivery.dispatch = "persisted";
     delivery.updatedAt = Date.now();
@@ -1682,6 +2140,7 @@ const server = createServer(async (request, response) => {
       delivery.dispatchError = "Codex queue succeeded but did not return a queued submission id.";
       delivery.updatedAt = Date.now();
     }
+
     persistDeliveryStateSoon();
 
     successfulSends += 1;
@@ -1692,7 +2151,8 @@ const server = createServer(async (request, response) => {
       delivery: "queued",
       ...publicDelivery(delivery),
     }, origin);
-    if (values.once && successfulSends >= 1) setImmediate(() => server.close());
+
+    if (values.once && successfulSends >= 1) setImmediate(() => void shutdownBridge());
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : String(cause);
     writeJson(response, 502, { ok: false, error }, origin);
@@ -1708,16 +2168,85 @@ server.listen(parsedPort, "127.0.0.1", () => {
   for (const [thread, record] of registeredThreads) {
     if (record.appToolsPipe) scheduleDesktopDispatch(thread);
   }
+
   const address = server.address();
   const port = address?.port ?? parsedPort;
   const url = `http://127.0.0.1:${port}`;
   console.log(`Mesurer Codex bridge listening on ${url}`);
+
   if (activeThread) console.log(`Active Codex thread: ${activeThread}`);
   else console.log("No Codex thread is registered yet.");
   console.log(`BRIDGE_URL=${url}`);
+
   if (activeThread) console.log(`BRIDGE_THREAD=${activeThread}`);
 });
 
-const shutdown = () => server.close(() => process.exit(0));
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+async function shutdownBridge() {
+  if (shutdownStarted) return;
+
+  shutdownStarted = true;
+  cancelIdleShutdown();
+
+  if (ownerHealthTimer) {
+    clearInterval(ownerHealthTimer);
+    ownerHealthTimer = null;
+  }
+
+  for (const timer of desktopDispatchTimers.values()) clearTimeout(timer);
+  desktopDispatchTimers.clear();
+
+  const children = [...ownedChildren];
+
+  for (const child of children) {
+    if (child.exitCode === null && child.signalCode === null) {
+      try {
+        child.kill("SIGTERM");
+      } catch {}
+    }
+  }
+
+  const closeServer = new Promise((resolve) => {
+    if (!server?.listening) {
+      resolve();
+
+      return;
+    }
+
+    server.close(() => resolve());
+    server.closeAllConnections?.();
+  });
+
+  const childExit = Promise.allSettled(children.map((child) => new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      resolve();
+
+      return;
+    }
+
+    child.once("close", resolve);
+    child.once("error", resolve);
+  })));
+
+  await Promise.race([
+    Promise.all([closeServer, childExit]),
+    new Promise((resolve) => setTimeout(resolve, OWNED_CHILD_SHUTDOWN_GRACE_MS)),
+  ]);
+
+  for (const child of ownedChildren) {
+    if (child.exitCode === null && child.signalCode === null) {
+      try {
+        child.kill("SIGKILL");
+      } catch {}
+    }
+  }
+
+  process.exit(0);
+}
+
+process.on("SIGINT", () => {
+  void shutdownBridge();
+});
+
+process.on("SIGTERM", () => {
+  void shutdownBridge();
+});
