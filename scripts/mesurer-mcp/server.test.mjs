@@ -130,6 +130,14 @@ test("local MCP server advertises the focused Mesurer shortcut surface", async (
     assert.equal(status.result.structuredContent.connected, false);
     assert.match(status.result.structuredContent.message, /existing browser harness/);
 
+    const pages = await server.request("tools/call", {
+      name: "list_browser_pages",
+      arguments: {},
+    });
+
+    assert.deepEqual(pages.result.structuredContent.pages, []);
+    assert.match(pages.result.structuredContent.message, /browser harness/);
+
     const unavailable = await server.request("tools/call", {
       name: "inspect_ui",
       arguments: { selector: "body" },
