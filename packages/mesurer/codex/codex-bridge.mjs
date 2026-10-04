@@ -2011,12 +2011,12 @@ server = createServer(async (request, response) => {
         return;
       }
 
-      const record = registeredThreads.get(thread);
+      const record = registeredThreads.get(thread) ?? discoveredThreads.get(thread);
 
       if (!record) {
         writeJson(response, 409, {
           ok: false,
-          error: `Codex thread is not registered with this bridge: ${thread}`,
+          error: `Codex thread is not available to this bridge: ${thread}`,
         }, origin);
 
         return;
