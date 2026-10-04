@@ -209,7 +209,7 @@ try {
     document.querySelector("[data-mesurer-plugin-toggle='mesurer.codex']")?.getAttribute("aria-checked") === "true"
   );
 
-  const browserCodexTool = settingsPage.locator("[data-mesurer-tool-id='codex.send']");
+  const browserCodexTool = settingsPage.locator("button[data-mesurer-tool-id='codex.send']");
   await browserCodexTool.waitFor({ state: "visible" });
   assert.match(
     (await browserCodexTool.getAttribute("aria-label")) ?? "",
