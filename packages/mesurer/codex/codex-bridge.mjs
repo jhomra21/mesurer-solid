@@ -1952,6 +1952,7 @@ server = createServer(async (request, response) => {
       }
 
       const turns = await runCodexTurnHistory(thread);
+
       const historical = historicalDeliveryMatch(turns, {
         clientUserMessageId,
         message: recoveryMessage,
