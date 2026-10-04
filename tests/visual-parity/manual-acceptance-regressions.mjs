@@ -251,12 +251,20 @@ try {
     "Browser Codex availability must not be reported as an Electron preload error",
   );
 
-  await settingsPage.waitForFunction(() => {
-    const raw = localStorage.getItem("mesurer-plugin-settings:availability");
-    const state = raw ? JSON.parse(raw) : null;
+  try {
+    await settingsPage.waitForFunction(() => {
+      const raw = localStorage.getItem("mesurer-plugin-settings:availability");
+      const state = raw ? JSON.parse(raw) : null;
 
-    return state?.enabled?.["mesurer.codex"] === true;
-  });
+      return state?.enabled?.["mesurer.codex"] === true;
+    }, undefined, { timeout: 5_000 });
+  } catch {
+    const persisted = await settingsPage.evaluate(() =>
+      localStorage.getItem("mesurer-plugin-settings:availability")
+    );
+
+    throw new Error(`Browser Codex enabled state was not persisted: ${persisted ?? "<missing>"}`);
+  }
 
   const contextToggle = dialog.getByRole("switch", { name: "Context", exact: true });
   await contextToggle.click();
