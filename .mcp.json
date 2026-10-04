@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mesurer-local": {
+      "cwd": ".",
+      "command": "node",
+      "args": [
+        "./scripts/mesurer-mcp/server.mjs"
+      ]
+    }
+  }
+}
