@@ -1,0 +1,48 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "mesurer-solid",
+  "version": "0.1.0",
+  "description": "Inspect, measure, preview, and verify live web and Electron interfaces with Mesurer Solid.",
+  "author": {
+    "name": "Juan Martinez",
+    "url": "https://github.com/jhomra21"
+  },
+  "homepage": "https://github.com/jhomra21/mesurer-solid",
+  "repository": "https://github.com/jhomra21/mesurer-solid",
+  "license": "MIT",
+  "keywords": [
+    "frontend",
+    "ui",
+    "browser",
+    "electron",
+    "visual-qa",
+    "measurement",
+    "design",
+    "codex",
+    "chatgpt"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Mesurer Solid",
+        "shortDescription": "Inspect and verify live UI",
+        "longDescription": "Use Mesurer Solid while building web and Electron interfaces. Work through the live Mesurer UI with the browser tools you already have, read exact rendered context and measurements, preview reversible edits, compare variations, capture evidence, and verify the final Live result. Local MCP shortcuts are optional and desktop-only.",
+        "developerName": "Juan Martinez",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Interactive",
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://github.com/jhomra21/mesurer-solid",
+        "defaultPrompt": [
+          "Inspect this UI and fix its spacing and alignment",
+          "Show me a few better visual variations of this interface",
+          "Verify this page is pixel-perfect after my changes"
+        ],
+        "brandColor": "#111111",
+        "screenshots": []
+      }
+    }
+  }
+}
