@@ -8,6 +8,8 @@ import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
+import { BrowserHarnessSession } from "../../scripts/browser-harness/session.mjs";
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 const root = path.resolve(here, "../..");
@@ -145,22 +147,57 @@ chromiumProcess.stderr.setEncoding("utf8");
 
 chromiumProcess.stderr.on("data", (chunk) => { chromiumStderr += chunk; });
 
-let browser = null;
+let directSession = null;
 
 let mcp = null;
 
 try {
   await waitForCdp(cdpUrl, chromiumProcess);
-  browser = await chromium.connectOverCDP(cdpUrl);
 
-  const context = browser.contexts()[0];
+  directSession = new BrowserHarnessSession({
+    cdp: cdpUrl,
+    url: hostUrl,
+    autoInject: true,
+  });
 
-  if (!context) throw new Error("CDP browser did not expose its default context.");
+  await directSession.start();
 
-  const page = context.pages()[0] ?? await context.newPage();
+  const directPage = directSession.page;
 
-  await page.goto(hostUrl, { waitUntil: "networkidle" });
-  await page.waitForSelector("[data-testid='solid1-counter']");
+  await directPage.waitForSelector("[data-testid='solid1-counter']");
+  await directPage.waitForFunction(() => Boolean(window.__MESURER__));
+  await directPage.evaluate(() => window.__MESURER__.ready());
+
+  // A normal browser harness can drive Mesurer without MCP.
+  const layoutGuidesButton = directPage.locator("[data-mesurer-tool-id='layout-guides'] button");
+
+  await layoutGuidesButton.click();
+  await directPage.locator("[data-mesurer-layout-guides-panel='true']").waitFor({ state: "visible" });
+  await layoutGuidesButton.click();
+  await directPage.locator("[data-mesurer-layout-guides-panel='true']").waitFor({ state: "detached" });
+
+  const screenshotButton = directPage.locator("[data-mesurer-tool-id='screenshot'] button");
+
+  await screenshotButton.click();
+  await directPage.locator("[data-mesurer-screenshot-select='true']").waitFor({ state: "visible" });
+  await directPage.keyboard.press("Escape");
+  await directPage.locator("[data-mesurer-screenshot-select='true']").waitFor({ state: "detached" });
+
+  const recordingButton = directPage.locator("[data-mesurer-tool-id='recording'] button");
+
+  await recordingButton.click();
+  await directPage.locator("[data-mesurer-recording-select='true']").waitFor({ state: "visible" });
+  await directPage.keyboard.press("Escape");
+  await directPage.locator("[data-mesurer-recording-select='true']").waitFor({ state: "detached" });
+
+  const islandCountBeforeMcp = await directPage.locator("[data-mesurer-island='true']").count();
+
+  assert.equal(islandCountBeforeMcp, 1);
+
+  // Release only this CDP client. The externally-owned Chromium process and the
+  // already-injected Mesurer instance remain alive for the local MCP to reuse.
+  await directSession.close();
+  directSession = null;
 
   mcp = startMcp();
 
@@ -180,9 +217,6 @@ try {
 
   assert.equal(connected.status.injected, true);
   assert.equal(connected.status.mode, "cdp");
-
-  await page.waitForFunction(() => Boolean(window.__MESURER__));
-  await page.evaluate(() => window.__MESURER__.ready());
 
   const status = await mcp.call("get_mesurer_status");
   assert.equal(status.connected, true);
@@ -251,10 +285,11 @@ try {
 
   assert.equal(xray.clicked, true);
   assert.equal(xray.active, true);
-  assert.equal(
-    await page.evaluate(() => document.body.classList.contains("mesurer-solid-xray")),
-    true,
-  );
+
+  const xrayStatus = await mcp.call("get_mesurer_status");
+  const xrayControl = xrayStatus.mesurer.ui.find((item) => item.id === "xray");
+
+  assert.equal(xrayControl?.pressed, "true");
 
   const selected = await mcp.call("select_ui", {
     selector: "[data-testid='solid1-sibling']",
@@ -295,27 +330,6 @@ try {
 
   assert.deepEqual(annotationReview, []);
 
-  // Prove the plugin does not require MCP for Mesurer interaction. These are
-  // ordinary Playwright clicks against the same rendered buttons a person sees.
-  const layoutGuidesButton = page.locator("[data-mesurer-tool-id='layout-guides'] button");
-
-  await layoutGuidesButton.click();
-  await page.locator("[data-mesurer-layout-guides-panel='true']").waitFor({ state: "visible" });
-
-  const screenshotButton = page.locator("[data-mesurer-tool-id='screenshot'] button");
-
-  await screenshotButton.click();
-  await page.locator("[data-mesurer-screenshot-select='true']").waitFor({ state: "visible" });
-  await page.keyboard.press("Escape");
-  await page.locator("[data-mesurer-screenshot-select='true']").waitFor({ state: "detached" });
-
-  const recordingButton = page.locator("[data-mesurer-tool-id='recording'] button");
-
-  await recordingButton.click();
-  await page.locator("[data-mesurer-recording-select='true']").waitFor({ state: "visible" });
-  await page.keyboard.press("Escape");
-  await page.locator("[data-mesurer-recording-select='true']").waitFor({ state: "detached" });
-
   const commands = status.mesurer.description.commands;
 
   assert.equal(commands.includes("layout-guides.add"), true);
@@ -343,7 +357,7 @@ try {
 } finally {
   if (mcp) await mcp.close().catch(() => {});
 
-  if (browser?.isConnected()) await browser.close().catch(() => {});
+  if (directSession) await directSession.close().catch(() => {});
 
   if (chromiumProcess.exitCode === null) {
     chromiumProcess.kill("SIGTERM");
