@@ -12,7 +12,7 @@ From the repository root:
 
 ```bash
 codex plugin marketplace add .
-codex plugin add mesurer-codex@mesurer-local
+codex plugin add mesurer-codex@mesurer-solid
 ```
 
 Start a new Codex thread after installation or after upgrading this plugin. Codex does not trust installed plugin hooks automatically. Open `/hooks`, review the Mesurer `SessionStart` and `SessionEnd` hooks, and trust them. If the first session started before `SessionStart` was trusted, start another new thread afterward.
