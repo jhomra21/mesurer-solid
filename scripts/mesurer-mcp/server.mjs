@@ -127,12 +127,6 @@ const connectSession = async (args = {}) => {
     ?? optionalString(process.env.MESURER_URL)
     ?? null;
 
-  const cdp = optionalString(args.cdpUrl)
-    ?? optionalString(process.env.MESURER_CDP_URL)
-    ?? null;
-
-  const page = args.page ?? optionalString(process.env.MESURER_PAGE) ?? null;
-
   const target = optionalString(args.target)
     ?? optionalString(process.env.MESURER_TARGET)
     ?? null;
@@ -149,8 +143,6 @@ const connectSession = async (args = {}) => {
 
   const next = new BrowserHarnessSession({
     url,
-    cdp,
-    page,
     target,
     injectPath,
     globalName,
@@ -258,32 +250,13 @@ const statusSnapshot = async () => {
   };
 };
 
-const listPages = async (args = {}) => {
+const listPages = async () => {
   if (session) return { pages: await session.pages() };
 
-  const cdpUrl = optionalString(args.cdpUrl) ?? optionalString(process.env.MESURER_CDP_URL);
-
-  if (!cdpUrl) {
-    return {
-      pages: [],
-      message: "No MCP-owned browser session and no CDP endpoint was supplied. Use connect_mesurer_page or your normal browser harness.",
-    };
-  }
-
-  const { BrowserHarnessSession } = await import("../browser-harness/session.mjs");
-
-  const probe = new BrowserHarnessSession({
-    cdp: cdpUrl,
-    autoInject: false,
-  });
-
-  try {
-    await probe.start();
-
-    return { pages: await probe.pages() };
-  } finally {
-    await probe.close().catch(() => {});
-  }
+  return {
+    pages: [],
+    message: "No MCP-owned browser session. Use connect_mesurer_page only when the agent does not already have a browser harness.",
+  };
 };
 
 const inspectUi = async (args = {}) => {
@@ -522,13 +495,11 @@ const TOOLS = [
   tool(
     "connect_mesurer_page",
     "Connect Mesurer Page",
-    "Connect the optional local Mesurer MCP shortcuts to a Chromium page. Reuses an existing CDP browser when cdpUrl is supplied; otherwise it launches a local browser. Existing Mesurer is reused. When inject is true and Mesurer is absent, the repository-built injector is loaded. This is optional: agents with a browser tool should normally interact with the visible Mesurer UI directly.",
+    "Launch an optional local Chromium page for Mesurer MCP shortcuts when the agent does not already have a browser/computer-use harness. Existing Mesurer in that page is reused. When inject is true and Mesurer is absent, the repository-built injector is loaded. Do not use this tool to create a second browser when normal browser control already exists.",
     {
       type: "object",
       properties: {
         url: { type: "string", description: "Optional URL to navigate to after connecting." },
-        cdpUrl: { type: "string", description: "Optional Chromium CDP endpoint, for example http://127.0.0.1:9222." },
-        page: { description: "Existing page index or URL/title substring to select.", anyOf: [{ type: "integer" }, { type: "string" }] },
         inject: { type: "boolean", default: true, description: "Inject Mesurer only when the selected page does not already expose it." },
         injectPath: { type: "string", description: "Optional path to built inject-script.js. Its directory must also contain mediabunny-vendor.js." },
         globalName: { type: "string", default: DEFAULT_GLOBAL_NAME },
@@ -542,14 +513,8 @@ const TOOLS = [
   tool(
     "list_browser_pages",
     "List Browser Pages",
-    "List pages in the MCP-owned browser session or in an explicitly supplied Chromium CDP endpoint. Use this only when the normal browser harness does not already provide page discovery.",
-    {
-      type: "object",
-      properties: {
-        cdpUrl: { type: "string" },
-      },
-      additionalProperties: false,
-    },
+    "List pages in the optional MCP-owned fallback browser. Use the normal browser harness for page discovery whenever one already exists.",
+    { type: "object", properties: {}, additionalProperties: false },
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   ),
   tool(
