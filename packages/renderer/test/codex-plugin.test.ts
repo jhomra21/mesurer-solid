@@ -207,25 +207,79 @@ type BridgeMockHandler = (
 const bridgeFetchMock = (handler: BridgeMockHandler) => vi.fn(handler);
 
 describe("codex", () => {
-  it("fails activation atomically when the native host capability is missing", async () => {
+  it("loads without a native host and uses the browser Codex companion", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
     delete window.__MESURER_HOST__;
 
+    const fetchMock = bridgeFetchMock(async (input) => {
+      const url = String(input);
+
+      if (url === "http://127.0.0.1:47365/health") {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "browser-thread",
+            threads: ["browser-thread"],
+          }),
+        };
+      }
+
+      if (url.startsWith("http://127.0.0.1:47365/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "browser-thread",
+            threadDetails: [{
+              id: "browser-thread",
+              title: "Browser Codex thread",
+              updatedAt: 1,
+              connected: true,
+            }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected browser companion request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
     await host.load(defineMesurerPlugin({
-      id: "test.context-missing-host",
+      id: "test.context-browser-companion",
       provides: ["context:v1"],
       setup(ctx) {
         ctx.service.provide("context:v1", contextService);
       },
     }));
 
-    await expect(host.load(codex({ ui: false }))).rejects.toThrow(
-      "Codex host connection is unavailable",
-    );
-    expect(host.has("mesurer.codex")).toBe(false);
-    expect(host.service.get(MESURER_CODEX_SERVICE_ID)).toBeUndefined();
+    await host.load(codex({ ui: false }));
+    expect(host.has("mesurer.codex")).toBe(true);
+
+    const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
+
+    expect(service).toBeDefined();
+    await expect(service?.health()).resolves.toEqual({
+      thread: "browser-thread",
+      threads: ["browser-thread"],
+    });
+    await expect(service?.listThreads()).resolves.toEqual({
+      thread: "browser-thread",
+      threads: [{
+        id: "browser-thread",
+        title: "Browser Codex thread",
+        updatedAt: 1,
+        connected: true,
+      }],
+      hasMore: false,
+    });
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("holds one native lease until the managed plugin pre-disable barrier releases it", async () => {
