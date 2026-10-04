@@ -142,6 +142,7 @@ const chromiumProcess = spawn(chromium.executablePath(), [
 let chromiumStderr = "";
 
 chromiumProcess.stderr.setEncoding("utf8");
+
 chromiumProcess.stderr.on("data", (chunk) => { chromiumStderr += chunk; });
 
 let browser = null;
@@ -168,6 +169,7 @@ try {
     capabilities: {},
     clientInfo: { name: "mesurer-host-compat", version: "0.1.0" },
   });
+
   assert.equal(initialized.serverInfo.name, "Mesurer Solid Local");
 
   const connected = await mcp.call("connect_mesurer_page", {
