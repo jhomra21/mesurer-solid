@@ -412,11 +412,17 @@ test("generated Codex plugin distribution mirrors the canonical companion and ke
   const manifest = JSON.parse(await readFile(new URL(".codex-plugin/plugin.json", pluginRoot), "utf8"));
   const hooks = JSON.parse(await readFile(new URL("hooks/hooks.json", pluginRoot), "utf8"));
 
-  assert.equal(marketplace.name, "mesurer-local");
-  assert.deepEqual(marketplace.plugins.map((entry) => entry.name), ["mesurer-codex"]);
-  assert.equal(marketplace.plugins[0].source.path, "./plugins/mesurer-codex");
+  assert.equal(marketplace.name, "mesurer-solid");
+  assert.deepEqual(
+    marketplace.plugins.map((entry) => entry.name),
+    ["mesurer-solid", "mesurer-codex"],
+  );
+  const companionEntry = marketplace.plugins.find((entry) => entry.name === "mesurer-codex");
+
+  assert.equal(companionEntry?.source.path, "./plugins/mesurer-codex");
   assert.equal(manifest.name, "mesurer-codex");
-  assert.equal(manifest.version, "0.1.8-beta.2");
+  assert.equal(manifest.version, "0.2.1");
+  assert.equal(manifest.interface.displayName, "Mesurer Codex Bridge");
 
   const sessionStart = hooks.hooks.SessionStart[0];
   assert.equal(sessionStart.matcher, "^(startup|resume|clear)$");
