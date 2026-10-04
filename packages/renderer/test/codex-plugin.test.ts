@@ -1156,6 +1156,8 @@ describe("codex", () => {
       deliveryId: string;
       thread: string;
       queuedSubmissionId?: string;
+      clientUserMessageId?: string;
+      message?: string;
     }> = [];
 
     const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -1295,6 +1297,12 @@ describe("codex", () => {
       deliveryId: "delivery-restart-1",
       thread: "thread-a",
       queuedSubmissionId: "queue-restart-1",
+      message: [
+        "Implement the current human feedback from Mesurer in this project. Treat the rendered page as the source of truth, preserve unrelated Mesurer review state, and verify the affected UI in the live page with Mesurer before claiming completion.",
+        "",
+        "Mesurer evidence",
+        "annotation evidence note-1",
+      ].join("\n"),
     }]);
     expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Queued for Codex");
