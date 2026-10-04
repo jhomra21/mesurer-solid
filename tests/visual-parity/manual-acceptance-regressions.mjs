@@ -200,30 +200,30 @@ try {
   assert.equal(
     await codexToggle.getAttribute("aria-checked"),
     "false",
-    "A persisted beta.1 Codex-on value must stay dormant while the native host capability is absent",
+    "Browser Codex should remain opt-in when no native host is present",
   );
   assert.equal(
     await settingsPage.locator("[data-mesurer-tool-id='codex.send']").count(),
     0,
-    "Bridgeless browser hosts must not boot a half-connected Codex toolbar action",
+    "Browser Codex should stay unloaded until the user enables it",
   );
 
   await codexToggle.click();
   await settingsPage.waitForFunction(() =>
-    document.querySelector("[data-mesurer-plugin-toggle='mesurer.codex']")?.getAttribute("aria-checked") === "false"
-  );
-  assert.equal(
-    await settingsPage.locator("[data-mesurer-tool-id='codex.send']").count(),
-    0,
-    "A failed Codex activation must roll back atomically and keep its toolbar action absent",
+    document.querySelector("[data-mesurer-plugin-toggle='mesurer.codex']")?.getAttribute("aria-checked") === "true"
   );
 
-  const codexError = dialog.locator("[data-mesurer-plugin-error='mesurer.codex']");
-  await codexError.waitFor({ state: "visible" });
+  const browserCodexTool = settingsPage.locator("[data-mesurer-tool-id='codex.send']");
+  await browserCodexTool.waitFor({ state: "visible" });
   assert.match(
-    (await codexError.textContent()) ?? "",
-    /host connection is unavailable/i,
-    "Failed Codex activation should explain the missing native host capability",
+    (await browserCodexTool.getAttribute("aria-label")) ?? "",
+    /Codex unavailable|Queue to Codex|Choose Codex thread/i,
+    "Browser Codex should stay enabled while local companion discovery resolves",
+  );
+  assert.equal(
+    await dialog.locator("[data-mesurer-plugin-error='mesurer.codex']").count(),
+    0,
+    "Browser Codex availability must not be reported as an Electron preload error",
   );
 
   const contextToggle = dialog.getByRole("switch", { name: "Context", exact: true });
@@ -250,7 +250,7 @@ try {
   await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "visible" });
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; first-party plugins are present, bridgeless Codex stays off and rolls back failed activation, and Context can be toggled off and back on: PASS");
+  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; first-party plugins are present, browser Codex can stay enabled without an Electron preload, and Context can be toggled off and back on: PASS");
 } finally {
   await settingsPage?.close();
   await page?.close();
