@@ -442,20 +442,121 @@ const getSavedIntent = async (args = {}) => {
   }, { globalName: status.globalName, kind, id });
 };
 
-const runMesurerCommand = async (args = {}) => {
-  const status = await waitForMesurer();
-  const command = requireString(args.command, "command");
+const setMesurerPlugin = async (args = {}) => {
+  await waitForMesurer();
+  const pluginId = requireString(args.pluginId, "pluginId");
+  const enabled = optionalBoolean(args.enabled);
 
-  return browserPage().evaluate(async ({ globalName, command, commandArgs }) => {
-    const api = globalThis[globalName];
-    await api.ready();
+  if (enabled === undefined) throw new Error("enabled must be a boolean.");
 
-    return (await api.command(command, commandArgs)) ?? null;
-  }, {
-    globalName: status.globalName,
-    command,
-    commandArgs: args.args,
-  });
+  return browserPage().evaluate(async ({ pluginId, enabled }) => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const root = island?.shadowRoot ?? island ?? document;
+    const settingsButton = root.querySelector("[data-mesurer-builtin='settings'] button");
+
+    if (!(settingsButton instanceof HTMLButtonElement)) {
+      throw new Error("Mesurer Settings is not mounted.");
+    }
+
+    const visible = (element) =>
+      element instanceof HTMLElement
+      && element.getClientRects().length > 0
+      && getComputedStyle(element).display !== "none"
+      && getComputedStyle(element).visibility !== "hidden";
+
+    const findDialog = () =>
+      [...root.querySelectorAll("[role='dialog']")]
+        .find((element) => element.getAttribute("aria-label") === "Settings" && visible(element));
+
+    const settingsWasOpen = Boolean(findDialog());
+
+    if (!settingsWasOpen) {
+      settingsButton.click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    const dialog = findDialog();
+
+    if (!(dialog instanceof HTMLElement)) throw new Error("Mesurer Settings did not open.");
+
+    const activeTab = [...dialog.querySelectorAll("[role='tab']")]
+      .find((element) => element.getAttribute("aria-selected") === "true");
+    const generalTab = [...dialog.querySelectorAll("[role='tab']")]
+      .find((element) => element.textContent?.trim() === "General");
+
+    if (!(generalTab instanceof HTMLButtonElement)) {
+      throw new Error("Mesurer General settings tab is unavailable.");
+    }
+
+    if (generalTab.getAttribute("aria-selected") !== "true") {
+      generalTab.click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    const disclosure = dialog.querySelector("[data-mesurer-plugin-settings-disclosure='plugins']");
+
+    if (!(disclosure instanceof HTMLButtonElement)) {
+      throw new Error("Mesurer plugin settings are unavailable.");
+    }
+
+    const pluginsWereExpanded = disclosure.getAttribute("aria-expanded") === "true";
+
+    if (!pluginsWereExpanded) {
+      disclosure.click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    const selector = `[data-mesurer-plugin-toggle="${CSS.escape(pluginId)}"]`;
+    const toggle = dialog.querySelector(selector);
+
+    if (!(toggle instanceof HTMLButtonElement)) {
+      throw new Error(`Mesurer plugin is not registered: ${pluginId}`);
+    }
+
+    const current = toggle.getAttribute("aria-checked") === "true";
+
+    if (current !== enabled) {
+      toggle.click();
+
+      for (let frame = 0; frame < 180; frame += 1) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        if (toggle.getAttribute("aria-checked") === String(enabled) && !toggle.disabled) break;
+      }
+    }
+
+    const result = {
+      pluginId,
+      enabled: toggle.getAttribute("aria-checked") === "true",
+      busy: toggle.disabled,
+      error: dialog.querySelector(`[data-mesurer-plugin-error="${CSS.escape(pluginId)}"]`)?.textContent?.trim() ?? null,
+    };
+
+    if (!pluginsWereExpanded && disclosure.getAttribute("aria-expanded") === "true") {
+      disclosure.click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    if (activeTab instanceof HTMLButtonElement && activeTab !== generalTab) {
+      activeTab.click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    if (!settingsWasOpen && findDialog()) {
+      settingsButton.click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    if (result.enabled !== enabled || result.busy) {
+      throw new Error(
+        result.error
+          ? `Mesurer plugin ${pluginId} could not reach the requested state: ${result.error}`
+          : `Mesurer plugin ${pluginId} did not reach enabled=${enabled}.`,
+      );
+    }
+
+    return result;
+  }, { pluginId, enabled });
 };
 
 const reviewUi = async (args = {}) => {
@@ -616,19 +717,19 @@ const TOOLS = [
     { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   ),
   tool(
-    "run_mesurer_command",
-    "Run Mesurer Command",
-    "Execute one command exposed by Mesurer's plugin host and return its JSON-safe result. Prefer the visible browser UI or dedicated read tools; use this for concise plugin operations such as Layout Guide mutations or Recording lifecycle commands after checking get_mesurer_status.description.commands.",
+    "set_mesurer_plugin",
+    "Set Mesurer Plugin",
+    "Enable or disable one registered Mesurer plugin through the visible Settings switch, then restore the Settings UI state it had before the call. Use a plugin id from get_mesurer_status.description.plugins.",
     {
       type: "object",
       properties: {
-        command: { type: "string" },
-        args: {},
+        pluginId: { type: "string" },
+        enabled: { type: "boolean" },
       },
-      required: ["command"],
+      required: ["pluginId", "enabled"],
       additionalProperties: false,
     },
-    { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   ),
   tool(
     "review_ui",
@@ -657,7 +758,7 @@ const handlers = {
   select_ui: selectUi,
   use_mesurer_tool: useMesurerTool,
   get_saved_ui_intent: getSavedIntent,
-  run_mesurer_command: runMesurerCommand,
+  set_mesurer_plugin: setMesurerPlugin,
   review_ui: reviewUi,
 };
 
