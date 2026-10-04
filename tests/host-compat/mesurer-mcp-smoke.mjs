@@ -53,7 +53,7 @@ const waitForCdp = async (url, processHandle) => {
 };
 
 const startMcp = () => {
-  const child = spawn(process.execPath, [serverPath], {
+  const child = spawn("node", [serverPath], {
     cwd: root,
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -172,6 +172,23 @@ try {
   assert.equal(status.connected, true);
   assert.equal(status.mesurer.capabilities.protocol, "mesurer.agent/v1");
 
+  const describedIds = new Set(status.mesurer.description.tools.map((item) => item.id));
+
+  for (const id of [
+    "select",
+    "xray",
+    "color-picker",
+    "rulers",
+    "guides",
+    "text-inspector",
+    "arrange",
+    "layout-guides",
+    "screenshot",
+    "recording",
+  ]) {
+    assert.equal(describedIds.has(id), true, `${id} should be registered in the live Mesurer tool surface`);
+  }
+
   const visibleIds = new Set(
     status.mesurer.ui.filter((item) => item.visible).map((item) => item.id),
   );
@@ -189,6 +206,9 @@ try {
   ]) {
     assert.equal(visibleIds.has(id), true, `${id} should be available to browser automation`);
   }
+
+  const pages = await mcp.call("list_browser_pages");
+  assert.equal(pages.pages.some((item) => item.url === hostUrl), true);
 
   const inspected = await mcp.call("inspect_ui", {
     selector: "[data-testid='solid1-counter']",
