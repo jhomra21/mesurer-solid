@@ -264,6 +264,27 @@ The Chromium extension owns injection lifecycle and private extension-only captu
 
 See [Host isolation](./docs/HOST_ISOLATION.md) and [Trusted Types](./docs/TRUSTED_TYPES.md).
 
+## Local ChatGPT/Codex plugin boundary
+
+The repository can also act as a local Agent Plugins package. This is integration tooling around the existing browser boundary, not another renderer architecture.
+
+```text
+ChatGPT Desktop / Codex / local coding harness
+                  │
+          browser/computer use
+                  │
+                  ▼
+             Mesurer UI
+                  │
+                  ├── window.__MESURER__ structured browser API
+                  │
+                  └── optional local stdio MCP shortcuts
+```
+
+The browser UI remains sufficient on its own. The optional MCP server may attach to an existing CDP session or launch a browser only when no browser harness already exists. It reuses the same injection artifact and agent API; it does not introduce a page daemon, hosted relay, Electron IPC namespace, or separate source-editing agent.
+
+See [ChatGPT and Codex plugin](./docs/CHATGPT_CODEX_PLUGIN.md).
+
 ## Human/agent boundary
 
 The page is shared state:
