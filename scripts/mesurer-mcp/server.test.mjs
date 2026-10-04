@@ -128,7 +128,7 @@ test("local MCP server advertises the focused Mesurer shortcut surface", async (
     });
 
     assert.equal(status.result.structuredContent.connected, false);
-    assert.match(status.result.structuredContent.message, /normal browser harness/);
+    assert.match(status.result.structuredContent.message, /existing browser harness/);
 
     const unavailable = await server.request("tools/call", {
       name: "inspect_ui",
