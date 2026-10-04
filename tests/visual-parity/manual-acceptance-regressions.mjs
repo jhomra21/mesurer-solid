@@ -121,7 +121,7 @@ try {
   watchDiagnostics(settingsPage);
   await settingsPage.route("http://127.0.0.1:47365/**", async (route) => {
     await route.fulfill({
-      status: 503,
+      status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         ok: false,
