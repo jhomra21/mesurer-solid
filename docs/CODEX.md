@@ -129,7 +129,7 @@ Mesurer implements **Queue**, not **Steer**.
 
 When the user presses **Queue to Codex**, Mesurer queues exactly once through the active internal adapter.
 
-On the shared-app-server path, the bridge verifies the destination with `thread/loaded/list`, calls `thread/queue/add` directly, keeps Codex's queued-submission id, and correlates lifecycle through bounded turn history on the same server.
+On the shared-app-server path, the bridge verifies the destination with `thread/loaded/list`, calls `thread/queue/add` directly, keeps Codex's queued-submission id and client user-message id, and correlates lifecycle through bounded turn history on the same server.
 
 On the inherited Desktop-current-thread path, the bridge accepts only the inherited thread, invokes `codex queue --thread <id> --message <text>`, keeps the queued-submission id, and opens `codex://threads/<id>`. The deep link is a wake step, not a second message submission. If the wake fails after persistence, Mesurer reports the wake diagnostic and does not requeue.
 
@@ -143,11 +143,13 @@ Mesurer keeps bounded correlation metadata under:
 $CODEX_HOME/mesurer/codex-deliveries.json
 ```
 
-This file stores the Mesurer delivery id, destination thread, queued-submission id, prompt hash, and last known lifecycle state. It is not a second message queue. Codex's queue remains the durable queue.
+This file stores the Mesurer delivery id, destination thread, queued-submission id, Codex client user-message id when available, prompt hash, and last known lifecycle state. It is not a second message queue. Codex's queue remains the durable queue.
 
-The renderer keeps the active delivery id, destination thread, lifecycle state, and exact annotation ids in per-tab `sessionStorage` while a delivery is active or reconcilable.
+The renderer keeps the active delivery id, destination thread, lifecycle state, exact annotation ids, and available Codex correlation ids in per-tab `sessionStorage` while a delivery is active or reconcilable. A tracked **Queue failed** state remains recoverable; retry attempts restoration before Mesurer can submit another message.
 
-If history cannot be read or the exact queued prompt cannot be matched unambiguously, Mesurer leaves the delivery and annotations intact.
+A queued submission disappears from `thread/queue/list` after Codex consumes it. Recovery therefore checks the exact queue receipt first, then bounded turn history. New deliveries correlate by Codex's client user-message id. Older persisted UI state that predates that field may rebuild the exact Mesurer feedback from its still-saved annotation ids and recover only when exactly one history user message has the same text. Mesurer never requeues during restoration.
+
+If history cannot be read or the exact client/message identity cannot be matched uniquely, Mesurer leaves the delivery and annotations intact and fails closed.
 
 ## Completed annotations
 
