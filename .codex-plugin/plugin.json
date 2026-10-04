@@ -20,7 +20,7 @@
     "codex",
     "chatgpt"
   ],
-  "skills": "./.agents/skills/",
+  "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Mesurer Solid",
