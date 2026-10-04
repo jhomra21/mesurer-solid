@@ -107,21 +107,21 @@ const exerciseDirectBrowserUi = async () => {
     await layoutGuidesButton.click();
     await page.locator("[data-mesurer-layout-guides-panel='true']").waitFor({ state: "visible" });
     await layoutGuidesButton.click();
-    await page.locator("[data-mesurer-layout-guides-panel='true']").waitFor({ state: "detached" });
+    await page.locator("[data-mesurer-layout-guides-panel='true']").waitFor({ state: "hidden" });
 
     const screenshotButton = page.locator("[data-mesurer-tool-id='screenshot'] button");
 
     await screenshotButton.click();
     await page.locator("[data-mesurer-screenshot-select='true']").waitFor({ state: "visible" });
     await page.keyboard.press("Escape");
-    await page.locator("[data-mesurer-screenshot-select='true']").waitFor({ state: "detached" });
+    await page.locator("[data-mesurer-screenshot-select='true']").waitFor({ state: "hidden" });
 
     const recordingButton = page.locator("[data-mesurer-tool-id='recording'] button");
 
     await recordingButton.click();
     await page.locator("[data-mesurer-recording-select='true']").waitFor({ state: "visible" });
     await page.keyboard.press("Escape");
-    await page.locator("[data-mesurer-recording-select='true']").waitFor({ state: "detached" });
+    await page.locator("[data-mesurer-recording-select='true']").waitFor({ state: "hidden" });
 
     assert.equal(
       await page.locator("[data-mesurer-island='true']").count(),
