@@ -61,7 +61,7 @@ const legacyLowerProductTokenPattern = /(?<!\\)\b[a-z0-9_-]*measurer[a-z0-9_-]*\
 const failures = [];
 
 for (const name of ["codex-bridge.mjs", "codex-connect.mjs", "codex-lifecycle.mjs"]) {
-  const packagePath = `packages/mesurer/scripts/${name}`;
+  const packagePath = `packages/mesurer/codex/${name}`;
   const pluginPath = `plugins/mesurer-codex/scripts/${name}`;
   const packageSource = readFileSync(packagePath, "utf8");
   const pluginSource = readFileSync(pluginPath, "utf8");
