@@ -281,7 +281,7 @@ ChatGPT Desktop / Codex / local coding harness
                   └── optional local stdio MCP shortcuts
 ```
 
-The browser UI remains sufficient on its own. The optional MCP server may attach to an existing CDP session or launch a browser only when no browser harness already exists. It reuses the same injection artifact and agent API; it does not introduce a page daemon, hosted relay, Electron IPC namespace, or separate source-editing agent.
+The browser UI remains sufficient on its own. The optional MCP server launches an isolated fallback browser only when no browser harness already exists; it does not take over an agent's active browser session. It reuses the same injection artifact and agent API and introduces no page daemon, hosted relay, Electron IPC namespace, or separate source-editing agent.
 
 See [ChatGPT and Codex plugin](./docs/CHATGPT_CODEX_PLUGIN.md).
 
