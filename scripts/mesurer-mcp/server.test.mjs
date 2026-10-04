@@ -7,7 +7,9 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+
 const root = path.resolve(here, "../..");
+
 const serverPath = path.join(here, "server.mjs");
 
 const startServer = () => {
@@ -15,10 +17,12 @@ const startServer = () => {
     cwd: root,
     stdio: ["pipe", "pipe", "pipe"],
   });
+
   const lines = readline.createInterface({
     input: child.stdout,
     crlfDelay: Infinity,
   });
+
   const pending = new Map();
 
   lines.on("line", (line) => {
@@ -112,7 +116,7 @@ test("local MCP server advertises the focused Mesurer shortcut surface", async (
     ]);
 
     for (const tool of tools) {
-      assert.equal(typeof tool.description, "string");
+      assert.equal(tool.description?.constructor, String);
       assert.ok(tool.description.length > 20);
       assert.equal(tool.inputSchema.type, "object");
       assert.equal(tool.annotations.openWorldHint, false);
