@@ -117,6 +117,16 @@ try {
 
   settingsPage = await browser.newPage({ viewport: { width: 1280, height: 700 } });
   watchDiagnostics(settingsPage);
+  await settingsPage.route("http://127.0.0.1:47365/**", async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: false,
+        error: "Mesurer Codex companion is unavailable in this browser fixture.",
+      }),
+    });
+  });
   await settingsPage.addInitScript(() => {
     localStorage.removeItem("mesurer-plugin-settings:availability");
   });
