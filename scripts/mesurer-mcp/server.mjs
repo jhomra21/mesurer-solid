@@ -448,13 +448,17 @@ const getSavedIntent = async (args = {}) => {
 };
 
 const setMesurerPlugin = async (args = {}) => {
-  await waitForMesurer();
+  const status = await waitForMesurer();
   const pluginId = requireString(args.pluginId, "pluginId");
   const enabled = optionalBoolean(args.enabled);
 
   if (enabled === undefined) throw new Error("enabled must be a boolean.");
 
-  return browserPage().evaluate(async ({ pluginId, enabled }) => {
+  return browserPage().evaluate(async ({ globalName, pluginId, enabled }) => {
+    const api = globalThis[globalName];
+
+    await api.ready();
+
     const island = document.querySelector("[data-mesurer-island='true']");
     const root = island?.shadowRoot ?? island ?? document;
     const settingsButton = root.querySelector("[data-mesurer-builtin='settings'] button");
@@ -520,7 +524,13 @@ const setMesurerPlugin = async (args = {}) => {
       throw new Error(`Mesurer plugin is not registered: ${pluginId}`);
     }
 
-    const current = toggle.getAttribute("aria-checked") === "true";
+    const pluginLoaded = async () => {
+      const description = await api.describe();
+
+      return description.plugins.some((plugin) => plugin.id === pluginId);
+    };
+
+    const current = await pluginLoaded();
 
     if (current !== enabled) {
       toggle.click();
@@ -531,8 +541,8 @@ const setMesurerPlugin = async (args = {}) => {
         const liveToggle = findToggle();
 
         if (
-          liveToggle instanceof HTMLButtonElement
-          && liveToggle.getAttribute("aria-checked") === String(enabled)
+          await pluginLoaded() === enabled
+          && liveToggle instanceof HTMLButtonElement
           && !liveToggle.disabled
         ) {
           break;
@@ -548,7 +558,7 @@ const setMesurerPlugin = async (args = {}) => {
 
     const result = {
       pluginId,
-      enabled: settledToggle.getAttribute("aria-checked") === "true",
+      enabled: await pluginLoaded(),
       busy: settledToggle.disabled,
       error: dialog.querySelector(`[data-mesurer-plugin-error="${CSS.escape(pluginId)}"]`)?.textContent?.trim() ?? null,
     };
@@ -577,7 +587,7 @@ const setMesurerPlugin = async (args = {}) => {
     }
 
     return result;
-  }, { pluginId, enabled });
+  }, { globalName: status.globalName, pluginId, enabled });
 };
 
 const reviewUi = async (args = {}) => {
