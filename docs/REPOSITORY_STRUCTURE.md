@@ -8,16 +8,20 @@ This document defines where new code belongs and the structure we want to preser
 
 ```text
 .
-├── .agents/          agent/plugin distribution metadata
+├── .agents/          agent/plugin marketplace metadata
+├── .codex-plugin/    Codex compatibility plugin manifest
 ├── .github/          CI and release workflows
 ├── docs/             user guides and maintainer reference
 ├── examples/         runnable host/fixture applications
 ├── extension/        first-party browser extension
 ├── packages/         publishable/internal workspace packages
 ├── plugins/          external integration distributions
-├── scripts/          repository automation and developer commands
+├── scripts/          repository automation, browser harness, and local Mesurer MCP
+├── skills/           portable Agent Plugins skills
 ├── tests/            cross-package acceptance and compatibility suites
-└── tools/            reusable repository tooling
+├── tools/            reusable repository tooling
+├── plugin.json       portable Agent Plugins manifest
+└── mcp.json          portable local MCP declaration
 ```
 
 The root should otherwise stay limited to project metadata and the few documents that are useful immediately when landing in the repository: README, contributing/release/validation policy, architecture, changelog, licensing, and agent instructions.
@@ -75,8 +79,9 @@ The TypeScript plugin owns renderer-facing UI, routing, Context composition, and
 
 There is no separate `packages/mesurer/codex/` subsystem, standalone `mesurer-codex` process, generated marketplace distribution, or hook-owned copy.
 
-The repository and packaged Mesurer agent skill must remain byte-identical:
+The portable-plugin, repository, and packaged Mesurer agent skill must remain byte-identical:
 
+- `skills/mesurer-ui/SKILL.md`
 - `.agents/skills/mesurer-ui/SKILL.md`
 - `packages/mesurer/skills/mesurer-ui/SKILL.md`
 
