@@ -5,17 +5,16 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-
-delete process.env.CODEX_THREAD_ID;
-delete process.env.CODEX_APP_TOOLS_PIPE_PATH;
-
-const testTmpdir = () => process.platform === "win32" ? tmpdir() : "/tmp";
-
 import {
   MESURER_CODEX_BRIDGE_CHANNEL,
   codexBridge,
   installMesurerCodexHost,
 } from "./bridge.mjs";
+
+delete process.env.CODEX_THREAD_ID;
+delete process.env.CODEX_APP_TOOLS_PIPE_PATH;
+
+const testTmpdir = () => process.platform === "win32" ? tmpdir() : "/tmp";
 
 const createFakeAppServer = async (root, turnsPath) => {
   const controlDir = join(root, "app-server-control");
