@@ -25,17 +25,15 @@ const startMcp = () => {
     crlfDelay: Infinity,
   });
 
-  const pending = new Map();
-
   let nextId = 1;
+
+  const pending = new Map();
 
   let stderr = "";
 
   child.stderr.setEncoding("utf8");
 
-  child.stderr.on("data", (chunk) => {
-    stderr += chunk;
-  });
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
 
   output.on("line", (line) => {
     let message;
@@ -49,7 +47,6 @@ const startMcp = () => {
     const waiter = pending.get(message.id);
 
     if (!waiter) return;
-
     pending.delete(message.id);
 
     if (message.error) waiter.reject(new Error(message.error.message));
@@ -58,7 +55,6 @@ const startMcp = () => {
 
   const request = (method, params) => {
     const id = nextId++;
-
     child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
 
     return new Promise((resolve, reject) => {
@@ -76,7 +72,6 @@ const startMcp = () => {
 
     if (child.exitCode === null) {
       child.kill("SIGTERM");
-
       await new Promise((resolve) => child.once("exit", resolve));
     }
 
@@ -102,48 +97,55 @@ const exerciseDirectBrowserUi = async () => {
     await page.waitForFunction(() => Boolean(window.__MESURER__));
     await page.evaluate(() => window.__MESURER__.ready());
 
+    assert.equal(await page.locator("[data-mesurer-island='true']").count(), 1);
+
+    const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
+
+    await xrayButton.click();
+    await page.waitForFunction(
+      () => document.querySelector("[data-mesurer-builtin='xray'] button")?.getAttribute("aria-pressed") === "true",
+    );
+
+    const settingsButton = page.locator("[data-mesurer-builtin='settings'] button");
+
+    await settingsButton.click();
+    await page.getByRole("dialog", { name: "Settings" }).waitFor({ state: "visible" });
+    await settingsButton.click();
+    await page.getByRole("dialog", { name: "Settings" }).waitFor({ state: "hidden" });
+
     const layoutGuidesButton = page.locator("[data-mesurer-tool-id='layout-guides'] button");
 
     await layoutGuidesButton.click();
     await page.locator("[data-mesurer-layout-guides-panel='true']").waitFor({ state: "visible" });
     await layoutGuidesButton.click();
-    await page.locator("[data-mesurer-layout-guides-panel='true']").waitFor({ state: "hidden" });
+    await page.locator("[data-mesurer-layout-guides-panel='true']").waitFor({ state: "detached" });
 
     const screenshotButton = page.locator("[data-mesurer-tool-id='screenshot'] button");
 
     await screenshotButton.click();
     await page.locator("[data-mesurer-screenshot-select='true']").waitFor({ state: "visible" });
     await page.keyboard.press("Escape");
-    await page.locator("[data-mesurer-screenshot-select='true']").waitFor({ state: "hidden" });
+    await page.locator("[data-mesurer-screenshot-select='true']").waitFor({ state: "detached" });
 
     const recordingButton = page.locator("[data-mesurer-tool-id='recording'] button");
 
     await recordingButton.click();
     await page.locator("[data-mesurer-recording-select='true']").waitFor({ state: "visible" });
     await page.keyboard.press("Escape");
-    await page.locator("[data-mesurer-recording-select='true']").waitFor({ state: "hidden" });
-
-    assert.equal(
-      await page.locator("[data-mesurer-island='true']").count(),
-      1,
-      "direct browser automation should operate one live Mesurer instance",
-    );
+    await page.locator("[data-mesurer-recording-select='true']").waitFor({ state: "detached" });
   } finally {
     await session.close();
   }
 };
 
-const exerciseLocalMcp = async () => {
+const exerciseMcpFallback = async () => {
   const mcp = startMcp();
 
   try {
     const initialized = await mcp.request("initialize", {
       protocolVersion: "2025-11-25",
       capabilities: {},
-      clientInfo: {
-        name: "mesurer-host-compat",
-        version: "0.1.0",
-      },
+      clientInfo: { name: "mesurer-host-compat", version: "0.1.0" },
     });
 
     assert.equal(initialized.serverInfo.name, "Mesurer Solid Local");
@@ -176,17 +178,11 @@ const exerciseLocalMcp = async () => {
       "screenshot",
       "recording",
     ]) {
-      assert.equal(
-        describedIds.has(id),
-        true,
-        `${id} should be registered in the live Mesurer tool surface`,
-      );
+      assert.equal(describedIds.has(id), true, `${id} should be registered in the live Mesurer tool surface`);
     }
 
     const visibleIds = new Set(
-      status.mesurer.ui
-        .filter((item) => item.visible)
-        .map((item) => item.id),
+      status.mesurer.ui.filter((item) => item.visible).map((item) => item.id),
     );
 
     for (const id of [
@@ -200,20 +196,12 @@ const exerciseLocalMcp = async () => {
       "screenshot",
       "recording",
     ]) {
-      assert.equal(
-        visibleIds.has(id),
-        true,
-        `${id} should be available to browser automation`,
-      );
+      assert.equal(visibleIds.has(id), true, `${id} should be available to browser automation`);
     }
 
     const pages = await mcp.call("list_browser_pages");
 
-    assert.equal(
-      pages.pages.some((item) => item.url.startsWith(hostUrl)),
-      true,
-      "MCP browser should expose the inspected Solid host",
-    );
+    assert.equal(pages.pages.some((item) => item.url.startsWith(hostUrl)), true);
 
     const inspected = await mcp.call("inspect_ui", {
       selector: "[data-testid='solid1-counter']",
@@ -292,10 +280,7 @@ const exerciseLocalMcp = async () => {
 
     const addedGuide = await mcp.call("run_mesurer_command", {
       command: "layout-guides.add",
-      args: {
-        kind: "columns",
-        count: 3,
-      },
+      args: { kind: "columns", count: 3 },
     });
 
     assert.equal(addedGuide.kind, "columns");
@@ -316,6 +301,6 @@ const exerciseLocalMcp = async () => {
 
 await exerciseDirectBrowserUi();
 
-await exerciseLocalMcp();
+await exerciseMcpFallback();
 
-process.stdout.write("Mesurer direct browser UI + local MCP smoke passed.\n");
+process.stdout.write("Mesurer direct browser UI + optional local MCP smoke passed.\n");
