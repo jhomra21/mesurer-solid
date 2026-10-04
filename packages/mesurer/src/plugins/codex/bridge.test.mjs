@@ -11,8 +11,9 @@ import {
   installMesurerCodexHost,
 } from "./bridge.mjs";
 
-delete process.env.CODEX_THREAD_ID;
-delete process.env.CODEX_APP_TOOLS_PIPE_PATH;
+for (const name of ["CODEX_THREAD_ID", "CODEX_APP_TOOLS_PIPE_PATH"]) {
+  delete process.env[name];
+}
 
 const testTmpdir = () => process.platform === "win32" ? tmpdir() : "/tmp";
 
