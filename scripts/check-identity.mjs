@@ -60,6 +60,17 @@ const legacyLowerProductTokenPattern = /(?<!\\)\b[a-z0-9_-]*measurer[a-z0-9_-]*\
 
 const failures = [];
 
+for (const name of ["codex-bridge.mjs", "codex-connect.mjs", "codex-lifecycle.mjs"]) {
+  const packagePath = `packages/mesurer/scripts/${name}`;
+  const pluginPath = `plugins/mesurer-codex/scripts/${name}`;
+  const packageSource = readFileSync(packagePath, "utf8");
+  const pluginSource = readFileSync(pluginPath, "utf8");
+
+  if (packageSource !== pluginSource) {
+    failures.push(`${pluginPath}: Mesurer Codex Bridge copy differs from ${packagePath}`);
+  }
+}
+
 const isIntentionalLegacyToken = (path, token) => intentionalLegacyProductTokens.get(path)?.has(token) === true;
 
 const reportLegacyToken = (path, source, match, label) => {
