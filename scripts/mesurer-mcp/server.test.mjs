@@ -57,9 +57,14 @@ test("Mesurer plugin manifest reuses the canonical agent skill", async () => {
   const manifest = JSON.parse(await readFile(path.join(root, ".codex-plugin/plugin.json"), "utf8"));
   const mcp = JSON.parse(await readFile(path.join(root, ".mcp.json"), "utf8"));
   const marketplace = JSON.parse(await readFile(path.join(root, ".agents/plugins/marketplace.json"), "utf8"));
+  const portableManifest = JSON.parse(await readFile(path.join(root, "plugin.json"), "utf8"));
+  const portableMcp = JSON.parse(await readFile(path.join(root, "mcp.json"), "utf8"));
+  const repositorySkill = await readFile(path.join(root, ".agents/skills/mesurer-ui/SKILL.md"), "utf8");
+  const portableSkill = await readFile(path.join(root, "skills/mesurer-ui/SKILL.md"), "utf8");
+  const packagedSkill = await readFile(path.join(root, "packages/mesurer/skills/mesurer-ui/SKILL.md"), "utf8");
 
   assert.equal(manifest.name, "mesurer-solid");
-  assert.equal(manifest.skills, "./.agents/skills/");
+  assert.equal(manifest.skills, "./skills/");
   assert.equal(manifest.mcpServers, "./.mcp.json");
   assert.deepEqual(mcp.mcpServers["mesurer-local"], {
     cwd: ".",
@@ -67,6 +72,12 @@ test("Mesurer plugin manifest reuses the canonical agent skill", async () => {
     args: ["./scripts/mesurer-mcp/server.mjs"],
   });
   assert.equal(marketplace.plugins[0]?.source?.path, ".");
+  assert.equal(portableManifest.$schema, "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json");
+  assert.equal(portableManifest.name, "mesurer-solid");
+  assert.equal(portableMcp.mcpServers["mesurer-local"].type, "stdio");
+  assert.equal(portableMcp.mcpServers["mesurer-local"].cwd, "./");
+  assert.equal(repositorySkill, portableSkill);
+  assert.equal(repositorySkill, packagedSkill);
 });
 
 test("local MCP server advertises the focused Mesurer shortcut surface", async () => {
