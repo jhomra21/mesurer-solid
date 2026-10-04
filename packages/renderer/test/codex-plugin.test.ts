@@ -116,6 +116,8 @@ const bridgeUrlForRequest = (request: HostCodexBridgeRequest) => {
           deliveryId: request.deliveryId,
           thread: request.thread,
           queuedSubmissionId: request.queuedSubmissionId,
+          clientUserMessageId: request.clientUserMessageId,
+          message: request.message,
         }),
       },
     };
@@ -318,7 +320,7 @@ describe("codex", () => {
     const fetchMock = bridgeFetchMock(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued", deliveryId: "delivery-1", status: "queued", queuedSubmissionId: "queue-1", dispatch: "persisted", dispatchError: null }),
+      text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued", deliveryId: "delivery-1", status: "queued", queuedSubmissionId: "queue-1", clientUserMessageId: "client-1", dispatch: "persisted", dispatchError: null }),
     }));
 
     vi.stubGlobal("fetch", fetchMock);
@@ -341,6 +343,7 @@ describe("codex", () => {
       deliveryId: "delivery-1",
       status: "queued",
       queuedSubmissionId: "queue-1",
+      clientUserMessageId: "client-1",
       dispatch: "persisted",
       dispatchError: null,
       annotationIds: ["note-1"],
