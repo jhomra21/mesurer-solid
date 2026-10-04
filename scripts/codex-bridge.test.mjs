@@ -1405,7 +1405,7 @@ test("Codex bridge restores a consumed queue item from one exact completed turn 
   const argsPath = join(root, "args.jsonl");
   const protocolPath = join(root, "protocol.jsonl");
   const fakeCodex = join(root, "fake-codex.mjs");
-  await writeFile(fakeCodex, \`#!/usr/bin/env node
+  await writeFile(fakeCodex, `#!/usr/bin/env node
 import { appendFileSync } from "node:fs";
 const args = process.argv.slice(2);
 appendFileSync(process.env.MESURER_FAKE_CODEX_ARGS, JSON.stringify(args) + "\\n");
@@ -1468,7 +1468,7 @@ if (args[0] === "app-server") {
   process.stderr.write("completed history restore must not wake the thread\\n");
   process.exit(98);
 }
-\`);
+`);
   await chmod(fakeCodex, 0o755);
 
   const child = spawn(process.execPath, [bridgeScript.pathname,
@@ -1489,7 +1489,7 @@ if (args[0] === "app-server") {
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const restore = await fetch(\`\${bridgeUrl}/deliveries/restore\`, {
+    const restore = await fetch(`${bridgeUrl}/deliveries/restore`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
