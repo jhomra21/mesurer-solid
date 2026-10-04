@@ -1640,6 +1640,7 @@ if (args[0] === "queue") {
     const invocations = await readInvocations(argsPath);
     const queueInvocations = invocations.filter((args) => args[0] === "queue");
     const relayInvocations = invocations.filter((args) => args[0] === "stdio-to-uds");
+
     const daemonStarts = invocations.filter((args) =>
       args[0] === "app-server" && args[1] === "daemon" && args[2] === "start");
 
@@ -1720,6 +1721,7 @@ if (args[0] === "queue") {
     const invocations = await readInvocations(argsPath);
     const queueInvocations = invocations.filter((args) => args[0] === "queue");
     const relayInvocations = invocations.filter((args) => args[0] === "stdio-to-uds");
+
     const daemonStarts = invocations.filter((args) =>
       args[0] === "app-server" && args[1] === "daemon" && args[2] === "start");
 
