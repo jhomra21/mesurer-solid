@@ -5,40 +5,62 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
-const bridgeScript = new URL("../packages/mesurer/scripts/codex-bridge.mjs", import.meta.url);
+const bridgeScript = new URL("../packages/mesurer/codex/codex-bridge.mjs", import.meta.url);
+
+const testProcessEnv = (root) => {
+  const env = {
+    ...process.env,
+    CODEX_HOME: root,
+  };
+
+  delete env.CODEX_THREAD_ID;
+  delete env.CODEX_APP_TOOLS_PIPE_PATH;
+  delete env.MESURER_CODEX_DESKTOP_OPEN_BIN;
+
+  return env;
+};
 
 const waitForLine = (stream, prefix, timeoutMs = 10_000) => new Promise((resolve, reject) => {
   let buffer = "";
+
   const timeout = setTimeout(() => {
     cleanup();
     reject(new Error(`Timed out waiting for ${prefix}`));
   }, timeoutMs);
+
   const onData = (chunk) => {
     buffer += chunk.toString();
+
     for (const line of buffer.split(/\r?\n/)) {
       if (line.startsWith(prefix)) {
         cleanup();
         resolve(line.slice(prefix.length));
+
         return;
       }
     }
   };
+
   const cleanup = () => {
     clearTimeout(timeout);
     stream.off("data", onData);
   };
+
   stream.on("data", onData);
 });
 
 const waitForExit = (child, timeoutMs = 10_000) => new Promise((resolve, reject) => {
   if (child.exitCode !== null) {
     resolve(child.exitCode);
+
     return;
   }
+
   const timeout = setTimeout(() => {
     child.kill("SIGKILL");
     reject(new Error("Bridge did not exit in time."));
   }, timeoutMs);
+
   child.once("exit", (code) => {
     clearTimeout(timeout);
     resolve(code);
@@ -47,21 +69,27 @@ const waitForExit = (child, timeoutMs = 10_000) => new Promise((resolve, reject)
 
 const readInvocations = async (path) => {
   const text = await readFile(path, "utf8");
+
   return text.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
 };
 
 const waitForDelivery = async (bridgeUrl, deliveryId, predicate, timeoutMs = 10_000) => {
   const deadline = Date.now() + timeoutMs;
+
   while (Date.now() < deadline) {
     const response = await fetch(`${bridgeUrl}/deliveries/${deliveryId}`, {
       headers: { Origin: "http://localhost:5173" },
     });
+
     if (response.ok) {
       const delivery = await response.json();
+
       if (predicate(delivery)) return delivery;
     }
+
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
+
   throw new Error(`Timed out waiting for delivery ${deliveryId}.`);
 };
 
@@ -77,7 +105,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       CODEX_THREAD_ID: "thread-a",
       MESURER_FAKE_CODEX_ARGS: argsPath,
     },
@@ -92,6 +120,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     const health = await fetch(`${bridgeUrl}/health`, {
       headers: { Origin: "http://localhost:5173" },
     });
+
     assert.equal(health.status, 200);
     const healthPayload = await health.json();
     assert.equal(healthPayload.ok, true);
@@ -112,6 +141,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
       },
       body: JSON.stringify({ message: "do not send" }),
     });
+
     assert.equal(forbiddenOrigin.status, 403);
 
     const browserRegistration = await fetch(`${bridgeUrl}/threads/register`, {
@@ -122,6 +152,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
       },
       body: JSON.stringify({ thread: "thread-browser" }),
     });
+
     assert.equal(browserRegistration.status, 403);
 
     const registration = await fetch(`${bridgeUrl}/threads/register`, {
@@ -129,6 +160,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ thread: "thread-b" }),
     });
+
     assert.equal(registration.status, 200, stderr);
     assert.deepEqual(await registration.json(), {
       ok: true,
@@ -144,6 +176,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
       },
       body: JSON.stringify({ thread: "thread-a" }),
     });
+
     assert.equal(switchBack.status, 200, stderr);
 
     const sendToOther = await fetch(`${bridgeUrl}/send`, {
@@ -154,6 +187,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
       },
       body: JSON.stringify({ message: "fix thread b", thread: "thread-b" }),
     });
+
     assert.equal(sendToOther.status, 200, stderr);
     const sent = await sendToOther.json();
     assert.equal(sent.ok, true);
@@ -166,6 +200,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     const queuedStatus = await fetch(`${bridgeUrl}/deliveries/${sent.deliveryId}`, {
       headers: { Origin: "http://127.0.0.1:4255" },
     });
+
     assert.equal(queuedStatus.status, 200);
     assert.equal((await queuedStatus.json()).status, "queued");
 
@@ -182,6 +217,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
         prompt: "fix thread b",
       }),
     });
+
     assert.equal(browserLifecycle.status, 403);
 
     const started = await fetch(`${bridgeUrl}/lifecycle`, {
@@ -194,6 +230,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
         prompt: "fix thread b",
       }),
     });
+
     assert.equal(started.status, 200);
     assert.equal((await started.json()).status, "working");
 
@@ -206,12 +243,14 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
         turnId: "turn-b",
       }),
     });
+
     assert.equal(completed.status, 200);
     assert.equal((await completed.json()).status, "completed");
 
     const completedStatus = await fetch(`${bridgeUrl}/deliveries/${sent.deliveryId}`, {
       headers: { Origin: "http://127.0.0.1:4255" },
     });
+
     assert.equal((await completedStatus.json()).status, "completed");
 
     const unknownThread = await fetch(`${bridgeUrl}/send`, {
@@ -222,6 +261,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
       },
       body: JSON.stringify({ message: "do not route", thread: "thread-c" }),
     });
+
     assert.equal(unknownThread.status, 409);
 
     assert.deepEqual(await readInvocations(argsPath), [[
@@ -248,17 +288,18 @@ test("another Codex thread can register itself with a running bridge", async () 
     "--port", "0",
     "--codex", fakeCodex,
   ], {
-    env: { ...process.env, CODEX_THREAD_ID: "thread-original" },
+    env: { ...testProcessEnv(root), CODEX_THREAD_ID: "thread-original" },
     stdio: ["ignore", "pipe", "pipe"],
   });
 
   try {
     const bridgeUrl = await waitForLine(server.stdout, "BRIDGE_URL=");
+
     const register = spawn(process.execPath, [bridgeScript.pathname,
       "--register-current",
       "--bridge", bridgeUrl,
     ], {
-      env: { ...process.env, CODEX_THREAD_ID: "thread-new" },
+      env: { ...testProcessEnv(root), CODEX_THREAD_ID: "thread-new" },
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -299,7 +340,7 @@ test("Codex bridge discovers recent same-project threads through app-server", as
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       MESURER_EXPECT_CWD: cwd,
       MESURER_FAKE_CODEX_ARGS: argsPath,
     },
@@ -310,9 +351,11 @@ test("Codex bridge discovers recent same-project threads through app-server", as
     let stderr = "";
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
     const list = await fetch(`${bridgeUrl}/threads?thread=thread-a&limit=10`, {
       headers: { Origin: "http://localhost:5173" },
     });
+
     assert.equal(list.status, 200, stderr);
     assert.deepEqual(await list.json(), {
       ok: true,
@@ -342,6 +385,7 @@ test("Codex bridge discovers recent same-project threads through app-server", as
       },
       body: JSON.stringify({ message: "apply this feedback", thread: "thread-c" }),
     });
+
     assert.equal(send.status, 200, stderr);
     const sent = await send.json();
     assert.equal(sent.ok, true);
@@ -411,7 +455,7 @@ if (args[0] === "queue") {
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       MESURER_FAKE_CODEX_ARGS: argsPath,
       MESURER_FAKE_CODEX_PROTOCOL: protocolPath,
     },
@@ -422,6 +466,7 @@ if (args[0] === "queue") {
     let stderr = "";
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
     const send = await fetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
@@ -430,6 +475,7 @@ if (args[0] === "queue") {
       },
       body: JSON.stringify({ message: "wake the cold queue" }),
     });
+
     assert.equal(send.status, 200, stderr);
     const sent = await send.json();
     assert.equal(sent.ok, true);
@@ -491,13 +537,14 @@ appendFileSync(
   await chmod(fakeOpen, 0o755);
 
   const bridgeEnv = {
-    ...process.env,
+    ...testProcessEnv(root),
     CODEX_HOME: root,
     CODEX_APP_TOOLS_PIPE_PATH: join(root, "closed-app-tools.pipe"),
     MESURER_CODEX_DESKTOP_OPEN_BIN: fakeOpen,
     MESURER_FAKE_CODEX_ARGS: argsPath,
     MESURER_FAKE_DESKTOP_OPEN: openPath,
   };
+
   const spawnBridge = () => spawn(process.execPath, [bridgeScript.pathname,
     "--port", "0",
     "--thread", "thread-desktop-restart",
@@ -509,8 +556,10 @@ appendFileSync(
 
   let first = spawnBridge();
   let second;
+
   try {
     const firstUrl = await waitForLine(first.stdout, "BRIDGE_URL=");
+
     const send = await fetch(`${firstUrl}/send`, {
       method: "POST",
       headers: {
@@ -519,6 +568,7 @@ appendFileSync(
       },
       body: JSON.stringify({ message: "persist this desktop queue across restart" }),
     });
+
     assert.equal(send.status, 200);
     const sent = await send.json();
     assert.equal(sent.transport, "desktop-app");
@@ -530,6 +580,7 @@ appendFileSync(
       sent.deliveryId,
       (delivery) => delivery.dispatch === "desktop-opened",
     );
+
     assert.equal(opened.queuedSubmissionId, "queue-desktop-restart-1");
 
     first.kill("SIGKILL");
@@ -537,11 +588,13 @@ appendFileSync(
 
     second = spawnBridge();
     const secondUrl = await waitForLine(second.stdout, "BRIDGE_URL=");
+
     const recovered = await waitForDelivery(
       secondUrl,
       sent.deliveryId,
       (delivery) => delivery.dispatch === "desktop-opened",
     );
+
     assert.equal(recovered.status, "queued");
     assert.equal(recovered.transport, "desktop-app");
     assert.equal(recovered.queuedSubmissionId, "queue-desktop-restart-1");
@@ -566,6 +619,7 @@ appendFileSync(
         turnId: "turn-desktop-restart-1",
       }),
     });
+
     assert.equal(staleLifecycle.status, 200);
     assert.deepEqual(await staleLifecycle.json(), {
       ok: true,
@@ -576,12 +630,15 @@ appendFileSync(
     const stillQueued = await fetch(`${secondUrl}/deliveries/${sent.deliveryId}`, {
       headers: { Origin: "http://localhost:5173" },
     });
+
     assert.equal(stillQueued.status, 200);
     assert.equal((await stillQueued.json()).status, "queued");
   } finally {
     if (first.exitCode === null) first.kill("SIGKILL");
+
     if (second?.exitCode === null) second.kill("SIGKILL");
     await waitForExit(first).catch(() => {});
+
     if (second) await waitForExit(second).catch(() => {});
     await rm(root, { recursive: true, force: true });
   }
@@ -657,7 +714,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       CODEX_HOME: root,
       CODEX_APP_TOOLS_PIPE_PATH: join(root, "desktop-owner.pipe"),
       MESURER_CODEX_DESKTOP_OPEN_BIN: fakeOpen,
@@ -697,6 +754,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       },
       body: JSON.stringify({ message: "complete this exact Mesurer feedback" }),
     });
+
     assert.equal(sendCompleted.status, 200, stderr);
     const completedDelivery = await sendCompleted.json();
     await waitForDelivery(
@@ -709,22 +767,26 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       userTurn("turn-unrelated", "some unrelated prompt", "completed"),
     ]));
     await new Promise((resolve) => setTimeout(resolve, 1_100));
+
     const stillQueued = await waitForDelivery(
       bridgeUrl,
       completedDelivery.deliveryId,
       (delivery) => delivery.status === "queued",
     );
+
     assert.equal(stillQueued.turnId, null);
 
     await writeFile(turnsPath, JSON.stringify([
       userTurn("turn-history-complete", "complete this exact Mesurer feedback", "inProgress"),
       userTurn("turn-unrelated", "some unrelated prompt", "completed"),
     ]));
+
     const working = await waitForDelivery(
       bridgeUrl,
       completedDelivery.deliveryId,
       (delivery) => delivery.status === "working",
     );
+
     assert.equal(working.turnId, "turn-history-complete");
 
     const syntheticInterrupted = userTurn(
@@ -732,6 +794,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       "complete this exact Mesurer feedback",
       "interrupted",
     );
+
     syntheticInterrupted.completedAt = null;
     syntheticInterrupted.durationMs = null;
     await writeFile(turnsPath, JSON.stringify([
@@ -739,11 +802,13 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       userTurn("turn-unrelated", "some unrelated prompt", "completed"),
     ]));
     await new Promise((resolve) => setTimeout(resolve, 1_100));
+
     const stillWorkingAfterSyntheticInterrupt = await waitForDelivery(
       bridgeUrl,
       completedDelivery.deliveryId,
       (delivery) => delivery.status === "working",
     );
+
     assert.equal(stillWorkingAfterSyntheticInterrupt.turnId, "turn-history-complete");
 
     const staleInterrupt = await fetch(`${bridgeUrl}/lifecycle`, {
@@ -755,6 +820,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
         turnId: "turn-history-complete",
       }),
     });
+
     assert.equal(staleInterrupt.status, 200);
     assert.deepEqual(await staleInterrupt.json(), {
       ok: true,
@@ -765,6 +831,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
     const remainsWorking = await fetch(`${bridgeUrl}/deliveries/${completedDelivery.deliveryId}`, {
       headers: { Origin: "http://localhost:5173" },
     });
+
     assert.equal(remainsWorking.status, 200);
     assert.equal((await remainsWorking.json()).status, "working");
 
@@ -772,11 +839,13 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
       userTurn("turn-unrelated", "some unrelated prompt", "completed"),
     ]));
+
     const completed = await waitForDelivery(
       bridgeUrl,
       completedDelivery.deliveryId,
       (delivery) => delivery.status === "completed",
     );
+
     assert.equal(completed.turnId, "turn-history-complete");
 
     const sendInterrupted = await fetch(`${bridgeUrl}/send`, {
@@ -787,6 +856,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       },
       body: JSON.stringify({ message: "interrupt this exact Mesurer feedback" }),
     });
+
     assert.equal(sendInterrupted.status, 200, stderr);
     const interruptedDelivery = await sendInterrupted.json();
     await waitForDelivery(
@@ -799,22 +869,26 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       userTurn("turn-history-interrupt", "interrupt this exact Mesurer feedback", "inProgress"),
       userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
     ]));
+
     const interruptWorking = await waitForDelivery(
       bridgeUrl,
       interruptedDelivery.deliveryId,
       (delivery) => delivery.status === "working",
     );
+
     assert.equal(interruptWorking.turnId, "turn-history-interrupt");
 
     await writeFile(turnsPath, JSON.stringify([
       userTurn("turn-history-interrupt", "interrupt this exact Mesurer feedback", "interrupted"),
       userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
     ]));
+
     const interrupted = await waitForDelivery(
       bridgeUrl,
       interruptedDelivery.deliveryId,
       (delivery) => delivery.status === "interrupted",
     );
+
     assert.equal(interrupted.turnId, "turn-history-interrupt");
 
     const invocations = await readInvocations(argsPath);
@@ -947,7 +1021,7 @@ if (args[0] === "app-server" && args[1] === "--listen") {
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       CODEX_HOME: root,
       CODEX_APP_TOOLS_PIPE_PATH: join(root, "desktop-owner.pipe"),
       MESURER_FAKE_CODEX_ARGS: argsPath,
@@ -959,11 +1033,13 @@ if (args[0] === "app-server" && args[1] === "--listen") {
     let stderr = "";
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
     const recovered = await waitForDelivery(
       bridgeUrl,
       "delivery-premature-interrupt",
       (delivery) => delivery.status === "completed",
     );
+
     assert.equal(recovered.turnId, "turn-terminal-recovery");
     assert.equal(recovered.queuedSubmissionId, "queue-terminal-recovery");
 
@@ -971,6 +1047,7 @@ if (args[0] === "app-server" && args[1] === "--listen") {
       join(root, "mesurer", "codex-deliveries.json"),
       "utf8",
     ));
+
     assert.equal(persisted.deliveries[0]?.status, "completed");
     assert.equal(persisted.deliveries[0]?.turnId, "turn-terminal-recovery");
 
@@ -1062,7 +1139,7 @@ appendFileSync(
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       CODEX_HOME: root,
       CODEX_APP_TOOLS_PIPE_PATH: join(root, "closed-app-tools.pipe"),
       MESURER_CODEX_DESKTOP_OPEN_BIN: fakeOpen,
@@ -1090,6 +1167,7 @@ appendFileSync(
         queuedSubmissionId: "queue-desktop-old-1",
       }),
     });
+
     assert.equal(restore.status, 200, stderr);
     const restored = await restore.json();
     assert.equal(restored.transport, "desktop-app");
@@ -1101,6 +1179,7 @@ appendFileSync(
       "delivery-desktop-restored-1",
       (delivery) => delivery.dispatch === "desktop-opened",
     );
+
     assert.equal(dispatched.queuedSubmissionId, "queue-desktop-old-1");
     assert.equal(dispatched.transport, "desktop-app");
 
@@ -1131,6 +1210,7 @@ appendFileSync(
         prompt: "recover this exact desktop feedback",
       }),
     });
+
     assert.equal(staleLifecycle.status, 200);
     assert.deepEqual(await staleLifecycle.json(), {
       ok: true,
@@ -1222,7 +1302,7 @@ if (args[0] === "app-server") {
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       MESURER_FAKE_CODEX_ARGS: argsPath,
       MESURER_FAKE_CODEX_PROTOCOL: protocolPath,
     },
@@ -1237,6 +1317,7 @@ if (args[0] === "app-server") {
     const missing = await fetch(`${bridgeUrl}/deliveries/delivery-restored-1`, {
       headers: { Origin: "http://localhost:5173" },
     });
+
     assert.equal(missing.status, 404);
 
     const restore = await fetch(`${bridgeUrl}/deliveries/restore`, {
@@ -1250,6 +1331,7 @@ if (args[0] === "app-server") {
         thread: "thread-recover",
       }),
     });
+
     assert.equal(restore.status, 200, stderr);
     const restored = await restore.json();
     assert.equal(restored.restored, true);
@@ -1268,6 +1350,7 @@ if (args[0] === "app-server") {
         prompt: "recover this exact feedback",
       }),
     });
+
     assert.equal(started.status, 200);
     assert.equal((await started.json()).status, "working");
 
@@ -1280,6 +1363,7 @@ if (args[0] === "app-server") {
         turnId: "turn-restored-1",
       }),
     });
+
     assert.equal(completed.status, 200);
     assert.equal((await completed.json()).status, "completed");
 
@@ -1348,7 +1432,7 @@ if (args[0] === "queue") {
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       MESURER_FAKE_CODEX_ARGS: argsPath,
       MESURER_FAKE_CODEX_PROTOCOL: protocolPath,
       MESURER_FAKE_DAEMON_MARKER: daemonMarker,
@@ -1360,6 +1444,7 @@ if (args[0] === "queue") {
     let stderr = "";
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
     const send = await fetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
@@ -1368,6 +1453,7 @@ if (args[0] === "queue") {
       },
       body: JSON.stringify({ message: "wake without a preexisting daemon" }),
     });
+
     assert.equal(send.status, 200, stderr);
     const sent = await send.json();
     assert.equal(sent.queuedSubmissionId, "queue-fallback-1");
@@ -1425,7 +1511,7 @@ if (args[0] === "queue") {
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       MESURER_FAKE_CODEX_ARGS: argsPath,
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -1433,6 +1519,7 @@ if (args[0] === "queue") {
 
   try {
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
     const send = await fetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
@@ -1441,6 +1528,7 @@ if (args[0] === "queue") {
       },
       body: JSON.stringify({ message: "do not widen the fallback" }),
     });
+
     assert.equal(send.status, 200);
     const sent = await send.json();
     assert.equal(sent.queuedSubmissionId, "queue-fail-closed-1");
@@ -1507,7 +1595,7 @@ if (args[0] === "queue") {
       "--codex", fakeCodex,
     ], {
       env: {
-        ...process.env,
+        ...testProcessEnv(root),
         MESURER_FAKE_CODEX_ARGS: argsPath,
         MESURER_FAKE_CODEX_PROTOCOL: protocolPath,
         MESURER_FAKE_THREAD_STATUS: status,
@@ -1517,6 +1605,7 @@ if (args[0] === "queue") {
 
     try {
       const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
       const send = await fetch(`${bridgeUrl}/send`, {
         method: "POST",
         headers: {
@@ -1525,6 +1614,7 @@ if (args[0] === "queue") {
         },
         body: JSON.stringify({ message: `leave ${status} scheduling to Codex` }),
       });
+
       assert.equal(send.status, 200);
       const sent = await send.json();
       assert.equal(sent.queuedSubmissionId, "queue-loaded-1");
