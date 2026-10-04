@@ -702,7 +702,7 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
         version: "1",
       },
       capabilities: {
-        experimentalApi: false,
+        experimentalApi: true,
       },
     },
   });
@@ -869,7 +869,7 @@ const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
         version: "1",
       },
       capabilities: {
-        experimentalApi: false,
+        experimentalApi: true,
       },
     },
   });
