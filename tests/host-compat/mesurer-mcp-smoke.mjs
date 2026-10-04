@@ -272,28 +272,25 @@ const exerciseMcpFallback = async () => {
 
     assert.deepEqual(annotationReview, []);
 
-    const commands = status.mesurer.description.commands;
+    const pluginIds = new Set(status.mesurer.description.plugins.map((plugin) => plugin.id));
 
-    assert.equal(commands.includes("layout-guides.add"), true);
-    assert.equal(commands.includes("recording.toggle"), true);
-    assert.equal(commands.includes("screenshot.toggle"), true);
+    assert.equal(pluginIds.has("mesurer.recording"), true);
 
-    const addedGuide = await mcp.call("run_mesurer_command", {
-      command: "layout-guides.add",
-      args: { kind: "columns", count: 3 },
+    const recordingDisabled = await mcp.call("set_mesurer_plugin", {
+      pluginId: "mesurer.recording",
+      enabled: false,
     });
 
-    assert.equal(addedGuide.kind, "columns");
-    assert.equal(addedGuide.count, 3);
+    assert.equal(recordingDisabled.enabled, false);
+    assert.equal(recordingDisabled.busy, false);
 
-    const workspace = await mcp.call("get_ui_context", {
-      scope: "workspace",
+    const recordingEnabled = await mcp.call("set_mesurer_plugin", {
+      pluginId: "mesurer.recording",
+      enabled: true,
     });
 
-    assert.equal(
-      workspace.visualContext.layoutGuides.some((guide) => guide.id === addedGuide.id),
-      true,
-    );
+    assert.equal(recordingEnabled.enabled, true);
+    assert.equal(recordingEnabled.busy, false);
   } finally {
     await mcp.close();
   }
