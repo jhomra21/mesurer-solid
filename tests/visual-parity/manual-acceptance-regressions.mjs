@@ -118,11 +118,7 @@ try {
   settingsPage = await browser.newPage({ viewport: { width: 1280, height: 700 } });
   watchDiagnostics(settingsPage);
   await settingsPage.addInitScript(() => {
-    localStorage.setItem("mesurer-plugin-settings:availability", JSON.stringify({
-      version: 3,
-      enabled: { "mesurer.codex": true },
-      state: {},
-    }));
+    localStorage.removeItem("mesurer-plugin-settings:availability");
   });
   await settingsPage.goto(url, { waitUntil: "networkidle" });
 
@@ -224,6 +220,19 @@ try {
     await dialog.locator("[data-mesurer-plugin-error='mesurer.codex']").count(),
     0,
     "Browser Codex availability must not be reported as an Electron preload error",
+  );
+
+  const persistedCodexEnabled = await settingsPage.evaluate(() => {
+    const raw = localStorage.getItem("mesurer-plugin-settings:availability");
+    const state = raw ? JSON.parse(raw) : null;
+
+    return state?.enabled?.["mesurer.codex"] === true;
+  });
+
+  assert.equal(
+    persistedCodexEnabled,
+    true,
+    "Browser Codex enabled state should persist even when the local companion is temporarily unavailable",
   );
 
   const contextToggle = dialog.getByRole("switch", { name: "Context", exact: true });
