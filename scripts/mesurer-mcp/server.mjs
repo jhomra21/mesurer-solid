@@ -83,9 +83,6 @@ const requireConnectedSession = () => {
 
 const browserPage = () => requireConnectedSession().page;
 
-const browserGlobalName = async () =>
-  (await requireConnectedSession().status()).globalName ?? DEFAULT_GLOBAL_NAME;
-
 const waitForMesurer = async () => {
   const active = requireConnectedSession();
   const status = await active.status();
