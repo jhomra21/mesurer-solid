@@ -38,7 +38,13 @@ const annotation: MesurerAnnotation = {
 };
 
 const createContextService = () => {
-  const removeAnnotation = vi.fn(async (_annotationId: string) => {});
+  const savedAnnotations = [annotation];
+
+  const removeAnnotation = vi.fn(async (annotationId: string) => {
+    const index = savedAnnotations.findIndex((candidate) => candidate.id === annotationId);
+
+    if (index >= 0) savedAnnotations.splice(index, 1);
+  });
 
   const contextText = vi.fn(async (request?: MesurerContextRequest) => {
     if (request && "annotation" in request) return `annotation evidence ${request.annotation}`;
@@ -53,7 +59,7 @@ const createContextService = () => {
     contextText,
     copyContext: async () => {},
     select: async () => { throw new Error("select() is not needed by this contract"); },
-    annotations: async () => [annotation],
+    annotations: async () => [...savedAnnotations],
     removeAnnotation,
     review: async () => [],
     capturePlan: async () => { throw new Error("capturePlan() is not needed by this contract"); },
@@ -1316,6 +1322,175 @@ describe("codex", () => {
       .toBe("Codex finished");
     expect(removeAnnotation).toHaveBeenCalledTimes(1);
     expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(sendCount).toBe(1);
+
+    secondHost.dispose();
+    vi.useRealTimers();
+  });
+
+  it("keeps recovered completion persisted until exact annotation cleanup succeeds", async () => {
+    vi.useFakeTimers();
+    const firstHost = createMesurerPluginHost();
+    const { service: firstContext } = createContextService();
+    let sendCount = 0;
+    let phase: "first" | "second" = "first";
+    const restoreBodies: unknown[] = [];
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ ok: true, thread: "thread-a", threads: ["thread-a"] }),
+        };
+      }
+
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            threadDetails: [{ id: "thread-a", title: "Current task", updatedAt: 10, connected: true }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      if (url.endsWith("/send")) {
+        sendCount += 1;
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            output: "queued",
+            delivery: "queued",
+            deliveryId: "delivery-history-ui",
+            status: "queued",
+            queuedSubmissionId: "queue-history-ui",
+            clientUserMessageId: "client-history-ui",
+            dispatch: "desktop-opened",
+            dispatchError: null,
+          }),
+        };
+      }
+
+      if (url.endsWith("/deliveries/delivery-history-ui")) {
+        if (phase === "first") {
+          return {
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({
+              ok: true,
+              deliveryId: "delivery-history-ui",
+              thread: "thread-a",
+              status: "queued",
+              turnId: null,
+              queuedSubmissionId: "queue-history-ui",
+              clientUserMessageId: "client-history-ui",
+              dispatch: "desktop-opened",
+              dispatchError: null,
+              createdAt: 1,
+              updatedAt: 1,
+            }),
+          };
+        }
+
+        return {
+          ok: false,
+          status: 404,
+          text: async () => JSON.stringify({
+            ok: false,
+            error: "Codex delivery is not available: delivery-history-ui",
+          }),
+        };
+      }
+
+      if (url.endsWith("/deliveries/restore")) {
+        restoreBodies.push(JSON.parse(String(init?.body)));
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            restored: true,
+            deliveryId: "delivery-history-ui",
+            thread: "thread-a",
+            status: "completed",
+            turnId: "turn-history-ui",
+            queuedSubmissionId: "queue-history-ui",
+            clientUserMessageId: "client-history-ui",
+            dispatch: "desktop-opened",
+            dispatchError: null,
+            createdAt: 1,
+            updatedAt: 2,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await firstHost.load(defineMesurerPlugin({
+      id: "test.context-history-ui-first",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", firstContext);
+      },
+    }));
+    await firstHost.load(codex());
+    await firstHost.command.execute("codex.send");
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    expect(sendCount).toBe(1);
+    firstHost.dispose();
+
+    phase = "second";
+    const secondHost = createMesurerPluginHost();
+    const { service: secondContext, removeAnnotation } = createContextService();
+    await secondHost.load(defineMesurerPlugin({
+      id: "test.context-history-ui-second",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", secondContext);
+      },
+    }));
+    await secondHost.load(codex());
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(sendCount).toBe(1);
+    expect(restoreBodies).toHaveLength(1);
+    expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Codex finished");
+    expect(removeAnnotation).toHaveBeenCalledTimes(1);
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    await expect(secondContext.annotations()).resolves.toEqual([]);
+
+    const persisted = JSON.parse(
+      sessionStorage.getItem("mesurer-codex-ui:v2:http://localhost:3000/") ?? "{}",
+    );
+
+    expect(persisted.delivery?.status).toBe("completed");
+    expect(persisted.delivery?.annotationIds).toEqual(["note-1"]);
+
+    await vi.advanceTimersByTimeAsync(1_800);
+    expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Queue to Codex");
+
+    const cleared = JSON.parse(
+      sessionStorage.getItem("mesurer-codex-ui:v2:http://localhost:3000/") ?? "{}",
+    );
+
+    expect(cleared.delivery).toBeNull();
     expect(sendCount).toBe(1);
 
     secondHost.dispose();
