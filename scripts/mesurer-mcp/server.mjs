@@ -481,6 +481,7 @@ const setMesurerPlugin = async (args = {}) => {
 
     const activeTab = [...dialog.querySelectorAll("[role='tab']")]
       .find((element) => element.getAttribute("aria-selected") === "true");
+
     const generalTab = [...dialog.querySelectorAll("[role='tab']")]
       .find((element) => element.textContent?.trim() === "General");
 
