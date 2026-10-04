@@ -243,7 +243,7 @@ type PersistedCodexUiState = {
   delivery: {
     id: string;
     thread: string;
-    status: "queued" | "working" | "interrupted";
+    status: "queued" | "working" | "interrupted" | "failed";
     annotationIds: string[];
     queuedSubmissionId?: string | null;
     clientUserMessageId?: string | null;
@@ -287,7 +287,8 @@ const readBrowserState = (): PersistedCodexUiState | null => {
       && delivery.thread.trim()
       && (delivery.status === "queued"
         || delivery.status === "working"
-        || delivery.status === "interrupted")
+        || delivery.status === "interrupted"
+        || delivery.status === "failed")
       && Array.isArray(delivery.annotationIds)
       ? {
           id: delivery.id.trim(),
@@ -808,7 +809,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         const persistedDelivery = activeDelivery?.id
           && (activeDelivery.status === "queued"
             || activeDelivery.status === "working"
-            || activeDelivery.status === "interrupted")
+            || activeDelivery.status === "interrupted"
+            || activeDelivery.status === "failed")
           ? {
               id: activeDelivery.id,
               thread: activeDelivery.thread ?? currentTarget() ?? "",
@@ -1216,7 +1218,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           if (activeDelivery?.id !== deliveryId) return;
           let failure = cause;
 
-          if (activeDelivery.status === "queued" && activeDelivery.thread) {
+          if ((activeDelivery.status === "queued" || activeDelivery.status === "failed")
+            && activeDelivery.thread) {
             try {
               if (bridgeAvailability !== "available") await refreshRuntime(true);
               const restored = await restoreDelivery(activeDelivery);
@@ -1337,6 +1340,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       const queueFromUi = async () => {
         if (uiSendPromise || deliveryBusy()) return;
+
+        if (activeDelivery?.status === "failed" && activeDelivery.id) {
+          clearDeliveryTimers();
+          await pollDelivery(activeDelivery.id);
+
+          return;
+        }
+
         clearDeliveryTimers();
         const target = currentTarget();
         activeDelivery = {
