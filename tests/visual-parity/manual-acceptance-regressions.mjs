@@ -256,10 +256,10 @@ try {
 
   const browserCodexTool = settingsPage.locator("button[data-mesurer-tool-id='codex.send']");
   await browserCodexTool.waitFor({ state: "visible" });
-  assert.match(
+  assert.equal(
     (await browserCodexTool.getAttribute("aria-label")) ?? "",
-    /Codex unavailable|Queue to Codex|Choose Codex thread/i,
-    "Browser Codex should stay enabled while local companion discovery resolves",
+    "Codex bridge not running",
+    "Browser Codex should stay enabled and explain that its local bridge is unavailable",
   );
   assert.equal(
     await dialog.locator("[data-mesurer-plugin-error='mesurer.codex']").count(),
