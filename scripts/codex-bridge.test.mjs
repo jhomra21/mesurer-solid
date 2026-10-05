@@ -305,6 +305,110 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
   }
 });
 
+test("Codex bridge normalizes explicitly allowed browser origins", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-origin-normalize-"));
+  const fakeCodex = join(root, "fake-codex.mjs");
+  await writeFile(fakeCodex, "#!/usr/bin/env node\n");
+  await chmod(fakeCodex, 0o755);
+
+  const child = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--thread", "thread-origin",
+    "--origin", "https://example.com/",
+    "--codex", fakeCodex,
+  ], {
+    env: testProcessEnv(root),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
+    const health = await fetch(`${bridgeUrl}/health`, {
+      headers: { Origin: "https://example.com" },
+    });
+
+    assert.equal(health.status, 200);
+    assert.equal(
+      health.headers.get("access-control-allow-origin"),
+      "https://example.com",
+    );
+
+    const healthPayload = await health.json();
+    assert.equal(healthPayload.access?.allowed, true);
+    assert.equal(healthPayload.thread, "thread-origin");
+
+    const target = await fetch(`${bridgeUrl}/target`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://example.com",
+      },
+      body: JSON.stringify({ thread: "thread-origin" }),
+    });
+
+    assert.equal(target.status, 200);
+    assert.equal(
+      target.headers.get("access-control-allow-origin"),
+      "https://example.com",
+    );
+    assert.equal((await target.json()).thread, "thread-origin");
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await waitForExit(child).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Codex bridge supports explicitly allowed opaque browser origins", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-origin-null-"));
+  const fakeCodex = join(root, "fake-codex.mjs");
+  await writeFile(fakeCodex, "#!/usr/bin/env node\n");
+  await chmod(fakeCodex, 0o755);
+
+  const child = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--thread", "thread-null-origin",
+    "--origin", "null",
+    "--codex", fakeCodex,
+  ], {
+    env: testProcessEnv(root),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
+    const health = await fetch(`${bridgeUrl}/health`, {
+      headers: { Origin: "null" },
+    });
+
+    assert.equal(health.status, 200);
+    assert.equal(health.headers.get("access-control-allow-origin"), "null");
+    const healthPayload = await health.json();
+
+    assert.equal(healthPayload.access?.allowed, true);
+    assert.equal(healthPayload.thread, "thread-null-origin");
+
+    const target = await fetch(`${bridgeUrl}/target`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "null",
+      },
+      body: JSON.stringify({ thread: "thread-null-origin" }),
+    });
+
+    assert.equal(target.status, 200);
+    assert.equal(target.headers.get("access-control-allow-origin"), "null");
+    assert.equal((await target.json()).thread, "thread-null-origin");
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await waitForExit(child).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Codex bridge refuses shutdown after the last owner leaves while a delivery is still pending", async () => {
   const root = await mkdtemp(join(tmpdir(), "mesurer-codex-pending-owner-"));
   const fakeCodex = join(root, "fake-codex.mjs");
