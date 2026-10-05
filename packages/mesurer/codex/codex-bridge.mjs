@@ -413,7 +413,7 @@ const writeJson = (response, status, payload, origin) => {
     "Cache-Control": "no-store",
     ...corsHeaders(origin),
   });
-  response.end(`${JSON.stringify({ bridge: BRIDGE_IDENTITY, ...payload })}\n`);
+  response.end(`${JSON.stringify(payload)}\n`);
 };
 
 const readJsonBody = async (request) => {
@@ -1836,7 +1836,12 @@ server = createServer(async (request, response) => {
   }
 
   if (request.method === "GET" && request.url === "/health") {
-    writeJson(response, 200, { ok: true, bridgeState: bridgeState(), ...threadPayload() }, origin);
+    writeJson(response, 200, {
+      ok: true,
+      bridge: BRIDGE_IDENTITY,
+      bridgeState: bridgeState(),
+      ...threadPayload(),
+    }, origin);
 
     return;
   }
