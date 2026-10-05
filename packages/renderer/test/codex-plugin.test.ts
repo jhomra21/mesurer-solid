@@ -926,21 +926,23 @@ describe("codex", () => {
     const initial = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(initial?.label).toBe("Queue to Codex");
     expect(initial?.disabled?.()).toBe(false);
-    await initial?.menu?.items[0]?.run();
+    await initial?.menu?.items.find((item) => item.id === "codex.thread.thread-a")?.run();
 
     await vi.waitFor(() => {
       const tool = host.tools().find((candidate) => candidate.id === "codex.send");
       expect(tool?.label).toBe("Queue to Codex");
       expect(tool?.disabled?.()).toBe(false);
-      expect(tool?.menu?.items).toHaveLength(6);
-      expect(tool?.menu?.items[0]?.label).toBe("Current · Original task");
-      expect(tool?.menu?.items[5]?.label).toBe("Show 5 more…");
+      expect(tool?.menu?.items).toHaveLength(7);
+      expect(tool?.menu?.items[0]?.label).toBe("Connected · Codex shared server");
+      expect(tool?.menu?.items[1]?.label).toBe("Current · Original task");
+      expect(tool?.menu?.items[6]?.label).toBe("Show 5 more…");
     });
 
     const tool = host.tools().find((candidate) => candidate.id === "codex.send");
     await tool?.menu?.items.find((item) => item.id === "codex.thread.show-more")?.run();
     const expanded = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(expanded?.menu?.items.map((item) => item.label)).toEqual([
+      "Connected · Codex shared server",
       "Current · Original task",
       "Second task",
       "Third task",
@@ -1045,8 +1047,10 @@ describe("codex", () => {
     let tool = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(tool?.label).toBe("Queued for Codex");
     expect(tool?.disabled?.()).toBe(true);
-    expect(tool?.menu?.items[0]?.label).toContain("Queued");
-    expect(tool?.menu?.items[0]?.disabled?.()).toBe(true);
+    const queuedThread = tool?.menu?.items.find((item) => item.id === "codex.thread.thread-a");
+    expect(tool?.menu?.items[0]?.label).toBe("Connected · Codex shared server");
+    expect(queuedThread?.label).toContain("Queued");
+    expect(queuedThread?.disabled?.()).toBe(true);
 
     await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
     tool = host.tools().find((candidate) => candidate.id === "codex.send");
@@ -1254,7 +1258,7 @@ describe("codex", () => {
 
     const chooser = firstHost.tools()
       .find((candidate) => candidate.id === "codex.send")
-      ?.menu?.items[0];
+      ?.menu?.items.find((item) => item.id === "codex.thread.thread-a");
 
     await chooser?.run();
     firstHost.dispose();
