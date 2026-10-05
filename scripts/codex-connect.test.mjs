@@ -218,7 +218,6 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
   }
 });
 
-
 test("Codex SessionEnd keeps a shared bridge until its last registered thread exits", async () => {
   const root = await mkdtemp(join(tmpdir(), "mesurer-codex-session-end-"));
   const port = await freePort();
