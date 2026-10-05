@@ -197,15 +197,13 @@ Codex transport adapters
       └─ codex://threads/<same id>
 ```
 
-Codex Bridge belongs to the Codex plugin at `packages/mesurer/src/plugins/codex/bridge.mjs` and is published as `mesurer-solid/plugins/codex/bridge`. There is no separate Mesurer Codex process, HTTP listener, port, marketplace package, Codex SessionStart/SessionEnd hook, or generated copy.
+Codex has two local transport implementations behind one renderer-facing `codex:v1` service. The Electron transport belongs to `packages/mesurer/src/plugins/codex/bridge.mjs` and is published as `mesurer-solid/plugins/codex/bridge`. Electron main installs `installMesurerCodexHost()`; a bundled preload exposes `createMesurerCodexPreloadBridge()`. The main adapter validates the caller and binds each activation lease to the invoking renderer.
 
-Electron renderers receive only a narrow host capability. Electron main installs `installMesurerCodexHost()`; a bundled preload exposes `createMesurerCodexPreloadBridge()`. The main adapter validates the caller and binds each activation lease to the invoking renderer.
-
-Browser renderers cannot use native process/socket APIs, so the same `codex:v1` service falls back to the local Mesurer Codex Bridge companion at `127.0.0.1:47365`. The companion is loopback-only and is normally started/reused by the optional Mesurer Codex Bridge Codex helper when a local Codex session starts. This helper is distinct from the Mesurer Solid OpenAI agent plugin.
+Browser renderers cannot use native process/socket APIs, so they use the package-owned loopback companion under `packages/mesurer/codex/`, distributed through the optional `plugins/mesurer-codex` helper and npm companion commands. Codex SessionStart starts/reuses the helper and registers the local session; SessionEnd unregisters it. The companion binds only to loopback, validates browser origins, advertises a versioned capability contract on `/health`, and is distinct from the Mesurer Solid OpenAI agent plugin.
 
 Behind either renderer transport, Codex delivery prefers exact inherited Desktop ownership when it is available and otherwise uses Codex's reachable shared app-server. Exact Desktop ownership uses one durable `queue` command and the native `codex://` wake; the private app-tools pipe is never opened. Shared delivery calls `thread/queue/add` and may start the shared daemon only from a complete standalone Codex installation.
 
-Electron hosts with the native bridge start Codex enabled and use transactional renderer leases. Browser hosts keep Codex registered in Settings but default it off; enabling probes the local companion and remains enabled in an unavailable/retry state if the companion is not yet running. Disabling removes that page's Codex service/UI without stopping shared Codex infrastructure or a companion another local client may still use.
+Electron hosts with the native bridge start Codex enabled and use transactional renderer leases. Browser hosts keep Codex registered in Settings but default it off; enabling verifies the loopback companion's identity/protocol/capabilities and self-heals when a compatible helper appears. Missing, outdated, and conflicting helpers remain explicit fail-closed states. Disabling removes page-owned Codex service/UI/timers; it never unregisters Codex-owned sessions or stops a shared companion. A companion can be replaced or shut down only when it has no registered owners and no queued/working delivery.
 
 One page keeps its selected destination in per-tab `sessionStorage`. A saved target remains valid only while Codex reports it as loaded. If no valid target exists and several loaded threads are available, Mesurer requires an explicit human choice.
 
