@@ -137,7 +137,24 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     );
     assert.equal(healthPayload.bridgeState?.registeredThreads, 1);
     assert.equal(healthPayload.bridgeState?.idle, false);
+    assert.equal(healthPayload.access?.allowed, true);
     assert.equal(health.headers.get("access-control-allow-origin"), "http://localhost:5173");
+
+    const deniedHealth = await fetch(`${bridgeUrl}/health`, {
+      headers: { Origin: "https://example.com" },
+    });
+
+    assert.equal(deniedHealth.status, 200);
+    assert.equal(deniedHealth.headers.get("access-control-allow-origin"), "https://example.com");
+    const deniedHealthPayload = await deniedHealth.json();
+
+    assert.equal(deniedHealthPayload.ok, true);
+    assert.equal(deniedHealthPayload.bridge?.name, "mesurer-codex");
+    assert.equal(deniedHealthPayload.bridge?.protocol, 2);
+    assert.equal(deniedHealthPayload.access?.allowed, false);
+    assert.equal("thread" in deniedHealthPayload, false);
+    assert.equal("threads" in deniedHealthPayload, false);
+    assert.equal("bridgeState" in deniedHealthPayload, false);
 
     const forbiddenOrigin = await fetch(`${bridgeUrl}/send`, {
       method: "POST",
@@ -149,6 +166,10 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     });
 
     assert.equal(forbiddenOrigin.status, 403);
+    assert.equal(
+      forbiddenOrigin.headers.get("access-control-allow-origin"),
+      "https://example.com",
+    );
 
     const browserRegistration = await fetch(`${bridgeUrl}/threads/register`, {
       method: "POST",
