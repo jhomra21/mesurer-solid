@@ -294,6 +294,7 @@ const refreshOwnerHealthMonitor = () => {
 
 const scheduleIdleShutdown = () => {
   if (shutdownStarted || registeredThreads.size > 0 || idleShutdownTimer) return;
+
   const delay = bridgeCanShutdown()
     ? LAST_OWNER_SHUTDOWN_DELAY_MS
     : IDLE_PENDING_RECHECK_MS;
