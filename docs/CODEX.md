@@ -86,11 +86,11 @@ Codex remains listed under **Settings -> Plugins** in both browser and Electron 
 
 Electron/native hosts with `window.__MESURER_HOST__.codexBridge` start Codex enabled. Enabling there is transactional: Mesurer acquires one renderer-scoped native lease and proves Codex readiness before the switch commits. Disabling waits for lease release.
 
-Browser hosts start Codex off by default. When the user enables it, Mesurer keeps the plugin enabled and probes the local companion at `http://127.0.0.1:47365`. If the companion is not running yet, the toolbar reports **Codex unavailable** and offers retry instead of treating the missing Electron preload as an activation failure. The enabled preference is preserved so the connection can recover when the helper appears.
+Browser hosts start Codex off by default. When the user enables it, Mesurer keeps the plugin enabled and probes the local companion at `http://127.0.0.1:47365`. The browser verifies the helper's Mesurer identity, protocol version, and required capabilities before using it. A missing helper shows **Codex bridge not running**; an older helper shows **Update Codex Bridge**; an unrelated process on the port shows **Codex bridge conflict**. While the toggle remains on, Mesurer periodically rechecks and connects automatically when a compatible helper appears.
 
-The browser helper is normally started or reused by the optional **Mesurer Codex Bridge** local Codex plugin when a Codex session starts. It can also be run directly with the packaged `mesurer-codex` / `mesurer-codex-connect` commands for diagnostics.
+The browser helper is normally started or reused by the optional **Mesurer Codex Bridge** local Codex plugin when a Codex session starts. It can also be run directly with the packaged `mesurer-codex` / `mesurer-codex-connect` commands for diagnostics. A new helper may replace a different bridge build only when the running bridge advertises idle-safe shutdown and reports zero registered owners and zero queued/working deliveries.
 
-Turning the Mesurer Codex plugin off removes its service and toolbar UI from that page. It does not stop Codex's shared app-server or assume ownership of other browser pages or Codex sessions.
+Turning the Mesurer Codex plugin off removes that page's service, toolbar registration, polling, and delivery timers. Browser pages do not own the shared companion, so toggle-off does not unregister Codex sessions or stop the helper. Electron toggle-off releases that renderer's native lease before plugin removal. Neither path stops Codex's shared app-server.
 
 ## Desktop and standalone runtimes
 
@@ -171,7 +171,9 @@ The two transports have different ownership.
 
 The Electron/native bridge runs in the application host process. It opens short-lived connections to Codex's shared app-server and holds only renderer-scoped Mesurer leases. Mesurer never stops Codex's shared daemon.
 
-Browser pages use the local **Mesurer Codex Bridge** companion on loopback. The helper may outlive one Mesurer page because multiple pages or Codex sessions can reuse it. Codex's SessionStart integration starts or reuses the helper and registers the current session. Mesurer disabling on one page must not kill a bridge another page or session may still use.
+Browser pages use the local **Mesurer Codex Bridge** companion on loopback. The helper may outlive one Mesurer page because multiple pages or Codex sessions can reuse it. Codex's SessionStart integration starts or reuses the helper and registers the current session; SessionEnd unregisters that session. If a Desktop owner disappears before SessionEnd can run, the companion also reaps registrations whose ownership anchor disappeared.
+
+The companion shuts itself down only after the last registered Codex owner is gone **and** no queued/working Mesurer delivery remains. Explicit local shutdown is rejected while either condition is still active. This lets a pending receipt finish and remain recoverable even after the originating Codex session begins teardown.
 
 The companion is local-only. It is not a hosted relay and is not part of the OpenAI Mesurer Solid agent plugin.
 
@@ -208,7 +210,7 @@ Neither transport connects to Codex Desktop's private app-tools pipe. Desktop ow
 
 A normal browser page keeps the Codex row in Settings. The user can enable it without an Electron preload.
 
-Once enabled, Mesurer probes the local companion. If the helper is running, Mesurer discovers the available Codex threads and **Queue to Codex** works normally. If it is absent, the plugin remains enabled in an unavailable/retry state; it does not show an Electron-host requirement.
+Once enabled, Mesurer probes the local companion. If a compatible helper is running, Mesurer discovers the available Codex threads and **Queue to Codex** works normally. If it is absent, stale, or the port belongs to another service, the plugin remains enabled but fail-closed with an explicit diagnostic. It never sends to an unverified local service, and it automatically retries compatibility/availability while the toggle remains on.
 
 The optional helper can be installed from this repository as **Mesurer Codex Bridge**. It is deliberately separate from **Mesurer Solid**, the OpenAI agent plugin.
 
