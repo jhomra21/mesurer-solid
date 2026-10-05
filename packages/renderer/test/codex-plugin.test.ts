@@ -212,7 +212,46 @@ type BridgeMockHandler = (
   init?: RequestInit,
 ) => Promise<BridgeMockResponse>;
 
-const bridgeFetchMock = (handler: BridgeMockHandler) => vi.fn(handler);
+const COMPATIBLE_BROWSER_BRIDGE = {
+  name: "mesurer-codex",
+  protocol: 2,
+  capabilities: [
+    "thread-discovery-v1",
+    "durable-queue-v1",
+    "history-recovery-v2",
+    "client-message-correlation-v1",
+    "idle-safe-shutdown-v1",
+  ],
+  sourceHash: "test-source",
+  pid: 1,
+  canShutdown: true,
+};
+
+const bridgeFetchMock = (
+  handler: BridgeMockHandler,
+  options: { identity?: boolean } = {},
+) => vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  const response = await handler(input, init);
+
+  if (options.identity === false) return response;
+
+  return {
+    ...response,
+    async text() {
+      const text = await response.text();
+
+      if (!text) return text;
+
+      try {
+        const payload = JSON.parse(text);
+
+        return JSON.stringify({ bridge: COMPATIBLE_BROWSER_BRIDGE, ...payload });
+      } catch {
+        return text;
+      }
+    },
+  };
+});
 
 describe("codex", () => {
   it("loads without a native host and uses the browser Codex companion", async () => {
