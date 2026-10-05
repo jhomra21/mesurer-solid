@@ -1039,7 +1039,9 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         if (!nativeBridgeAvailable) return "Connected · Local Codex Bridge";
 
         if (codexRuntime?.source === "desktop") return "Connected · Codex Desktop";
+
         if (codexRuntime?.source === "standalone") return "Connected · Codex CLI";
+
         if (codexRuntime?.source === "shared") return "Connected · Codex shared server";
 
         return "Connected · Codex";
