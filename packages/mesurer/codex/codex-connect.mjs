@@ -12,6 +12,14 @@ const BRIDGE_NAME = "mesurer-codex";
 
 const BRIDGE_PROTOCOL_VERSION = 2;
 
+const REQUIRED_BRIDGE_CAPABILITIES = [
+  "thread-discovery-v1",
+  "durable-queue-v1",
+  "history-recovery-v2",
+  "client-message-correlation-v1",
+  "idle-safe-shutdown-v1",
+];
+
 const IDLE_SAFE_SHUTDOWN_CAPABILITY = "idle-safe-shutdown-v1";
 
 const START_TIMEOUT_MS = 10_000;
@@ -200,9 +208,19 @@ const waitForBridge = async () => {
   throw new Error(`Mesurer Codex bridge did not become ready at ${bridgeUrl.origin}.`);
 };
 
+const bridgeCapabilities = (payload) =>
+  Array.isArray(payload?.bridge?.capabilities) ? payload.bridge.capabilities : [];
+
+const isCompatibleBridge = (payload) => {
+  if (payload?.bridge?.name !== BRIDGE_NAME) return false;
+  if (payload.bridge.protocol !== BRIDGE_PROTOCOL_VERSION) return false;
+  const capabilities = new Set(bridgeCapabilities(payload));
+
+  return REQUIRED_BRIDGE_CAPABILITIES.every((capability) => capabilities.has(capability));
+};
+
 const isExactBridge = (payload) =>
-  payload?.bridge?.name === BRIDGE_NAME
-  && payload.bridge.protocol === BRIDGE_PROTOCOL_VERSION
+  isCompatibleBridge(payload)
   && payload.bridge.sourceHash === expectedSourceHash;
 
 if (fromSessionEnd) {
@@ -214,7 +232,7 @@ if (fromSessionEnd) {
     process.exit(0);
   }
 
-  if (!current || !isExactBridge(current)) process.exit(0);
+  if (!current || !isCompatibleBridge(current)) process.exit(0);
 
   let response;
 
@@ -257,9 +275,6 @@ const waitForBridgeToStop = async () => {
   throw new Error(`Stale Mesurer Codex bridge did not stop at ${bridgeUrl.origin}.`);
 };
 
-const bridgeCapabilities = (payload) =>
-  Array.isArray(payload?.bridge?.capabilities) ? payload.bridge.capabilities : [];
-
 const bridgeUsage = (payload) => ({
   registeredThreads: Number(payload?.bridgeState?.registeredThreads) || 0,
   nonTerminalDeliveries: Number(payload?.bridgeState?.nonTerminalDeliveries) || 0,
@@ -301,7 +316,7 @@ try {
   fail(cause instanceof Error ? cause.message : String(cause));
 }
 
-if (current && !isExactBridge(current)) {
+if (current && !isCompatibleBridge(current)) {
   let replaced = false;
 
   try {
@@ -315,15 +330,16 @@ if (current && !isExactBridge(current)) {
   } else if (current?.bridge?.name === BRIDGE_NAME) {
     const usage = bridgeUsage(current);
     const source = current.bridge.sourceHash?.slice?.(0, 12) ?? "unknown";
+    const protocol = current.bridge.protocol ?? "unknown";
 
     if (!bridgeCapabilities(current).includes(IDLE_SAFE_SHUTDOWN_CAPABILITY)) {
       fail(
-        `A different Mesurer Codex Bridge version is already running at ${bridgeUrl.origin} (source ${source}). It cannot prove idle-safe replacement, so Mesurer will not stop it automatically. Close the Codex sessions using that bridge, let it exit, then retry.`,
+        `An incompatible Mesurer Codex Bridge is already running at ${bridgeUrl.origin} (protocol ${protocol}, source ${source}). It cannot prove idle-safe replacement, so Mesurer will not stop it automatically. Close the Codex sessions using that bridge, let it exit, then retry.`,
       );
     }
 
     fail(
-      `A different Mesurer Codex Bridge version is still in use at ${bridgeUrl.origin} (source ${source}; ${usage.registeredThreads} registered thread(s), ${usage.nonTerminalDeliveries} queued/working delivery(s)). Mesurer will not interrupt it. Close those Codex sessions or wait for their deliveries to finish, then retry.`,
+      `An incompatible Mesurer Codex Bridge is still in use at ${bridgeUrl.origin} (protocol ${protocol}, source ${source}; ${usage.registeredThreads} registered thread(s), ${usage.nonTerminalDeliveries} queued/working delivery(s)). Mesurer will not interrupt it. Close those Codex sessions or wait for their deliveries to finish, then retry.`,
     );
   } else if (!current.bridge && Array.isArray(current.threads)) {
     fail(
