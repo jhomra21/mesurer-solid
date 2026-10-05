@@ -259,13 +259,13 @@ The optional human `screenshot()` plugin from `mesurer-solid/plugins` is a separ
 
 The first-party `codex()` plugin is Mesurer's **Settings -> Codex** feature. It is not the OpenAI Mesurer Solid agent plugin.
 
-Electron hosts with `window.__MESURER_HOST__.codexBridge(request)` can use the in-process native bridge and start Codex enabled. Browser hosts still show Codex in Settings but start with it off. When enabled, the browser plugin talks to the local Mesurer Codex Bridge companion at `127.0.0.1:47365`. If that helper is absent, the plugin stays enabled in an unavailable/retry state instead of failing with an Electron-preload requirement.
+Electron hosts with `window.__MESURER_HOST__.codexBridge(request)` can use the in-process native bridge and start Codex enabled. Browser hosts still show Codex in Settings but start with it off. When enabled, the browser plugin talks to the local Mesurer Codex Bridge companion at `127.0.0.1:47365`, verifies its versioned capabilities before use, and reconnects automatically when a compatible helper appears. Missing, outdated, or conflicting helpers remain explicit fail-closed states.
 
-The optional local **Mesurer Codex Bridge** helper can be installed into Codex so SessionStart starts or reuses the loopback companion and registers the current local Codex session. The npm package also exposes `mesurer-codex` and `mesurer-codex-connect` for diagnostics.
+The optional local **Mesurer Codex Bridge** helper can be installed into Codex so SessionStart starts or reuses the loopback companion and registers the current local Codex session; SessionEnd unregisters that ownership. A stale helper is replaced only when it proves it is idle, and an ownerless helper remains alive until queued/working Mesurer deliveries become terminal. The npm package also exposes `mesurer-codex` and `mesurer-codex-connect` for diagnostics.
 
 Both renderer transports expose the same `codex:v1` service. Shared sessions queue through Codex's local app-server. Exact Desktop-current-thread delivery can use one durable Codex queue operation plus the native `codex://threads/<id>` wake. The private app-tools pipe is never opened.
 
-Browser companion state and the native Electron bridge are local-machine transports only. Neither is a hosted Mesurer relay, and neither changes how coding agents consume `window.__MESURER__`.
+Browser companion state and the native Electron bridge are local-machine transports only. Neither is a hosted Mesurer relay, and neither changes how coding agents consume `window.__MESURER__`. Turning the human Codex plugin off cleans only resources owned by that Mesurer renderer: browser polling/tools or the Electron renderer lease. It does not stop shared Codex infrastructure.
 
 ## Revalidate after source edits
 
