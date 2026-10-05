@@ -219,6 +219,8 @@ const isCompatibleBridge = (payload) => {
   return REQUIRED_BRIDGE_CAPABILITIES.every((capability) => capabilities.has(capability));
 };
 
+const isMesurerBridge = (payload) => payload?.bridge?.name === BRIDGE_NAME;
+
 const isExactBridge = (payload) =>
   isCompatibleBridge(payload)
   && payload.bridge.sourceHash === expectedSourceHash;
@@ -232,7 +234,7 @@ if (fromSessionEnd) {
     process.exit(0);
   }
 
-  if (!current || !isCompatibleBridge(current)) process.exit(0);
+  if (!current || !isMesurerBridge(current)) process.exit(0);
 
   let response;
 
@@ -249,9 +251,7 @@ if (fromSessionEnd) {
 
   const payload = await readPayload(response);
 
-  if (!response.ok || payload.ok === false) {
-    fail(payload.error || `Mesurer Codex bridge returned HTTP ${response.status} while unregistering ${thread}.`);
-  }
+  if (!response.ok || payload.ok === false) process.exit(0);
 
   process.exit(0);
 }
