@@ -284,6 +284,102 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
   }
 });
 
+test("Codex bridge refuses shutdown after the last owner leaves while a delivery is still pending", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-pending-owner-"));
+  const fakeCodex = join(root, "fake-codex.mjs");
+
+  await writeFile(fakeCodex, `#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args[0] === "queue") console.log("queued without a parseable receipt");
+`);
+  await chmod(fakeCodex, 0o755);
+
+  const child = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--thread", "thread-owner",
+    "--codex", fakeCodex,
+  ], {
+    env: testProcessEnv(root),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
+    const send = await fetch(`${bridgeUrl}/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173",
+      },
+      body: JSON.stringify({
+        thread: "thread-owner",
+        message: "finish this pending delivery before bridge shutdown",
+      }),
+    });
+
+    assert.equal(send.status, 200, stderr);
+    const delivery = await send.json();
+    assert.equal(delivery.status, "queued");
+
+    const unregister = await fetch(`${bridgeUrl}/threads/unregister`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thread: "thread-owner" }),
+    });
+
+    assert.equal(unregister.status, 200, stderr);
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const health = await fetch(`${bridgeUrl}/health`);
+    assert.equal(health.status, 200);
+    const healthPayload = await health.json();
+
+    assert.equal(healthPayload.bridgeState?.registeredThreads, 0);
+    assert.equal(healthPayload.bridgeState?.nonTerminalDeliveries, 1);
+    assert.equal(healthPayload.bridgeState?.idle, false);
+
+    const shutdown = await fetch(`${bridgeUrl}/shutdown`, { method: "POST" });
+    assert.equal(shutdown.status, 409);
+    const blocked = await shutdown.json();
+
+    assert.match(blocked.error, /still in use/);
+    assert.equal(blocked.bridgeState?.nonTerminalDeliveries, 1);
+
+    const started = await fetch(`${bridgeUrl}/lifecycle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "UserPromptSubmit",
+        sessionId: "thread-owner",
+        turnId: "turn-owner",
+        prompt: "finish this pending delivery before bridge shutdown",
+      }),
+    });
+
+    assert.equal(started.status, 200, stderr);
+
+    const completed = await fetch(`${bridgeUrl}/lifecycle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "Stop",
+        sessionId: "thread-owner",
+        turnId: "turn-owner",
+      }),
+    });
+
+    assert.equal(completed.status, 200, stderr);
+    await waitForExit(child);
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await waitForExit(child).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("another Codex thread can register itself with a running bridge", async () => {
   const root = await mkdtemp(join(tmpdir(), "mesurer-codex-register-"));
   const fakeCodex = join(root, "fake-codex.mjs");
