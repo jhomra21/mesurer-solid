@@ -728,8 +728,13 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       ): Promise<BridgeResponse> => {
         if (!nativeBridgeAvailable) {
           try {
+            const writeRequiresFreshVerification = request.action === "queue"
+              || request.action === "target"
+              || request.action === "restore";
+
             if (request.action !== "health"
-              && Date.now() - browserBridgeVerifiedAt >= BROWSER_DISCONNECTED_POLL_MS) {
+              && (writeRequiresFreshVerification
+                || Date.now() - browserBridgeVerifiedAt >= BROWSER_DISCONNECTED_POLL_MS)) {
               await browserBridgeRequest({
                 action: "health",
                 thread: selectedThread ?? originThread ?? undefined,
