@@ -397,6 +397,7 @@ const assertBrowserBridgeCompatibility = (payload: BridgeResponse) => {
   }
 
   const capabilities = new Set(Array.isArray(bridge.capabilities) ? bridge.capabilities : []);
+
   const missing = BROWSER_COMPANION_REQUIRED_CAPABILITIES
     .filter((capability) => !capabilities.has(capability));
 
