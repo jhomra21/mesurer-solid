@@ -1025,6 +1025,16 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       let refreshRuntime = (_allowUnknown = false): Promise<void> => Promise.resolve();
 
+      const connectionLabel = () => {
+        if (!nativeBridgeAvailable) return "Connected · Local Codex Bridge";
+
+        if (codexRuntime?.source === "desktop") return "Connected · Codex Desktop";
+        if (codexRuntime?.source === "standalone") return "Connected · Codex CLI";
+        if (codexRuntime?.source === "shared") return "Connected · Codex shared server";
+
+        return "Connected · Codex";
+      };
+
       const menuItems = (): ToolMenuItemContribution[] => {
         if (bridgeAvailability !== "available") {
           const desktopPrivate = codexRuntime?.source === "desktop"
@@ -1070,7 +1080,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         const visible = threads.slice(0, visibleThreadCount);
         const target = currentTarget();
 
-        const items: ToolMenuItemContribution[] = visible.map((thread) => {
+        const items: ToolMenuItemContribution[] = [{
+          id: "codex.connection.status",
+          label: connectionLabel(),
+          disabled: () => true,
+          run: () => undefined,
+        }];
+
+        items.push(...visible.map((thread) => {
           const prefix = thread.id === originThread
             ? "Current · "
             : thread.connected
@@ -1092,7 +1109,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               syncTool();
             },
           };
-        });
+        }));
 
         if (visibleThreadCount < RECENT_THREAD_LIMIT
           && (threads.length > visibleThreadCount || recentHasMore)) {
