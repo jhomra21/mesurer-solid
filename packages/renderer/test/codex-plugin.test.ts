@@ -329,6 +329,124 @@ describe("codex", () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
+  it("shows an explicit update state for an incompatible browser Codex Bridge", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+
+    delete window.__MESURER_HOST__;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("http://127.0.0.1:47365/health");
+
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          bridge: {
+            name: "mesurer-codex",
+            protocol: 1,
+            capabilities: [],
+            sourceHash: "stale-source",
+          },
+          thread: "stale-thread",
+          threads: ["stale-thread"],
+        }),
+      };
+    }, { identity: false });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-incompatible-browser-bridge",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(host.tools().find((tool) => tool.id === "codex.send")?.label)
+      .toBe("Update Codex Bridge");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    host.dispose();
+  });
+
+  it("stops browser Codex probes and removes page-owned resources when disabled", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+
+    delete window.__MESURER_HOST__;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-browser-cleanup",
+            threads: ["thread-browser-cleanup"],
+          }),
+        };
+      }
+
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-browser-cleanup",
+            threadDetails: [{
+              id: "thread-browser-cleanup",
+              title: "Browser cleanup",
+              updatedAt: 1,
+              connected: true,
+            }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected browser cleanup request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-browser-cleanup",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(host.has("mesurer.codex")).toBe(true);
+    expect(host.service.get(MESURER_CODEX_SERVICE_ID)).toBeDefined();
+    expect(host.tools().some((tool) => tool.id === "codex.send")).toBe(true);
+
+    const requestsBeforeDisable = fetchMock.mock.calls.length;
+
+    host.remove("mesurer.codex");
+    expect(host.has("mesurer.codex")).toBe(false);
+    expect(host.service.get(MESURER_CODEX_SERVICE_ID)).toBeUndefined();
+    expect(host.tools().some((tool) => tool.id === "codex.send")).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(fetchMock).toHaveBeenCalledTimes(requestsBeforeDisable);
+    expect(fetchMock.mock.calls.some(([input]) =>
+      /\/shutdown|\/threads\/unregister/.test(String(input)))).toBe(false);
+  });
+
   it("holds one native lease until the managed plugin pre-disable barrier releases it", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
@@ -351,11 +469,13 @@ describe("codex", () => {
 
     await host.hook.emit(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, "mesurer.codex");
 
-    expect(bridge.mock.calls.some(([request]) =>
-      request.action === "deactivate" && request.leaseId === "lease-test")).toBe(true);
+    expect(bridge.mock.calls.filter(([request]) =>
+      request.action === "deactivate" && request.leaseId === "lease-test")).toHaveLength(1);
 
     host.remove("mesurer.codex");
     expect(host.has("mesurer.codex")).toBe(false);
+    expect(bridge.mock.calls.filter(([request]) =>
+      request.action === "deactivate" && request.leaseId === "lease-test")).toHaveLength(1);
   });
 
   it("sends saved Context evidence through the native Codex Bridge", async () => {
