@@ -375,6 +375,49 @@ describe("codex", () => {
     host.dispose();
   });
 
+  it("shows an explicit authorization state when the browser origin is not allowed", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+
+    delete window.__MESURER_HOST__;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("http://127.0.0.1:47365/health");
+
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          bridge: COMPATIBLE_BROWSER_BRIDGE,
+          access: { allowed: false },
+        }),
+      };
+    }, { identity: false });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-browser-origin-denied",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await vi.advanceTimersByTimeAsync(0);
+
+    const tool = host.tools().find((candidate) => candidate.id === "codex.send");
+
+    expect(tool?.label).toBe("Authorize Codex origin");
+    expect(tool?.menu?.items[0]?.label).toBe("Allow this browser origin");
+    expect(tool?.disabled?.()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    host.dispose();
+  });
+
   it("automatically reconnects when a compatible browser Codex Bridge appears later", async () => {
     vi.useFakeTimers();
     const host = createMesurerPluginHost();
