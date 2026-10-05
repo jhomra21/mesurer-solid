@@ -202,7 +202,33 @@ const initialCodexHome = normalizeCwd(process.env.CODEX_HOME);
 
 const codexBin = values.codex?.trim() || process.env.CODEX_BIN?.trim() || "codex";
 
-const additionalOrigins = new Set(values.origin ?? []);
+const normalizeConfiguredOrigin = (value) => {
+  const origin = value?.trim();
+
+  if (!origin) return null;
+  if (origin === "null") return "null";
+
+  try {
+    const url = new URL(origin);
+
+    return url.protocol === "http:" || url.protocol === "https:" ? url.origin : null;
+  } catch {
+    return null;
+  }
+};
+
+const additionalOrigins = new Set();
+
+for (const value of values.origin ?? []) {
+  const origin = normalizeConfiguredOrigin(value);
+
+  if (!origin) {
+    process.stderr.write(`Invalid --origin: ${value}\n`);
+    process.exit(2);
+  }
+
+  additionalOrigins.add(origin);
+}
 
 const registeredThreads = new Map();
 
@@ -393,14 +419,9 @@ const isLoopbackOrigin = (origin) => {
   }
 };
 
-const originAllowed = (origin) => {
-  if (!origin) return true;
-
-  return additionalOrigins.has(origin) || isLoopbackOrigin(origin);
-};
-
 const corsOrigin = (origin) => {
   if (!origin) return null;
+  if (origin === "null") return "null";
 
   try {
     const url = new URL(origin);
@@ -409,6 +430,15 @@ const corsOrigin = (origin) => {
   } catch {
     return null;
   }
+};
+
+const originAllowed = (origin) => {
+  if (!origin) return true;
+  const normalized = corsOrigin(origin);
+
+  if (!normalized) return false;
+
+  return additionalOrigins.has(normalized) || isLoopbackOrigin(normalized);
 };
 
 const corsHeaders = (origin, exposeDenied = false) => {
