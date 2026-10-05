@@ -14,7 +14,15 @@ const DEFAULT_BRIDGE = `http://127.0.0.1:${DEFAULT_PORT}`;
 
 const BRIDGE_NAME = "mesurer-codex";
 
-const BRIDGE_PROTOCOL_VERSION = 1;
+const BRIDGE_PROTOCOL_VERSION = 2;
+
+const BRIDGE_CAPABILITIES = Object.freeze([
+  "thread-discovery-v1",
+  "durable-queue-v1",
+  "history-recovery-v2",
+  "client-message-correlation-v1",
+  "idle-safe-shutdown-v1",
+]);
 
 const BRIDGE_SOURCE_HASH = createHash("sha256")
   .update(await readFile(new URL(import.meta.url)))
@@ -23,6 +31,7 @@ const BRIDGE_SOURCE_HASH = createHash("sha256")
 const BRIDGE_IDENTITY = Object.freeze({
   name: BRIDGE_NAME,
   protocol: BRIDGE_PROTOCOL_VERSION,
+  capabilities: BRIDGE_CAPABILITIES,
   sourceHash: BRIDGE_SOURCE_HASH,
   pid: process.pid,
   canShutdown: true,
@@ -55,6 +64,8 @@ const DESKTOP_TURN_HISTORY_LIMIT = 10;
 const DELIVERY_TURN_START_SKEW_MS = 60_000;
 
 const LAST_OWNER_SHUTDOWN_DELAY_MS = 250;
+
+const IDLE_PENDING_RECHECK_MS = 5_000;
 
 const configuredOwnerHealthPollMs = Number(process.env.MESURER_CODEX_OWNER_POLL_MS);
 
@@ -238,6 +249,20 @@ const cancelIdleShutdown = () => {
   idleShutdownTimer = null;
 };
 
+const nonTerminalDeliveryCount = () =>
+  [...deliveries.values()].filter((delivery) =>
+    delivery.status === "queued" || delivery.status === "working").length;
+
+const bridgeCanShutdown = () =>
+  registeredThreads.size === 0 && nonTerminalDeliveryCount() === 0;
+
+const bridgeState = () => ({
+  registeredThreads: registeredThreads.size,
+  deliveries: deliveries.size,
+  nonTerminalDeliveries: nonTerminalDeliveryCount(),
+  idle: bridgeCanShutdown(),
+});
+
 const ownerAnchorExists = async (path) => {
   try {
     await stat(path);
@@ -269,12 +294,22 @@ const refreshOwnerHealthMonitor = () => {
 
 const scheduleIdleShutdown = () => {
   if (shutdownStarted || registeredThreads.size > 0 || idleShutdownTimer) return;
+  const delay = bridgeCanShutdown()
+    ? LAST_OWNER_SHUTDOWN_DELAY_MS
+    : IDLE_PENDING_RECHECK_MS;
 
   idleShutdownTimer = setTimeout(() => {
     idleShutdownTimer = null;
+    pruneDeliveries();
 
-    if (registeredThreads.size === 0) void shutdownBridge();
-  }, LAST_OWNER_SHUTDOWN_DELAY_MS);
+    if (bridgeCanShutdown()) {
+      void shutdownBridge();
+
+      return;
+    }
+
+    if (registeredThreads.size === 0) scheduleIdleShutdown();
+  }, delay);
   idleShutdownTimer.unref?.();
 };
 
@@ -378,7 +413,7 @@ const writeJson = (response, status, payload, origin) => {
     "Cache-Control": "no-store",
     ...corsHeaders(origin),
   });
-  response.end(`${JSON.stringify(payload)}\n`);
+  response.end(`${JSON.stringify({ bridge: BRIDGE_IDENTITY, ...payload })}\n`);
 };
 
 const readJsonBody = async (request) => {
@@ -1628,6 +1663,7 @@ const reconcileDesktopDelivery = async (delivery) => {
   if (state.dispatchError) delivery.dispatchError = state.dispatchError;
   delivery.updatedAt = Date.now();
   await persistDeliveryState();
+  scheduleIdleShutdown();
 };
 
 const captureQueuedIdentity = async (delivery) => {
@@ -1733,6 +1769,7 @@ const markTurnTerminal = (thread, turnId, status) => {
     delivery.updatedAt = Date.now();
 
     if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
+    scheduleIdleShutdown();
 
     return delivery;
   }
@@ -1777,17 +1814,29 @@ server = createServer(async (request, response) => {
       return;
     }
 
+    const state = bridgeState();
+
+    if (!state.idle) {
+      writeJson(response, 409, {
+        ok: false,
+        error: "Mesurer Codex Bridge is still in use and cannot shut down yet.",
+        bridgeState: state,
+      }, origin);
+
+      return;
+    }
+
     response.setHeader("Connection", "close");
     response.once("finish", () => {
       void shutdownBridge();
     });
-    writeJson(response, 200, { ok: true }, origin);
+    writeJson(response, 200, { ok: true, bridgeState: state }, origin);
 
     return;
   }
 
   if (request.method === "GET" && request.url === "/health") {
-    writeJson(response, 200, { ok: true, bridge: BRIDGE_IDENTITY, ...threadPayload() }, origin);
+    writeJson(response, 200, { ok: true, bridgeState: bridgeState(), ...threadPayload() }, origin);
 
     return;
   }
