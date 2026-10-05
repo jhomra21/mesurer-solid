@@ -375,6 +375,153 @@ describe("codex", () => {
     host.dispose();
   });
 
+  it("automatically reconnects when a compatible browser Codex Bridge appears later", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    let available = false;
+
+    delete window.__MESURER_HOST__;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        if (!available) throw new TypeError("fetch failed");
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-self-heal",
+            threads: ["thread-self-heal"],
+          }),
+        };
+      }
+
+      if (url.includes("/threads?")) {
+        if (!available) throw new Error("threads must not be queried before bridge health succeeds");
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-self-heal",
+            threadDetails: [{
+              id: "thread-self-heal",
+              title: "Recovered Codex session",
+              updatedAt: 1,
+              connected: true,
+            }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected self-heal request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-browser-self-heal",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(host.tools().find((tool) => tool.id === "codex.send")?.label)
+      .toBe("Codex bridge not running");
+
+    available = true;
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(host.tools().find((tool) => tool.id === "codex.send")?.label)
+      .toBe("Queue to Codex");
+    expect(fetchMock.mock.calls.some(([input]) =>
+      String(input).includes("/threads?"))).toBe(true);
+
+    host.dispose();
+  });
+
+  it("reverifies browser bridge compatibility immediately before queue writes", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    const requests: string[] = [];
+
+    delete window.__MESURER_HOST__;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      requests.push(url);
+
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-write-check",
+            threads: ["thread-write-check"],
+          }),
+        };
+      }
+
+      if (url.endsWith("/send")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-write-check",
+            output: "queued",
+            delivery: "queued",
+            deliveryId: "delivery-write-check",
+            status: "queued",
+            queuedSubmissionId: "queue-write-check",
+            clientUserMessageId: "client-write-check",
+            dispatch: "persisted",
+            dispatchError: null,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected preflight request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-browser-write-preflight",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex({ ui: false }));
+
+    const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
+
+    await expect(service?.queue({ thread: "thread-write-check" })).resolves.toMatchObject({
+      thread: "thread-write-check",
+      deliveryId: "delivery-write-check",
+      queuedSubmissionId: "queue-write-check",
+      clientUserMessageId: "client-write-check",
+    });
+
+    expect(requests).toEqual([
+      "http://127.0.0.1:47365/health",
+      "http://127.0.0.1:47365/send",
+    ]);
+
+    host.dispose();
+  });
+
   it("stops browser Codex probes and removes page-owned resources when disabled", async () => {
     vi.useFakeTimers();
     const host = createMesurerPluginHost();
