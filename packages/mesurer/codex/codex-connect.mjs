@@ -270,7 +270,9 @@ const replaceStaleBridge = async (payload) => {
   if (payload?.bridge?.name !== BRIDGE_NAME || payload.bridge.canShutdown !== true) return false;
 
   if (!bridgeCapabilities(payload).includes(IDLE_SAFE_SHUTDOWN_CAPABILITY)) return false;
+
   if (!bridgeUsage(payload).idle) return false;
+
   let response;
 
   try {
