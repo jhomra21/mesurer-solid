@@ -125,6 +125,20 @@ try {
       contentType: "application/json",
       body: JSON.stringify({
         ok: false,
+        bridge: {
+          name: "mesurer-codex",
+          protocol: 2,
+          capabilities: [
+            "thread-discovery-v1",
+            "durable-queue-v1",
+            "history-recovery-v2",
+            "client-message-correlation-v1",
+            "idle-safe-shutdown-v1",
+          ],
+          sourceHash: "browser-fixture",
+          pid: 1,
+          canShutdown: true,
+        },
         error: "Mesurer Codex companion is unavailable in this browser fixture.",
       }),
     });
