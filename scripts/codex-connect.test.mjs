@@ -425,6 +425,12 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
     assert.notEqual(healthPayload.bridge?.sourceHash, "stale");
     assert.equal(healthPayload.thread, "thread-current");
   } finally {
+    await runSessionEnd({
+      bridgeUrl,
+      sessionId: "thread-current",
+      env: { CODEX_HOME: root },
+    }).catch(() => undefined);
+
     try { await fetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
 
     await waitForUnavailable(bridgeUrl);
