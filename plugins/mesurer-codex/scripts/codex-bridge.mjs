@@ -206,6 +206,7 @@ const normalizeConfiguredOrigin = (value) => {
   const origin = value?.trim();
 
   if (!origin) return null;
+
   if (origin === "null") return "null";
 
   try {
@@ -421,6 +422,7 @@ const isLoopbackOrigin = (origin) => {
 
 const corsOrigin = (origin) => {
   if (!origin) return null;
+
   if (origin === "null") return "null";
 
   try {
