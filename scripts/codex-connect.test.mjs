@@ -161,10 +161,16 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
     assert.equal(healthPayload.thread, "thread-hook-b");
     assert.deepEqual(healthPayload.threads, ["thread-hook-a", "thread-hook-b"]);
     assert.equal(healthPayload.bridge?.name, "mesurer-codex");
-    assert.equal(healthPayload.bridge?.protocol, 1);
+    assert.equal(healthPayload.bridge?.protocol, 2);
     assert.match(healthPayload.bridge?.sourceHash, /^[0-9a-f]{64}$/);
     assert.equal(Number.isInteger(healthPayload.bridge?.pid), true);
     assert.equal(healthPayload.bridge?.canShutdown, true);
+    assert.equal(
+      healthPayload.bridge?.capabilities?.includes("idle-safe-shutdown-v1"),
+      true,
+    );
+    assert.equal(healthPayload.bridgeState?.registeredThreads, 2);
+    assert.equal(healthPayload.bridgeState?.idle, false);
 
     const send = await fetch(`${bridgeUrl}/send`, {
       method: "POST",
@@ -354,7 +360,26 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
         ok: true,
         thread: "stale-thread",
         threads: ["stale-thread"],
-        bridge: { name: "mesurer-codex", protocol: 1, sourceHash: "stale", pid: process.pid, canShutdown: true },
+        bridge: {
+          name: "mesurer-codex",
+          protocol: 2,
+          capabilities: [
+            "thread-discovery-v1",
+            "durable-queue-v1",
+            "history-recovery-v2",
+            "client-message-correlation-v1",
+            "idle-safe-shutdown-v1",
+          ],
+          sourceHash: "stale",
+          pid: process.pid,
+          canShutdown: true,
+        },
+        bridgeState: {
+          registeredThreads: 0,
+          deliveries: 0,
+          nonTerminalDeliveries: 0,
+          idle: true,
+        },
       }));
 
       return;
@@ -395,7 +420,7 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
     assert.equal(health.status, 200);
     const healthPayload = await health.json();
     assert.equal(healthPayload.bridge?.name, "mesurer-codex");
-    assert.equal(healthPayload.bridge?.protocol, 1);
+    assert.equal(healthPayload.bridge?.protocol, 2);
     assert.match(healthPayload.bridge?.sourceHash, /^[0-9a-f]{64}$/);
     assert.notEqual(healthPayload.bridge?.sourceHash, "stale");
     assert.equal(healthPayload.thread, "thread-current");
@@ -404,6 +429,73 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
 
     await waitForUnavailable(bridgeUrl);
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Codex SessionStart never replaces a stale bridge that still owns sessions or pending delivery state", async () => {
+  const port = await freePort();
+  const bridgeUrl = `http://127.0.0.1:${port}`;
+  let shutdowns = 0;
+
+  const server = createHttpServer((request, response) => {
+    response.setHeader("Content-Type", "application/json");
+
+    if (request.method === "GET" && request.url === "/health") {
+      response.end(JSON.stringify({
+        ok: true,
+        thread: "busy-thread",
+        threads: ["busy-thread"],
+        bridge: {
+          name: "mesurer-codex",
+          protocol: 2,
+          capabilities: [
+            "thread-discovery-v1",
+            "durable-queue-v1",
+            "history-recovery-v2",
+            "client-message-correlation-v1",
+            "idle-safe-shutdown-v1",
+          ],
+          sourceHash: "stale-busy",
+          pid: process.pid,
+          canShutdown: true,
+        },
+        bridgeState: {
+          registeredThreads: 1,
+          deliveries: 1,
+          nonTerminalDeliveries: 1,
+          idle: false,
+        },
+      }));
+
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/shutdown") {
+      shutdowns += 1;
+      response.end(JSON.stringify({ ok: true }));
+
+      return;
+    }
+
+    response.statusCode = 404;
+    response.end(JSON.stringify({ ok: false }));
+  });
+
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", resolve);
+  });
+
+  try {
+    const result = await runSessionStart({ bridgeUrl, sessionId: "thread-current" });
+
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /still in use/);
+    assert.match(result.stderr, /1 registered thread/);
+    assert.match(result.stderr, /1 queued\/working delivery/);
+    assert.equal(shutdowns, 0);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
   }
 });
 
