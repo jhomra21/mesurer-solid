@@ -399,20 +399,36 @@ const originAllowed = (origin) => {
   return additionalOrigins.has(origin) || isLoopbackOrigin(origin);
 };
 
-const corsHeaders = (origin) => origin && originAllowed(origin)
-  ? {
-      "Access-Control-Allow-Origin": origin,
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Vary": "Origin",
-    }
-  : {};
+const corsOrigin = (origin) => {
+  if (!origin) return null;
 
-const writeJson = (response, status, payload, origin) => {
+  try {
+    const url = new URL(origin);
+
+    return url.protocol === "http:" || url.protocol === "https:" ? url.origin : null;
+  } catch {
+    return null;
+  }
+};
+
+const corsHeaders = (origin, exposeDenied = false) => {
+  const safeOrigin = corsOrigin(origin);
+
+  if (!safeOrigin || (!exposeDenied && !originAllowed(safeOrigin))) return {};
+
+  return {
+    "Access-Control-Allow-Origin": safeOrigin,
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Vary": "Origin",
+  };
+};
+
+const writeJson = (response, status, payload, origin, exposeDenied = false) => {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
-    ...corsHeaders(origin),
+    ...corsHeaders(origin, exposeDenied),
   });
   response.end(`${JSON.stringify(payload)}\n`);
 };
@@ -1796,7 +1812,27 @@ server = createServer(async (request, response) => {
   const origin = [request.headers.origin].flat().find((value) => value !== undefined);
 
   if (!originAllowed(origin)) {
-    writeJson(response, 403, { ok: false, error: `Origin is not allowed: ${origin}` }, origin);
+    if (request.method === "GET" && request.url === "/health") {
+      writeJson(response, 200, {
+        ok: true,
+        bridge: {
+          name: BRIDGE_IDENTITY.name,
+          protocol: BRIDGE_IDENTITY.protocol,
+          capabilities: BRIDGE_IDENTITY.capabilities,
+        },
+        access: { allowed: false },
+      }, origin, true);
+
+      return;
+    }
+
+    writeJson(
+      response,
+      403,
+      { ok: false, error: `Origin is not allowed: ${origin}` },
+      origin,
+      true,
+    );
 
     return;
   }
@@ -1841,6 +1877,7 @@ server = createServer(async (request, response) => {
       ok: true,
       bridge: BRIDGE_IDENTITY,
       bridgeState: bridgeState(),
+      access: { allowed: true },
       ...threadPayload(),
     }, origin);
 
