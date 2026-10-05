@@ -957,7 +957,6 @@ describe("codex", () => {
     host.dispose();
   });
 
-
   it("shows queued work as busy, suppresses duplicate sends, and removes completed annotations", async () => {
     vi.useFakeTimers();
     const host = createMesurerPluginHost();
