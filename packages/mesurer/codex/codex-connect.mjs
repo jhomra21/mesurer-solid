@@ -213,7 +213,9 @@ const bridgeCapabilities = (payload) =>
 
 const isCompatibleBridge = (payload) => {
   if (payload?.bridge?.name !== BRIDGE_NAME) return false;
+
   if (payload.bridge.protocol !== BRIDGE_PROTOCOL_VERSION) return false;
+
   const capabilities = new Set(bridgeCapabilities(payload));
 
   return REQUIRED_BRIDGE_CAPABILITIES.every((capability) => capabilities.has(capability));
