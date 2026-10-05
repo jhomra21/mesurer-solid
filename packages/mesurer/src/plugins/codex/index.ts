@@ -478,7 +478,7 @@ const browserBridgeRequest = async (
       }
     }
 
-    assertBrowserBridgeCompatibility(payload);
+    if (request.action === "health") assertBrowserBridgeCompatibility(payload);
 
     if (!response.ok || payload.ok === false) {
       throw new Error(payload.error ?? `Mesurer Codex companion returned HTTP ${response.status}.`);
@@ -719,12 +719,33 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       let uiSendPromise: Promise<void> | null = null;
       let disposed = false;
       let leaseId: string | null = null;
+      let browserBridgeVerifiedAt = 0;
       const nativeBridgeAvailable = window.__MESURER_HOST__?.codexBridge !== undefined;
 
       const requestBridge = async (
         request: CodexBridgeHostRequest,
       ): Promise<BridgeResponse> => {
-        if (!nativeBridgeAvailable) return browserBridgeRequest(request);
+        if (!nativeBridgeAvailable) {
+          try {
+            if (request.action !== "health"
+              && Date.now() - browserBridgeVerifiedAt >= BROWSER_DISCONNECTED_POLL_MS) {
+              await browserBridgeRequest({
+                action: "health",
+                thread: selectedThread ?? originThread ?? undefined,
+              });
+              browserBridgeVerifiedAt = Date.now();
+            }
+
+            const response = await browserBridgeRequest(request);
+
+            if (request.action === "health") browserBridgeVerifiedAt = Date.now();
+
+            return response;
+          } catch (cause) {
+            browserBridgeVerifiedAt = 0;
+            throw cause;
+          }
+        }
 
         if (request.action === "activate" || request.action === "runtime") {
           return bridgeRequest(request);
