@@ -406,6 +406,7 @@ test("Codex SessionStart reuses a compatible bridge from another checkout and Se
       for await (const chunk of request) chunks.push(chunk);
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
       threads.delete(body.thread);
+
       if (activeThread === body.thread) activeThread = [...threads][0] ?? null;
       unregistrations += 1;
       response.end(JSON.stringify({
