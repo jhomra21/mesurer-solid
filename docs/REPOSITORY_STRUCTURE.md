@@ -67,17 +67,16 @@ Package scripts that ship with `mesurer-solid` stay here even when a repository-
 
 ## Codex plugin
 
-Codex stays under the Mesurer plugin boundary:
+Codex stays under the Mesurer package boundary with explicit renderer, native-host, and browser-companion ownership:
 
 ```text
-packages/mesurer/src/plugins/codex/index.ts
-packages/mesurer/src/plugins/codex/bridge.mjs
-packages/mesurer/src/plugins/codex/bridge.d.ts
+packages/mesurer/src/plugins/codex/     renderer plugin + Electron/native bridge
+packages/mesurer/codex/                 canonical browser companion sources
+packages/mesurer/scripts/               packaged companion command shims
+plugins/mesurer-codex/                  optional local Codex helper distribution
 ```
 
-The TypeScript plugin owns renderer-facing UI, routing, Context composition, and the `codex:v1` service. The native bridge is published as `mesurer-solid/plugins/codex/bridge` and owns only the host-side Codex app-server transport.
-
-There is no separate `packages/mesurer/codex/` subsystem, standalone `mesurer-codex` process, generated marketplace distribution, or hook-owned copy.
+The TypeScript plugin owns renderer-facing UI, routing, Context composition, and the `codex:v1` service. The native bridge is published as `mesurer-solid/plugins/codex/bridge` and owns only the Electron host-side Codex transport. The canonical `packages/mesurer/codex/` scripts own the loopback browser companion; the repo-local helper mirrors those sources so Codex SessionStart/SessionEnd can own local thread registration. `scripts/check-identity.mjs` keeps the canonical and helper copies byte-identical.
 
 The portable-plugin, repository, and packaged Mesurer agent skill must remain byte-identical:
 
