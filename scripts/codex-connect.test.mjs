@@ -462,6 +462,81 @@ test("Codex SessionStart reuses a compatible bridge from another checkout and Se
   }
 });
 
+test("Codex SessionEnd unregisters its thread from an older self-identifying bridge without shutting it down", async () => {
+  const port = await freePort();
+  const bridgeUrl = `http://127.0.0.1:${port}`;
+  let unregistrations = 0;
+  let shutdowns = 0;
+
+  const server = createHttpServer(async (request, response) => {
+    response.setHeader("Content-Type", "application/json");
+
+    if (request.method === "GET" && request.url === "/health") {
+      response.end(JSON.stringify({
+        ok: true,
+        thread: "thread-old",
+        threads: ["thread-old"],
+        bridge: {
+          name: "mesurer-codex",
+          protocol: 1,
+          capabilities: [],
+          sourceHash: "old-self-identifying",
+          pid: process.pid,
+          canShutdown: true,
+        },
+      }));
+
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/threads/unregister") {
+      const chunks = [];
+
+      for await (const chunk of request) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      assert.equal(body.thread, "thread-old");
+      unregistrations += 1;
+      response.end(JSON.stringify({
+        ok: true,
+        removed: true,
+        thread: null,
+        threads: [],
+      }));
+
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/shutdown") {
+      shutdowns += 1;
+      response.end(JSON.stringify({ ok: true }));
+
+      return;
+    }
+
+    response.statusCode = 404;
+    response.end(JSON.stringify({ ok: false }));
+  });
+
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", resolve);
+  });
+
+  try {
+    const result = await runSessionEnd({
+      bridgeUrl,
+      sessionId: "thread-old",
+    });
+
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stdout, "");
+    assert.equal(unregistrations, 1);
+    assert.equal(shutdowns, 0);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("Codex SessionStart replaces an incompatible idle self-identifying bridge", async () => {
   const root = await mkdtemp(join(tmpdir(), "mesurer-codex-connect-stale-"));
   const port = await freePort();
