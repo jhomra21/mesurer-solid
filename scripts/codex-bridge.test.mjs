@@ -127,10 +127,16 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     assert.equal(healthPayload.thread, "thread-a");
     assert.deepEqual(healthPayload.threads, ["thread-a"]);
     assert.equal(healthPayload.bridge?.name, "mesurer-codex");
-    assert.equal(healthPayload.bridge?.protocol, 1);
+    assert.equal(healthPayload.bridge?.protocol, 2);
     assert.match(healthPayload.bridge?.sourceHash, /^[0-9a-f]{64}$/);
     assert.equal(Number.isInteger(healthPayload.bridge?.pid), true);
     assert.equal(healthPayload.bridge?.canShutdown, true);
+    assert.equal(
+      healthPayload.bridge?.capabilities?.includes("idle-safe-shutdown-v1"),
+      true,
+    );
+    assert.equal(healthPayload.bridgeState?.registeredThreads, 1);
+    assert.equal(healthPayload.bridgeState?.idle, false);
     assert.equal(health.headers.get("access-control-allow-origin"), "http://localhost:5173");
 
     const forbiddenOrigin = await fetch(`${bridgeUrl}/send`, {
@@ -314,7 +320,7 @@ test("another Codex thread can register itself with a running bridge", async () 
     assert.equal(healthPayload.thread, "thread-new");
     assert.deepEqual(healthPayload.threads, ["thread-original", "thread-new"]);
     assert.equal(healthPayload.bridge?.name, "mesurer-codex");
-    assert.equal(healthPayload.bridge?.protocol, 1);
+    assert.equal(healthPayload.bridge?.protocol, 2);
     assert.match(healthPayload.bridge?.sourceHash, /^[0-9a-f]{64}$/);
     assert.equal(Number.isInteger(healthPayload.bridge?.pid), true);
     assert.equal(healthPayload.bridge?.canShutdown, true);
