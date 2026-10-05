@@ -202,7 +202,7 @@ Runtime diagnostics stay on the native bridge. The public `codex:v1` service doe
 
 Electron renderers do not receive filesystem, process, or socket access. They call only the narrow `window.__MESURER_HOST__.codexBridge(request)` capability. Native leases are bound to the invoking renderer and require application sender validation.
 
-Browser pages use a loopback-only HTTP companion because ordinary web code cannot access Codex's local process/socket APIs. The companion validates browser origins and exposes only bounded Codex operations for health, thread discovery/selection, queueing, delivery reads, and restoration. It must never bind a public network interface or become a remote relay.
+Browser pages use a loopback-only HTTP companion because ordinary web code cannot access Codex's local process/socket APIs. The companion validates browser origins and exposes only bounded Codex operations for health, thread discovery/selection, queueing, delivery reads, and restoration. Localhost/127 origins are trusted by default. A non-loopback origin must be explicitly allowlisted when the bridge starts, for example `mesurer-codex --origin https://app.example.com`. A denied origin may read only the bridge's minimal compatibility diagnostic from `/health`; it receives no thread ids, delivery state, or Codex data, and privileged endpoints remain blocked. The companion must never bind a public network interface or become a remote relay.
 
 Neither transport connects to Codex Desktop's private app-tools pipe. Desktop ownership signals remain ownership signals only.
 
