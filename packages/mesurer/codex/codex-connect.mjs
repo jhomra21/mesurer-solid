@@ -10,7 +10,9 @@ const DEFAULT_BRIDGE = "http://127.0.0.1:47365";
 
 const BRIDGE_NAME = "mesurer-codex";
 
-const BRIDGE_PROTOCOL_VERSION = 1;
+const BRIDGE_PROTOCOL_VERSION = 2;
+
+const IDLE_SAFE_SHUTDOWN_CAPABILITY = "idle-safe-shutdown-v1";
 
 const START_TIMEOUT_MS = 10_000;
 
@@ -255,8 +257,20 @@ const waitForBridgeToStop = async () => {
   throw new Error(`Stale Mesurer Codex bridge did not stop at ${bridgeUrl.origin}.`);
 };
 
+const bridgeCapabilities = (payload) =>
+  Array.isArray(payload?.bridge?.capabilities) ? payload.bridge.capabilities : [];
+
+const bridgeUsage = (payload) => ({
+  registeredThreads: Number(payload?.bridgeState?.registeredThreads) || 0,
+  nonTerminalDeliveries: Number(payload?.bridgeState?.nonTerminalDeliveries) || 0,
+  idle: payload?.bridgeState?.idle === true,
+});
+
 const replaceStaleBridge = async (payload) => {
   if (payload?.bridge?.name !== BRIDGE_NAME || payload.bridge.canShutdown !== true) return false;
+
+  if (!bridgeCapabilities(payload).includes(IDLE_SAFE_SHUTDOWN_CAPABILITY)) return false;
+  if (!bridgeUsage(payload).idle) return false;
   let response;
 
   try {
@@ -296,13 +310,26 @@ if (current && !isExactBridge(current)) {
 
   if (replaced) {
     current = null;
+  } else if (current?.bridge?.name === BRIDGE_NAME) {
+    const usage = bridgeUsage(current);
+    const source = current.bridge.sourceHash?.slice?.(0, 12) ?? "unknown";
+
+    if (!bridgeCapabilities(current).includes(IDLE_SAFE_SHUTDOWN_CAPABILITY)) {
+      fail(
+        `A different Mesurer Codex Bridge version is already running at ${bridgeUrl.origin} (source ${source}). It cannot prove idle-safe replacement, so Mesurer will not stop it automatically. Close the Codex sessions using that bridge, let it exit, then retry.`,
+      );
+    }
+
+    fail(
+      `A different Mesurer Codex Bridge version is still in use at ${bridgeUrl.origin} (source ${source}; ${usage.registeredThreads} registered thread(s), ${usage.nonTerminalDeliveries} queued/working delivery(s)). Mesurer will not interrupt it. Close those Codex sessions or wait for their deliveries to finish, then retry.`,
+    );
   } else if (!current.bridge && Array.isArray(current.threads)) {
     fail(
       `An older Mesurer Codex bridge is already running at ${bridgeUrl.origin}. Stop that legacy bridge once, then rerun mesurer-codex-connect. Refusing to reuse it because its source identity cannot be verified.`,
     );
   } else {
     fail(
-      `An incompatible service is already running at ${bridgeUrl.origin}. Refusing to register this Codex session with an unverified bridge.`,
+      `Another local service is already using ${bridgeUrl.origin}. Mesurer will not replace or send data to an unverified service.`,
     );
   }
 }
