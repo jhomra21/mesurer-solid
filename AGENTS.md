@@ -149,11 +149,14 @@ The accepted Codex integration has specific correctness properties. Preserve the
 - Keep the public Codex service runtime-neutral. Callers must not choose browser/Electron, CLI/Desktop, or a concrete transport.
 - Electron renderer code crosses only the narrow `window.__MESURER_HOST__.codexBridge(request)` capability. Native filesystem, process, and socket access stay in the host process.
 - Browser renderer code may talk only to the loopback Mesurer Codex Bridge companion. Keep it bound locally, origin-restricted, and limited to the existing bounded Codex operations.
+- Browser code must verify bridge identity, protocol, and required capabilities through health before sending target, queue, delivery, or restore requests. Treat stale helpers and unrelated port occupants as explicit fail-closed states.
 - The optional `plugins/mesurer-codex` helper may start/reuse the browser companion and register local Codex sessions. Keep it separate from the repository-level Mesurer Solid agent plugin.
-- Native enablement remains transactional: acquire a renderer lease and prove readiness before committing enabled state. Browser enablement persists immediately and may settle into an unavailable/retry state while the local companion is absent.
-- Disabling Codex removes that page's service/UI. Native hosts release their lease first; browser pages must not kill a shared companion that another local page/session can use.
+- A connector may replace a stale Mesurer Codex Bridge only when that bridge advertises idle-safe shutdown and reports zero registered owners and zero queued/working deliveries. Never interrupt a busy older bridge merely because its source hash differs.
+- Native enablement remains transactional: acquire a renderer lease and prove readiness before committing enabled state. Browser enablement persists immediately, self-heals when a compatible companion appears, and may remain on in a clear unavailable/conflict/update state.
+- Disabling Codex removes that page's service/UI, timers, polling, and tool registrations. Native hosts release their lease exactly once first. Browser pages must not unregister Codex-owned sessions or kill a shared companion.
+- Codex SessionStart/SessionEnd own browser-companion thread registration. The companion may shut down only after the final owner is gone and no queued/working delivery remains.
 - Bind native leases to one host renderer. `installMesurerCodexHost()` must require application sender validation, reject subframes and unapproved senders, and release a renderer's leases on navigation, renderer exit, or destruction.
-- Do not stop Codex's shared app-server when a Mesurer lease is released.
+- Do not stop Codex's shared app-server when a Mesurer lease is released or when the browser Codex toggle is turned off. Mesurer does not own that shared daemon.
 - Discover sendable destinations from Codex's shared local app-server; `thread/loaded/list` is authoritative.
 - Shared-app-server delivery queues exactly once through `thread/queue/add` and preserves the queued-submission id.
 - When the native host inherited both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH` from a Codex Desktop thread, the plugin may use the resolved Codex executable only for `codex queue --thread <that exact thread>` and then wake that same thread with `codex://threads/<id>`. This Desktop fallback must not accept another destination.
