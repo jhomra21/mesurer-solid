@@ -7,6 +7,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 - Restore Mesurer's browser **Settings -> Codex** path through the local Mesurer Codex Bridge companion while keeping Electron on its native preload bridge. Browser users can enable Codex without an Electron host; a missing companion stays in an unavailable/retry state instead of rolling the plugin back with a preload error.
 - Keep the Mesurer Solid ChatGPT/Codex agent plugin separate from the Mesurer Codex Bridge helper so agent-side Mesurer usage and human-triggered Queue to Codex remain independent features.
 - Preserve Codex's client user-message identity alongside the queued-submission receipt and recover missing Mesurer delivery records from one exact turn-history match after Codex has already consumed the queue item. Failed tracked deliveries retain their recovery identity and retry restoration before Mesurer can submit anything again.
+- Verify browser companion identity, protocol, and capabilities before using it; distinguish missing, outdated, and conflicting local bridges; and reconnect automatically when a compatible helper appears.
+- Make bridge replacement and shutdown ownership-safe: stale helpers are replaced only when idle, queued/working deliveries keep the helper alive after the last session unregisters, browser toggle-off cleans only page-owned resources, and Electron toggle-off releases only its renderer lease.
 
 <!-- Add user-facing changes here before preparing a release. -->
 
