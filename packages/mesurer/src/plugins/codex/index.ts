@@ -225,6 +225,7 @@ type BridgeResponse = {
   ok?: boolean;
   bridge?: BrowserBridgeIdentity;
   bridgeState?: BrowserBridgeState;
+  access?: { allowed?: boolean };
   leaseId?: string;
   released?: boolean;
   runtime?: MesurerCodexRuntime;
@@ -393,6 +394,14 @@ const assertBrowserBridgeCompatibility = (payload: BridgeResponse) => {
   if (bridge.protocol !== BROWSER_COMPANION_PROTOCOL_VERSION) {
     throw new Error(
       `Mesurer Codex Bridge is out of date (protocol ${bridge.protocol ?? "unknown"}; expected ${BROWSER_COMPANION_PROTOCOL_VERSION}). Restart the matching Mesurer Codex Bridge helper.`,
+    );
+  }
+
+  if (payload.access?.allowed === false) {
+    const origin = globalThis.location?.origin ?? "this page";
+
+    throw new Error(
+      `Mesurer Codex Bridge does not allow this browser origin (${origin}). Allow this origin when starting the bridge.`,
     );
   }
 
@@ -662,6 +671,7 @@ const bridgeUnavailable = (cause: unknown) =>
     || cause.message.includes("Mesurer Codex companion timed out")
     || cause.message.includes("Mesurer Codex Bridge")
     || cause.message.includes("Another local service")
+    || cause.message.includes("browser origin")
   );
 
 export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
@@ -1044,14 +1054,16 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           const items: ToolMenuItemContribution[] = [];
 
           if (bridgeAvailability === "unavailable" && browserCompanion) {
-            const diagnostic = lastBridgeError?.includes("out of date")
-              || lastBridgeError?.includes("missing required capabilities")
-              ? "Update Mesurer Codex Bridge"
-              : lastBridgeError?.includes("Another local service")
-                ? "Port 47365 is occupied"
-                : lastBridgeError?.includes("timed out")
-                  ? "Mesurer Codex Bridge did not respond"
-                  : "Mesurer Codex Bridge is not running";
+            const diagnostic = lastBridgeError?.includes("does not allow this browser origin")
+              ? "Allow this browser origin"
+              : lastBridgeError?.includes("out of date")
+                || lastBridgeError?.includes("missing required capabilities")
+                ? "Update Mesurer Codex Bridge"
+                : lastBridgeError?.includes("Another local service")
+                  ? "Port 47365 is occupied"
+                  : lastBridgeError?.includes("timed out")
+                    ? "Mesurer Codex Bridge did not respond"
+                    : "Mesurer Codex Bridge is not running";
 
             items.push({
               id: "codex.connection.status",
@@ -1153,12 +1165,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         const browserCompanion = !nativeBridgeAvailable;
 
-        const browserUnavailableLabel = lastBridgeError?.includes("out of date")
-          || lastBridgeError?.includes("missing required capabilities")
-          ? "Update Codex Bridge"
-          : lastBridgeError?.includes("Another local service")
-            ? "Codex bridge conflict"
-            : "Codex bridge not running";
+        const browserUnavailableLabel = lastBridgeError?.includes("does not allow this browser origin")
+          ? "Authorize Codex origin"
+          : lastBridgeError?.includes("out of date")
+            || lastBridgeError?.includes("missing required capabilities")
+            ? "Update Codex Bridge"
+            : lastBridgeError?.includes("Another local service")
+              ? "Codex bridge conflict"
+              : "Codex bridge not running";
 
         const label = deliveryToolLabel()
           ?? (bridgeAvailability === "unavailable"
