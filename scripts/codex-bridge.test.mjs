@@ -1669,6 +1669,7 @@ appendFileSync(
       codexInvocations.some((args) => args[0] === "app-server" && args[1] === "daemon"),
       false,
     );
+
     const protocol = await waitForMatchingInvocationCount(
       protocolPath,
       (message) =>
