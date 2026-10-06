@@ -1540,6 +1540,22 @@ if (args[0] === "app-server" && args[1] === "--listen") {
             nextCursor: null,
           },
         });
+      } else if (message.id === "mesurer-history-init") {
+        write({ id: message.id, result: { userAgent: "fake-codex" } });
+      } else if (message.id === "mesurer-history-turns") {
+        write({
+          id: message.id,
+          result: {
+            data: [],
+            nextCursor: null,
+            backwardsCursor: null,
+          },
+        });
+      } else if (message.id === "mesurer-history-read") {
+        write({
+          id: message.id,
+          result: { thread: { turns: [] } },
+        });
       } else if (message.id === "mesurer-queue-delete") {
         process.stderr.write("Desktop recovery must not delete the existing native queue item\\n");
         process.exit(98);
@@ -1625,12 +1641,18 @@ appendFileSync(
       codexInvocations.some((args) => args[0] === "app-server" && args[1] === "daemon"),
       false,
     );
-    assert.equal(
-      codexInvocations.filter((args) => args[0] === "app-server" && args[1] === "--listen").length,
-      1,
+    assert.ok(
+      codexInvocations.filter((args) => args[0] === "app-server" && args[1] === "--listen").length >= 2,
     );
     const protocol = await readInvocations(protocolPath);
     assert.equal(protocol.some((message) => message.method === "thread/queue/delete"), false);
+    assert.equal(protocol.some((message) => message.method === "thread/queue/list"), true);
+    assert.equal(
+      protocol.some((message) =>
+        message.method === "thread/turns/list"
+        || (message.method === "thread/read" && message.params?.includeTurns === true)),
+      true,
+    );
     assert.deepEqual(await readInvocations(openPath), [[
       "codex://threads/thread-desktop",
     ]]);
