@@ -91,6 +91,29 @@ const waitForInvocationCount = async (path, count, timeoutMs = 10_000) => {
   throw new Error(`Timed out waiting for ${count} invocation(s) in ${path}.`);
 };
 
+const waitForMatchingInvocationCount = async (
+  path,
+  predicate,
+  count,
+  timeoutMs = 10_000,
+) => {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      const invocations = await readInvocations(path);
+
+      if (invocations.filter(predicate).length >= count) return invocations;
+    } catch (cause) {
+      if (cause?.code !== "ENOENT") throw cause;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  throw new Error(`Timed out waiting for ${count} matching invocation(s) in ${path}.`);
+};
+
 const waitForDelivery = async (bridgeUrl, deliveryId, predicate, timeoutMs = 10_000) => {
   const deadline = Date.now() + timeoutMs;
 
@@ -1634,15 +1657,17 @@ appendFileSync(
     assert.equal(dispatched.queuedSubmissionId, "queue-desktop-old-1");
     assert.equal(dispatched.transport, "desktop-app");
 
-    const codexInvocations = await readInvocations(argsPath);
+    const codexInvocations = await waitForMatchingInvocationCount(
+      argsPath,
+      (args) => args[0] === "app-server" && args[1] === "--listen",
+      2,
+    );
+
     assert.equal(codexInvocations.some((args) => args[0] === "queue"), false);
     assert.equal(codexInvocations.some((args) => args[0] === "stdio-to-uds"), false);
     assert.equal(
       codexInvocations.some((args) => args[0] === "app-server" && args[1] === "daemon"),
       false,
-    );
-    assert.ok(
-      codexInvocations.filter((args) => args[0] === "app-server" && args[1] === "--listen").length >= 2,
     );
     const protocol = await readInvocations(protocolPath);
     assert.equal(protocol.some((message) => message.method === "thread/queue/delete"), false);
