@@ -59,6 +59,8 @@ const DELIVERY_TTL_MS = 2 * 60 * 60_000;
 
 const DESKTOP_LIFECYCLE_POLL_MS = 1_000;
 
+const DESKTOP_INTERRUPTED_RECONCILE_WINDOW_MS = 2 * 60_000;
+
 const DESKTOP_TURN_HISTORY_LIMIT = 10;
 
 const DELIVERY_TURN_START_SKEW_MS = 60_000;
@@ -283,17 +285,33 @@ const cancelIdleShutdown = () => {
   idleShutdownTimer = null;
 };
 
+const deliveryNeedsDesktopLifecycleCheck = (delivery) => {
+  if (delivery.transport !== "desktop-app" || delivery.dispatch !== "desktop-opened") {
+    return false;
+  }
+
+  if (delivery.status === "queued" || delivery.status === "working") return true;
+
+  return delivery.status === "interrupted"
+    && Date.now() - delivery.updatedAt < DESKTOP_INTERRUPTED_RECONCILE_WINDOW_MS;
+};
+
 const nonTerminalDeliveryCount = () =>
   [...deliveries.values()].filter((delivery) =>
     delivery.status === "queued" || delivery.status === "working").length;
 
+const reconcilingDeliveryCount = () =>
+  [...deliveries.values()].filter((delivery) =>
+    deliveryNeedsDesktopLifecycleCheck(delivery)).length;
+
 const bridgeCanShutdown = () =>
-  registeredThreads.size === 0 && nonTerminalDeliveryCount() === 0;
+  registeredThreads.size === 0 && reconcilingDeliveryCount() === 0;
 
 const bridgeState = () => ({
   registeredThreads: registeredThreads.size,
   deliveries: deliveries.size,
   nonTerminalDeliveries: nonTerminalDeliveryCount(),
+  reconcilingDeliveries: reconcilingDeliveryCount(),
   idle: bridgeCanShutdown(),
 });
 
@@ -1765,11 +1783,6 @@ const captureQueuedIdentity = async (delivery) => {
     // A later delivery poll can still reconcile through history.
   }
 };
-
-const deliveryNeedsDesktopLifecycleCheck = (delivery) =>
-  delivery.transport === "desktop-app"
-  && delivery.dispatch === "desktop-opened"
-  && (delivery.status === "queued" || delivery.status === "working");
 
 const scheduleDesktopLifecycleCheck = (delivery, delay = DESKTOP_LIFECYCLE_POLL_MS) => {
   if (shutdownStarted
