@@ -19,6 +19,8 @@ const HEALTH_POLL_MS = 2_000;
 
 const DELIVERY_POLL_MS = 750;
 
+const ACTIVE_DELIVERY_POLL_MS = 2_000;
+
 const COMPLETED_VISIBLE_MS = 1_800;
 
 const INTERRUPTED_RECONCILE_POLL_MS = 2_000;
@@ -1312,14 +1314,6 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         };
         persistUiState();
 
-        if (delivery.status === "queued"
-          && (delivery.dispatch === "desktop-opened"
-            || delivery.dispatch === "desktop-wake-failed")) {
-          syncTool();
-
-          return;
-        }
-
         if (delivery.status === "completed") {
           persistUiState();
           syncTool();
@@ -1386,7 +1380,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         deliveryPollTimer = globalThis.setTimeout(() => {
           deliveryPollTimer = 0;
           void pollDelivery(delivery.id);
-        }, DELIVERY_POLL_MS);
+        }, ACTIVE_DELIVERY_POLL_MS);
       };
 
       const pollDelivery = async (deliveryId: string): Promise<void> => {
