@@ -304,8 +304,14 @@ const reconcilingDeliveryCount = () =>
   [...deliveries.values()].filter((delivery) =>
     deliveryNeedsDesktopLifecycleCheck(delivery)).length;
 
+const retainedDeliveryCount = () =>
+  [...deliveries.values()].filter((delivery) =>
+    delivery.status === "queued"
+    || delivery.status === "working"
+    || deliveryNeedsDesktopLifecycleCheck(delivery)).length;
+
 const bridgeCanShutdown = () =>
-  registeredThreads.size === 0 && reconcilingDeliveryCount() === 0;
+  registeredThreads.size === 0 && retainedDeliveryCount() === 0;
 
 const bridgeState = () => ({
   registeredThreads: registeredThreads.size,
