@@ -1495,7 +1495,7 @@ describe("codex", () => {
       .toBe("Queued for Codex");
     expect(removeAnnotation).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
     expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Codex working…");
     expect(removeAnnotation).not.toHaveBeenCalled();
