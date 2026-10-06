@@ -1669,15 +1669,16 @@ appendFileSync(
       codexInvocations.some((args) => args[0] === "app-server" && args[1] === "daemon"),
       false,
     );
-    const protocol = await readInvocations(protocolPath);
+    const protocol = await waitForMatchingInvocationCount(
+      protocolPath,
+      (message) =>
+        message.method === "thread/turns/list"
+        || (message.method === "thread/read" && message.params?.includeTurns === true),
+      1,
+    );
+
     assert.equal(protocol.some((message) => message.method === "thread/queue/delete"), false);
     assert.equal(protocol.some((message) => message.method === "thread/queue/list"), true);
-    assert.equal(
-      protocol.some((message) =>
-        message.method === "thread/turns/list"
-        || (message.method === "thread/read" && message.params?.includeTurns === true)),
-      true,
-    );
     assert.deepEqual(await readInvocations(openPath), [[
       "codex://threads/thread-desktop",
     ]]);
