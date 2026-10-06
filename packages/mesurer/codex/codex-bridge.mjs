@@ -243,9 +243,16 @@ const desktopDispatchTimers = new Map();
 
 const desktopLifecycleChecks = new Map();
 
-const desktopLifecycleLastCheckedAt = new Map();
+const desktopLifecycleTimers = new Map();
 
 const ownedChildren = new Set();
+
+const clearDesktopLifecycleTimer = (deliveryId) => {
+  const timer = desktopLifecycleTimers.get(deliveryId);
+
+  if (timer) clearTimeout(timer);
+  desktopLifecycleTimers.delete(deliveryId);
+};
 
 let activeThread = null;
 
@@ -1379,6 +1386,7 @@ maybeDispatchDesktopThread = async (thread) => {
     delivery.dispatchError = null;
     delivery.updatedAt = Date.now();
     persistDeliveryStateSoon();
+    scheduleDesktopLifecycleCheck(delivery, 0);
   } catch (cause) {
     delivery.dispatch = "desktop-wait-failed";
     delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
@@ -1522,8 +1530,8 @@ const pruneDeliveries = () => {
 
     if (now - delivery.updatedAt > (terminal ? TERMINAL_DELIVERY_TTL_MS : DELIVERY_TTL_MS)) {
       deliveries.delete(id);
+      clearDesktopLifecycleTimer(id);
       desktopLifecycleChecks.delete(id);
-      desktopLifecycleLastCheckedAt.delete(id);
     }
   }
 
@@ -1536,6 +1544,8 @@ const pruneDeliveries = () => {
 
   for (const delivery of oldest.slice(0, deliveries.size - MAX_DELIVERIES)) {
     deliveries.delete(delivery.id);
+    clearDesktopLifecycleTimer(delivery.id);
+    desktopLifecycleChecks.delete(delivery.id);
   }
 };
 
@@ -1756,28 +1766,55 @@ const captureQueuedIdentity = async (delivery) => {
   }
 };
 
-const scheduleDesktopLifecycleCheck = (delivery) => {
-  if (delivery.transport !== "desktop-app"
-    || delivery.dispatch !== "desktop-opened"
-    || desktopLifecycleChecks.has(delivery.id)) {
+const deliveryNeedsDesktopLifecycleCheck = (delivery) =>
+  delivery.transport === "desktop-app"
+  && delivery.dispatch === "desktop-opened"
+  && (delivery.status === "queued" || delivery.status === "working");
+
+const scheduleDesktopLifecycleCheck = (delivery, delay = DESKTOP_LIFECYCLE_POLL_MS) => {
+  if (shutdownStarted
+    || deliveries.get(delivery.id) !== delivery
+    || !deliveryNeedsDesktopLifecycleCheck(delivery)) {
+    clearDesktopLifecycleTimer(delivery.id);
+
     return;
   }
 
-  const now = Date.now();
-  const lastCheckedAt = desktopLifecycleLastCheckedAt.get(delivery.id) ?? 0;
+  if (desktopLifecycleChecks.has(delivery.id)
+    || desktopLifecycleTimers.has(delivery.id)) {
+    return;
+  }
 
-  if (now - lastCheckedAt < DESKTOP_LIFECYCLE_POLL_MS) return;
-  desktopLifecycleLastCheckedAt.set(delivery.id, now);
+  const timer = setTimeout(() => {
+    desktopLifecycleTimers.delete(delivery.id);
 
-  const check = reconcileDesktopDelivery(delivery)
-    .catch(() => undefined)
-    .finally(() => {
-      if (desktopLifecycleChecks.get(delivery.id) === check) {
-        desktopLifecycleChecks.delete(delivery.id);
-      }
-    });
+    if (shutdownStarted
+      || deliveries.get(delivery.id) !== delivery
+      || !deliveryNeedsDesktopLifecycleCheck(delivery)) {
+      return;
+    }
 
-  desktopLifecycleChecks.set(delivery.id, check);
+    const check = reconcileDesktopDelivery(delivery)
+      .catch(() => undefined)
+      .finally(() => {
+        if (desktopLifecycleChecks.get(delivery.id) === check) {
+          desktopLifecycleChecks.delete(delivery.id);
+        }
+
+        if (!shutdownStarted
+          && deliveries.get(delivery.id) === delivery
+          && deliveryNeedsDesktopLifecycleCheck(delivery)) {
+          scheduleDesktopLifecycleCheck(delivery);
+        } else {
+          clearDesktopLifecycleTimer(delivery.id);
+        }
+      });
+
+    desktopLifecycleChecks.set(delivery.id, check);
+  }, Math.max(0, delay));
+
+  timer.unref?.();
+  desktopLifecycleTimers.set(delivery.id, timer);
 };
 
 const markPromptStarted = (thread, turnId, prompt) => {
@@ -1817,7 +1854,11 @@ const markTurnTerminal = (thread, turnId, status) => {
     delivery.status = status;
     delivery.updatedAt = Date.now();
 
-    if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
+    if (delivery.transport === "desktop-app") {
+      persistDeliveryStateSoon();
+      clearDesktopLifecycleTimer(delivery.id);
+    }
+
     scheduleIdleShutdown();
 
     return delivery;
@@ -1835,7 +1876,7 @@ const desktopOwnsLifecycle = (thread) =>
 
 await loadDeliveryState();
 
-for (const delivery of deliveries.values()) scheduleDesktopLifecycleCheck(delivery);
+for (const delivery of deliveries.values()) scheduleDesktopLifecycleCheck(delivery, 0);
 
 let successfulSends = 0;
 
@@ -1977,7 +2018,11 @@ server = createServer(async (request, response) => {
           await persistDeliveryState();
         }
 
-        if (existing.transport === "desktop-app") scheduleDesktopDispatch(existing.thread);
+        if (existing.transport === "desktop-app") {
+          scheduleDesktopDispatch(existing.thread);
+          scheduleDesktopLifecycleCheck(existing, 0);
+        }
+
         writeJson(response, 200, { ok: true, restored: false, ...publicDelivery(existing) }, origin);
 
         return;
@@ -2499,6 +2544,10 @@ async function shutdownBridge() {
 
   for (const timer of desktopDispatchTimers.values()) clearTimeout(timer);
   desktopDispatchTimers.clear();
+
+  for (const timer of desktopLifecycleTimers.values()) clearTimeout(timer);
+  desktopLifecycleTimers.clear();
+  desktopLifecycleChecks.clear();
 
   const children = [...ownedChildren];
 
