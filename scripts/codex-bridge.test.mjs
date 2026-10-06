@@ -73,6 +73,24 @@ const readInvocations = async (path) => {
   return text.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
 };
 
+const waitForInvocationCount = async (path, count, timeoutMs = 10_000) => {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      const invocations = await readInvocations(path);
+
+      if (invocations.length >= count) return invocations;
+    } catch (cause) {
+      if (cause?.code !== "ENOENT") throw cause;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  throw new Error(`Timed out waiting for ${count} invocation(s) in ${path}.`);
+};
+
 const waitForDelivery = async (bridgeUrl, deliveryId, predicate, timeoutMs = 10_000) => {
   const deadline = Date.now() + timeoutMs;
 
@@ -867,6 +885,175 @@ appendFileSync(
     await waitForExit(first).catch(() => {});
 
     if (second) await waitForExit(second).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Codex Desktop keeps reconciling history without browser delivery reads", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-background-history-"));
+  const argsPath = join(root, "codex-args.jsonl");
+  const openPath = join(root, "desktop-open.jsonl");
+  const turnsPath = join(root, "turns.json");
+  const ownerPath = join(root, "desktop-owner.pipe");
+  const fakeCodex = join(root, "fake-codex.mjs");
+  const fakeOpen = join(root, "fake-open.mjs");
+
+  await writeFile(turnsPath, "[]");
+  await writeFile(ownerPath, "owned");
+  await writeFile(fakeCodex, `#!/usr/bin/env node
+import { appendFileSync, readFileSync } from "node:fs";
+const args = process.argv.slice(2);
+appendFileSync(process.env.MESURER_FAKE_CODEX_ARGS, JSON.stringify(args) + "\\n");
+const write = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
+
+if (args[0] === "queue") {
+  console.log("Queued message queue-background-1 for thread thread-background.");
+} else if (args[0] === "app-server" && args[1] === "--listen") {
+  process.stdin.setEncoding("utf8");
+  let buffer = "";
+  process.stdin.on("data", (chunk) => {
+    buffer += chunk;
+    while (true) {
+      const newline = buffer.indexOf("\\n");
+      if (newline < 0) break;
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (!line) continue;
+      const message = JSON.parse(line);
+      if (message.id === "mesurer-queue-init") {
+        write({ id: message.id, result: { userAgent: "fake-codex" } });
+      } else if (String(message.id).startsWith("mesurer-queue-list-")) {
+        write({
+          id: message.id,
+          result: {
+            data: [{
+              id: "queue-background-1",
+              input: [{
+                type: "text",
+                text: "finish later without browser polling",
+                textElements: [],
+              }],
+              clientUserMessageId: "client-background-1",
+            }],
+            nextCursor: null,
+          },
+        });
+      } else if (message.id === "mesurer-history-init") {
+        write({ id: message.id, result: { userAgent: "fake-codex" } });
+      } else if (message.id === "mesurer-history-turns") {
+        write({
+          id: message.id,
+          result: {
+            data: JSON.parse(readFileSync(process.env.MESURER_FAKE_TURNS, "utf8")),
+            nextCursor: null,
+            backwardsCursor: null,
+          },
+        });
+      } else if (message.id === "mesurer-history-read") {
+        write({
+          id: message.id,
+          result: {
+            thread: {
+              turns: JSON.parse(readFileSync(process.env.MESURER_FAKE_TURNS, "utf8")),
+            },
+          },
+        });
+      }
+    }
+  });
+} else if (args[0] === "stdio-to-uds" || (args[0] === "app-server" && args[1] === "daemon")) {
+  process.stderr.write("Desktop background reconciliation must not use the managed daemon\\n");
+  process.exit(99);
+}
+`);
+  await chmod(fakeCodex, 0o755);
+
+  await writeFile(fakeOpen, `#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.argv.slice(2)) + "\\n");
+`);
+  await chmod(fakeOpen, 0o755);
+
+  const child = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--thread", "thread-background",
+    "--codex", fakeCodex,
+  ], {
+    env: {
+      ...testProcessEnv(root),
+      CODEX_HOME: root,
+      CODEX_APP_TOOLS_PIPE_PATH: ownerPath,
+      MESURER_CODEX_DESKTOP_OPEN_BIN: fakeOpen,
+      MESURER_FAKE_CODEX_ARGS: argsPath,
+      MESURER_FAKE_DESKTOP_OPEN: openPath,
+      MESURER_FAKE_TURNS: turnsPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
+    const send = await fetch(`${bridgeUrl}/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173",
+      },
+      body: JSON.stringify({ message: "finish later without browser polling" }),
+    });
+
+    assert.equal(send.status, 200, stderr);
+    const queued = await send.json();
+
+    assert.equal(queued.status, "queued");
+    assert.equal(queued.queuedSubmissionId, "queue-background-1");
+    assert.equal(queued.clientUserMessageId, "client-background-1");
+
+    await waitForInvocationCount(openPath, 1);
+
+    const now = Math.floor(Date.now() / 1_000);
+    await writeFile(turnsPath, JSON.stringify([{
+      id: "turn-background-1",
+      items: [{
+        type: "userMessage",
+        id: "user-background-1",
+        clientId: "client-background-1",
+        content: [{
+          type: "text",
+          text: "finish later without browser polling",
+          textElements: [],
+        }],
+      }],
+      itemsView: "summary",
+      status: "completed",
+      error: null,
+      startedAt: now,
+      completedAt: now,
+      durationMs: 10,
+    }]));
+
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+
+    const read = await fetch(`${bridgeUrl}/deliveries/${queued.deliveryId}`, {
+      headers: { Origin: "http://localhost:5173" },
+    });
+
+    assert.equal(read.status, 200, stderr);
+    const completed = await read.json();
+
+    assert.equal(completed.status, "completed");
+    assert.equal(completed.turnId, "turn-background-1");
+    assert.equal(completed.queuedSubmissionId, "queue-background-1");
+    assert.equal(completed.clientUserMessageId, "client-background-1");
+
+    const invocations = await readInvocations(argsPath);
+    assert.equal(invocations.filter((args) => args[0] === "queue").length, 1);
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await waitForExit(child).catch(() => {});
     await rm(root, { recursive: true, force: true });
   }
 });
