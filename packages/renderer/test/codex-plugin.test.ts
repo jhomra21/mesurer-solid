@@ -72,6 +72,8 @@ const createContextService = () => {
 
 const DELIVERY_POLL_MS_FOR_TEST = 750;
 
+const ACTIVE_DELIVERY_POLL_MS_FOR_TEST = 2_000;
+
 const bridgeUrlForRequest = (request: HostCodexBridgeRequest) => {
   if (request.action === "health") return { url: "http://127.0.0.1:47365/health" };
 
@@ -1099,7 +1101,7 @@ describe("codex", () => {
     expect(tool?.label).toBe("Codex working…");
     expect(removeAnnotation).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
     tool = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(tool?.label).toBe("Codex finished");
     expect(tool?.disabled?.()).toBe(true);
@@ -1207,11 +1209,11 @@ describe("codex", () => {
     await host.command.execute("codex.send");
     expect(sendCount).toBe(1);
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
     expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Codex working…");
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
     let tool = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(tool?.label).toBe("Codex interrupted");
     expect(tool?.disabled?.()).toBe(false);
@@ -1502,6 +1504,132 @@ describe("codex", () => {
     vi.useRealTimers();
   });
 
+  it("keeps polling desktop-opened queued work until a delayed completion arrives", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService, removeAnnotation } = createContextService();
+    let sendCount = 0;
+    let deliveryReads = 0;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-delayed-desktop",
+            threads: ["thread-delayed-desktop"],
+          }),
+        };
+      }
+
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-delayed-desktop",
+            threadDetails: [{
+              id: "thread-delayed-desktop",
+              title: "Delayed desktop turn",
+              updatedAt: 10,
+              connected: true,
+            }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      if (url.endsWith("/send")) {
+        sendCount += 1;
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-delayed-desktop",
+            output: "Queued message queue-delayed for thread thread-delayed-desktop.",
+            delivery: "queued",
+            deliveryId: "delivery-delayed",
+            status: "queued",
+            queuedSubmissionId: "queue-delayed",
+            clientUserMessageId: "client-delayed",
+            dispatch: "desktop-opened",
+            dispatchError: null,
+          }),
+        };
+      }
+
+      if (url.endsWith("/deliveries/delivery-delayed")) {
+        deliveryReads += 1;
+        const completed = deliveryReads >= 4;
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            deliveryId: "delivery-delayed",
+            thread: "thread-delayed-desktop",
+            status: completed ? "completed" : "queued",
+            turnId: completed ? "turn-delayed" : null,
+            queuedSubmissionId: "queue-delayed",
+            clientUserMessageId: "client-delayed",
+            dispatch: "desktop-opened",
+            dispatchError: null,
+            createdAt: 1,
+            updatedAt: deliveryReads,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected delayed desktop request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-delayed-desktop-lifecycle",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await host.command.execute("codex.send");
+
+    expect(sendCount).toBe(1);
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Queued for Codex");
+
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    expect(deliveryReads).toBe(1);
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Queued for Codex");
+
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST * 2);
+    expect(deliveryReads).toBe(3);
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Queued for Codex");
+    expect(removeAnnotation).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
+    expect(deliveryReads).toBe(4);
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Codex finished");
+    expect(removeAnnotation).toHaveBeenCalledTimes(1);
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(sendCount).toBe(1);
+
+    host.dispose();
+    vi.useRealTimers();
+  });
+
   it("reattaches a queued delivery after the bridge restarts without sending the feedback twice", async () => {
     vi.useFakeTimers();
     const firstHost = createMesurerPluginHost();
@@ -1665,11 +1793,11 @@ describe("codex", () => {
     expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Queued for Codex");
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
     expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Codex working…");
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
     expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Codex finished");
     expect(removeAnnotation).toHaveBeenCalledTimes(1);
