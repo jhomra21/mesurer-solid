@@ -129,7 +129,9 @@ try {
     fullPage: true,
   });
 
-  const selected = page.locator("[data-mesurer-selected-measurement='true']").last();
+  const selected = page
+    .locator("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true']")
+    .last();
 
   await selected.waitFor({ state: "visible", timeout: 5000 });
 
