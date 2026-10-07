@@ -93,6 +93,7 @@ try {
     if (!matrix.is2D) throw new Error("Iframe contract requires a 2D transform");
 
     const width = frame.offsetWidth;
+
     const height = frame.offsetHeight;
     const originLeft = frameRect.left - Math.min(
       0,
