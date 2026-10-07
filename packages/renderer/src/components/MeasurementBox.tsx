@@ -104,6 +104,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     // root breaks the reconciler when direct editing changes reactive state.
     // Targets that genuinely live in a ShadowRoot keep local overlay ownership.
     const rendererDocument = chromeElement?.ownerDocument;
+
     const documentBacked = target.ownerDocument === rendererDocument
       && target.getRootNode() === target.ownerDocument
       && Boolean(target.ownerDocument.body);
