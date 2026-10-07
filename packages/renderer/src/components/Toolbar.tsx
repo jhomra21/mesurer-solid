@@ -1,10 +1,12 @@
 import { For, Show, createSignal, flush, onSettled } from "solid-js";
 import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesurer-solid-core";
+import type { ObservedMotionTarget } from "../core/observed-motion";
 import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
 import { supportsColorPicker } from "../runtime/color-picker-support";
 import { constrainToolbarPosition } from "../runtime/toolbar-position";
+import { MotionPlayer } from "./MotionPlayer";
 import { SettingsPanel } from "./SettingsPanel";
 import { Tooltip, createTooltip } from "./Tooltip";
 import {
@@ -42,6 +44,12 @@ export type ToolbarProps = {
   onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void;
   initialPosition?: { x: number; y: number };
   onPositionChange?: (position: { x: number; y: number }) => void;
+  motion?: {
+    element: Element | null;
+    ready: boolean;
+    observedProperties: string[];
+    observedTargets: ObservedMotionTarget[];
+  };
 };
 
 const TOOLBAR_DRAG_SLOP = 6;
@@ -71,6 +79,12 @@ const VIEWPORT_PADDING = 8;
 const GUIDE_MENU_IDEAL_HEIGHT = 72;
 
 const SETTINGS_MENU_IDEAL_HEIGHT = 360;
+
+const MOTION_PLAYER_WIDTH = 352;
+
+const MOTION_PLAYER_GAP = 8;
+
+const MOTION_PLAYER_IDEAL_HEIGHT = 260;
 
 export function Toolbar(props: ToolbarProps) {
   const [position, setPosition] = createSignal(props.initialPosition ?? { x: 16, y: 16 });
@@ -220,6 +234,63 @@ export function Toolbar(props: ToolbarProps) {
     const viewportLeft = Math.min(maxViewportLeft, Math.max(VIEWPORT_PADDING, idealViewportLeft));
 
     return viewportLeft - anchor.left;
+  };
+
+  const motionPlayerGeometry = () => {
+    position();
+    compact();
+    viewportRevision();
+
+    const toolbar = toolbarElement?.getBoundingClientRect();
+    const viewportWidth = props.ownerWindow.innerWidth || MOTION_PLAYER_WIDTH + VIEWPORT_PADDING * 2;
+    const viewportHeightValue = props.ownerWindow.innerHeight || MOTION_PLAYER_IDEAL_HEIGHT + VIEWPORT_PADDING * 2;
+    const width = Math.min(
+      MOTION_PLAYER_WIDTH,
+      Math.max(0, viewportWidth - VIEWPORT_PADDING * 2),
+    );
+
+    if (!toolbar) {
+      return {
+        left: VIEWPORT_PADDING,
+        top: VIEWPORT_PADDING,
+        bottom: null as number | null,
+        width,
+        maxHeight: Math.max(0, viewportHeightValue - VIEWPORT_PADDING * 2),
+      };
+    }
+
+    const left = Math.min(
+      Math.max(VIEWPORT_PADDING, toolbar.left),
+      Math.max(VIEWPORT_PADDING, viewportWidth - VIEWPORT_PADDING - width),
+    );
+
+    const below = Math.max(
+      0,
+      viewportHeightValue - toolbar.bottom - MOTION_PLAYER_GAP - VIEWPORT_PADDING,
+    );
+
+    const above = Math.max(
+      0,
+      toolbar.top - MOTION_PLAYER_GAP - VIEWPORT_PADDING,
+    );
+
+    if (below >= MOTION_PLAYER_IDEAL_HEIGHT || below >= above) {
+      return {
+        left,
+        top: toolbar.bottom + MOTION_PLAYER_GAP,
+        bottom: null as number | null,
+        width,
+        maxHeight: below,
+      };
+    }
+
+    return {
+      left,
+      top: null as number | null,
+      bottom: viewportHeightValue - toolbar.top + MOTION_PLAYER_GAP,
+      width,
+      maxHeight: above,
+    };
   };
 
   const updateMenuAlign = () => {
@@ -681,7 +752,36 @@ export function Toolbar(props: ToolbarProps) {
   });
 
   return (
-    <div
+    <>
+      <Show when={props.motion?.ready && props.motion.element}>
+        {(motionElement) => {
+          const geometry = motionPlayerGeometry();
+
+          return (
+            <div
+              data-mesurer-motion-surface="true"
+              data-mesurer-inspector-ui="true"
+              class="msr:pointer-events-auto msr:absolute msr:z-[80] msr:overflow-visible"
+              style={{
+                left: `${geometry.left}px`,
+                top: geometry.top === null ? "auto" : `${geometry.top}px`,
+                bottom: geometry.bottom === null ? "auto" : `${geometry.bottom}px`,
+                width: `${geometry.width}px`,
+                "max-height": `${Math.max(0, geometry.maxHeight)}px`,
+              }}
+            >
+              <MotionPlayer
+                element={motionElement()}
+                ownerWindow={props.ownerWindow}
+                observedProperties={props.motion?.observedProperties ?? []}
+                observedTargets={props.motion?.observedTargets ?? []}
+              />
+            </div>
+          );
+        }}
+      </Show>
+
+      <div
       ref={(element) => { toolbarElement = element; }}
       data-mesurer-toolbar="true"
       data-mesurer-toolbar-compact={compact() ? "true" : "false"}
@@ -866,5 +966,6 @@ export function Toolbar(props: ToolbarProps) {
         </button>
       </div>
     </div>
+    </>
   );
 }
