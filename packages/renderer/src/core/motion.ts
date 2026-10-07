@@ -221,8 +221,8 @@ export const readMotionDetails = (
   const directions = splitList(style.animationDirection);
   const fills = splitList(style.animationFillMode);
 
-  const animationDetails: MotionDetails[] = names
-    .map((name, index) => {
+  const animationDetails = names
+    .map<MotionDetails>((name, index) => {
       const duplicateIndex = names
         .slice(0, index)
         .filter((candidate) => candidate === name)
@@ -257,8 +257,8 @@ export const readMotionDetails = (
   const transitionAnimations = ownAnimations.filter((animation) =>
     Boolean(transitionProperty(animation)));
 
-  const transitionDetails: MotionDetails[] = transitionProperties
-    .map((property, index) => {
+  const transitionDetails = transitionProperties
+    .map<MotionDetails>((property, index) => {
       const animation = transitionAnimations.find((candidate) =>
         transitionProperty(candidate) === property)
         ?? (property === "all" ? transitionAnimations[0] : null)
