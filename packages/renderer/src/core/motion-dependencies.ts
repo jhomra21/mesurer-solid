@@ -1,124 +1,260 @@
-import { OBSERVED_MOTION_PROPERTIES } from "./motion"
+import { OBSERVED_MOTION_PROPERTIES } from "./motion";
 
-export const cssVariables = (value: string) => [...value.matchAll(/var\(\s*(--[\w-]+)/g)].map(([, name]) => name)
+export const cssVariables = (value: string) =>
+  [...value.matchAll(/var\(\s*(--[\w-]+)/g)].map(([, name]) => name);
 
-// Read only accessible author rules. No library names, globals, or patched APIs.
+type MotionDependencyRule = {
+  selector?: string;
+  animation?: string;
+  properties: Map<string, string[]>;
+};
+
+const mediaTextForRule = (rule: CSSRule) =>
+  "media" in rule ? String(rule.media?.mediaText ?? "") : "";
+
+const importedSheetForRule = (rule: CSSRule) =>
+  "styleSheet" in rule ? rule.styleSheet : null;
+
+const nestedRulesForRule = (rule: CSSRule) =>
+  "cssRules" in rule ? rule.cssRules : null;
+
+const styleForRule = (rule: CSSRule) =>
+  "style" in rule ? rule.style : null;
+
+const keyframesNameForRule = (rule: CSSRule) =>
+  "name" in rule ? String(rule.name ?? "") : "";
+
 export function createMotionDependencies(document?: Document) {
-  type Rule = { selector?: string; animation?: string; properties: Map<string, string[]> }
+  let scopes = new WeakMap<Node, MotionDependencyRule[]>();
+  let opaque = new WeakSet<Node>();
+  let cache = new WeakMap<Element, {
+    names: string;
+    properties: Map<string, string[]>;
+  }>();
 
-  let scopes = new WeakMap<Node, Rule[]>()
-  let opaque = new WeakSet<Node>()
-  let cache = new WeakMap<Element, { names: string; properties: Map<string, string[]> }>()
-  const tracked = new Map<Document | ShadowRoot, { sheets: CSSStyleSheet[]; signature: string }>()
-  let lastRefresh = -Infinity
-  const matchesMedia = (media?: string) => !media || !document?.defaultView?.matchMedia || document.defaultView.matchMedia(media).matches
-  const sheetsOf = (scope: Document | ShadowRoot) => [...(scope.styleSheets ?? []), ...(scope.adoptedStyleSheets ?? [])]
+  const tracked = new Map<Document | ShadowRoot, {
+    sheets: CSSStyleSheet[];
+    signature: string;
+  }>();
+
+  let lastRefresh = -Infinity;
+
+  const matchesMedia = (media?: string) =>
+    !media
+    || !document?.defaultView?.matchMedia
+    || document.defaultView.matchMedia(media).matches;
+
+  const sheetsOf = (scope: Document | ShadowRoot) => [
+    ...(scope.styleSheets ?? []),
+    ...(scope.adoptedStyleSheets ?? []),
+  ];
 
   const signatureOf = (sheets: CSSStyleSheet[]) => {
-    const seen = new Set<CSSStyleSheet>()
+    const seen = new Set<CSSStyleSheet>();
 
     const visit = (sheet: CSSStyleSheet): string => {
-      if (seen.has(sheet)) return ""
-      seen.add(sheet)
+      if (seen.has(sheet)) return "";
+
+      seen.add(sheet);
 
       try {
-        const rules = (items: CSSRuleList, includeText = true): string => [...items].map((rule) => {
-          const candidate = rule as CSSGroupingRule & CSSImportRule & CSSMediaRule
+        const rules = (
+          items: CSSRuleList,
+          includeText = true,
+        ): string => [...items].map((rule) => {
+          const imported = importedSheetForRule(rule);
+          const nested = nestedRulesForRule(rule);
+          const media = mediaTextForRule(rule);
 
-          return `${includeText ? rule.cssText : ""}:${matchesMedia(candidate.media?.mediaText)}:${candidate.styleSheet ? visit(candidate.styleSheet) : candidate.cssRules ? rules(candidate.cssRules, false) : ""}`
-        }).join("\n")
+          return [
+            includeText ? rule.cssText : "",
+            matchesMedia(media),
+            imported
+              ? visit(imported)
+              : nested ? rules(nested, false) : "",
+          ].join(":");
+        }).join("\n");
 
-        return `${sheet.disabled}:${matchesMedia(sheet.media?.mediaText)}:${rules(sheet.cssRules)}`
-      } catch { return `${sheet.disabled}:${matchesMedia(sheet.media?.mediaText)}:opaque` }
-    }
+        return [
+          sheet.disabled,
+          matchesMedia(sheet.media?.mediaText),
+          rules(sheet.cssRules),
+        ].join(":");
+      } catch {
+        return [
+          sheet.disabled,
+          matchesMedia(sheet.media?.mediaText),
+          "opaque",
+        ].join(":");
+      }
+    };
 
-    return sheets.map(visit).join("\n")
-  }
+    return sheets.map(visit).join("\n");
+  };
 
-  const invalidate = () => { scopes = new WeakMap(); opaque = new WeakSet(); cache = new WeakMap() }
+  const invalidate = () => {
+    scopes = new WeakMap();
+    opaque = new WeakSet();
+    cache = new WeakMap();
+  };
 
-  const collect = (items: CSSRuleList, result: Rule[], animation?: string) => {
+  const collect = (
+    items: CSSRuleList,
+    result: MotionDependencyRule[],
+    animation?: string,
+  ) => {
     for (const rule of items) {
-      const candidate = rule as CSSStyleRule & CSSGroupingRule & CSSKeyframesRule
-      const media = (rule as CSSMediaRule).media?.mediaText
+      const media = mediaTextForRule(rule);
 
-      if (!matchesMedia(media)) continue
-      const imported = (rule as CSSImportRule).styleSheet
+      if (!matchesMedia(media)) continue;
 
-      if (imported && !imported.disabled && matchesMedia(imported.media?.mediaText)) collect(imported.cssRules, result)
+      const imported = importedSheetForRule(rule);
 
-      if (candidate.style) {
-        const properties = new Map(OBSERVED_MOTION_PROPERTIES.map((property) => [property, cssVariables(candidate.style.getPropertyValue(property))]).filter(([, variables]) => variables.length) as [string, string[]][])
-
-        if (properties.size) result.push({ selector: candidate.selectorText, animation, properties })
+      if (
+        imported
+        && !imported.disabled
+        && matchesMedia(imported.media?.mediaText)
+      ) {
+        collect(imported.cssRules, result);
       }
 
-      if (candidate.cssRules) collect(candidate.cssRules, result, candidate.name || animation)
+      const style = styleForRule(rule);
+
+      if (style) {
+        const properties = new Map<string, string[]>();
+
+        for (const property of OBSERVED_MOTION_PROPERTIES) {
+          const variables = cssVariables(style.getPropertyValue(property));
+
+          if (variables.length) properties.set(property, variables);
+        }
+
+        if (properties.size) {
+          result.push({
+            selector: "selectorText" in rule
+              ? String(rule.selectorText ?? "")
+              : undefined,
+            animation,
+            properties,
+          });
+        }
+      }
+
+      const nested = nestedRulesForRule(rule);
+
+      if (nested) {
+        collect(
+          nested,
+          result,
+          keyframesNameForRule(rule) || animation,
+        );
+      }
     }
-  }
+  };
 
   return {
     invalidate,
-    // CSSOM edits and adoptedStyleSheets assignments have no mutation records.
-    // Check only tracked source scopes, at most once per second.
+
     refresh(time: number) {
-      if (time - lastRefresh < 1000) return false
-      lastRefresh = time
-      let changed = false
+      if (time - lastRefresh < 1000) return false;
+
+      lastRefresh = time;
+
+      let changed = false;
 
       for (const [scope, before] of tracked) {
-        const sheets = sheetsOf(scope), signature = signatureOf(sheets)
+        const sheets = sheetsOf(scope);
+        const signature = signatureOf(sheets);
 
-        if (signature !== before.signature || sheets.length !== before.sheets.length || sheets.some((sheet, index) => sheet !== before.sheets[index])) {
-          tracked.set(scope, { sheets, signature })
-          changed = true
+        if (
+          signature !== before.signature
+          || sheets.length !== before.sheets.length
+          || sheets.some((sheet, index) => sheet !== before.sheets[index])
+        ) {
+          tracked.set(scope, { sheets, signature });
+          changed = true;
         }
       }
 
-      if (changed) invalidate()
+      if (changed) invalidate();
 
-      return changed
+      return changed;
     },
-    hasOpaqueStyles(element: Element) { const scope = element.getRootNode?.() ?? document;
 
- return scope ? opaque.has(scope) : false },
+    hasOpaqueStyles(element: Element) {
+      const scope = element.getRootNode();
+
+      return opaque.has(scope);
+    },
+
     forElement(element: Element, names: string) {
-      const scope = (element.getRootNode?.() ?? document) as Document | ShadowRoot | undefined
-      let rules = scope ? scopes.get(scope) : []
+      const root = element.getRootNode();
+
+      // SAFETY: an Element root is always its Document or a ShadowRoot.
+      const scope = root as Document | ShadowRoot;
+
+      let rules = scopes.get(scope);
 
       if (!rules) {
-        rules = []
-        const sheets = scope ? sheetsOf(scope) : []
+        rules = [];
 
-        if (scope && !tracked.has(scope)) tracked.set(scope, { sheets, signature: signatureOf(sheets) })
+        const sheets = sheetsOf(scope);
 
-        for (const sheet of sheets) {
-          if (sheet.disabled || !matchesMedia(sheet.media?.mediaText)) continue
-
-          try { collect(sheet.cssRules, rules) } catch { if (scope) opaque.add(scope) }
+        if (!tracked.has(scope)) {
+          tracked.set(scope, {
+            sheets,
+            signature: signatureOf(sheets),
+          });
         }
 
-        if (scope) scopes.set(scope, rules)
+        for (const sheet of sheets) {
+          if (sheet.disabled || !matchesMedia(sheet.media?.mediaText)) continue;
+
+          try {
+            collect(sheet.cssRules, rules);
+          } catch {
+            opaque.add(scope);
+          }
+        }
+
+        scopes.set(scope, rules);
       }
 
-      const cached = cache.get(element)
+      const cached = cache.get(element);
 
-      if (cached?.names === names) return cached.properties
-      const properties = new Map<string, string[]>()
+      if (cached?.names === names) return cached.properties;
+
+      const properties = new Map<string, string[]>();
 
       for (const rule of rules) {
-        let matches = Boolean(rule.animation && names.split(",").some((name) => name.trim() === rule.animation))
+        let matches = Boolean(
+          rule.animation
+          && names.split(",").some((name) => name.trim() === rule.animation),
+        );
 
-        if (rule.selector) { try { matches = element.matches(rule.selector.replace(/::(?:before|after)\b/g, "")) } catch { continue } }
+        if (rule.selector) {
+          try {
+            matches = element.matches(
+              rule.selector.replace(/::(?:before|after)\b/g, ""),
+            );
+          } catch {
+            continue;
+          }
+        }
 
-        if (!matches) continue
+        if (!matches) continue;
 
-        for (const [property, variables] of rule.properties) properties.set(property, [...(properties.get(property) ?? []), ...variables])
+        for (const [property, variables] of rule.properties) {
+          properties.set(
+            property,
+            [...(properties.get(property) ?? []), ...variables],
+          );
+        }
       }
 
-      cache.set(element, { names, properties })
+      cache.set(element, { names, properties });
 
-      return properties
+      return properties;
     },
-  }
+  };
 }
