@@ -121,6 +121,7 @@ const frameMatrix = (frame: Element): FrameMatrix | null => {
 
     const rotationParts = (style.rotate || "none").split(/\s+/);
     const axisRotation = rotationParts.length === 4;
+
     const supportedAxis = !axisRotation
       || (
         Number(rotationParts[0]) === 0
@@ -146,6 +147,7 @@ const frameMatrix = (frame: Element): FrameMatrix | null => {
     }
 
     const zoom = scaleValue(style.zoom || "1") || 1;
+
     const scaleParts = !style.scale || style.scale === "none"
       ? [1, 1]
       : style.scale.split(/\s+/).map(scaleValue);
