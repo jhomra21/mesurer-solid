@@ -222,6 +222,7 @@ test("Codex Bridge retains a five-hour-old queued delivery across host restart",
   }));
 
   const appServer = await createFakeAppServer(root, turnsPath);
+
   const options = {
     codex: join(root, "must-not-run"),
     codexHome: root,
