@@ -10,6 +10,7 @@ on:
       - "packages/renderer/src/core/selection-helpers.ts"
       - "packages/renderer/src/core/frame-geometry.ts"
       - "packages/renderer/src/runtime/xray-scope.ts"
+      - "packages/renderer/src/runtime/isolated-document-ui-passthrough.ts"
       - "packages/renderer/src/runtime/workspace-context.ts"
       - "packages/renderer/src/components/ContextActions.tsx"
       - "packages/mesurer/src/context.ts"
