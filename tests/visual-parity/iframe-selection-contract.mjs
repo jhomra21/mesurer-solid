@@ -75,10 +75,59 @@ try {
     };
   });
 
-  await page.mouse.click(
-    geometry.expected.left + geometry.expected.width / 2,
-    geometry.expected.top + geometry.expected.height / 2,
+  const clickPoint = {
+    x: geometry.expected.left + geometry.expected.width / 2,
+    y: geometry.expected.top + geometry.expected.height / 2,
+  };
+
+  await page.mouse.click(clickPoint.x, clickPoint.y);
+  await page.waitForTimeout(300);
+
+  const preflight = await page.evaluate(({ clickPoint }) => {
+    const selected = [...document.querySelectorAll("[data-mesurer-selected-measurement='true']")];
+    const frame = document.querySelector("[data-testid='same-origin-frame']");
+    const frameDocument = frame instanceof HTMLIFrameElement ? frame.contentDocument : null;
+
+    return {
+      topHits: document.elementsFromPoint(clickPoint.x, clickPoint.y).map((element) => ({
+        tag: element.tagName,
+        testId: element.getAttribute("data-testid"),
+        mesurer: element.getAttribute("data-mesurer-interaction-overlay")
+          ?? element.getAttribute("data-mesurer-selected-measurement"),
+      })),
+      frameSelection: frameDocument
+        ? frameDocument.querySelector("[data-testid='frame-target']")?.outerHTML ?? null
+        : null,
+      selected: selected.map((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+
+        return {
+          rect: {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+          },
+          display: style.display,
+          visibility: style.visibility,
+          opacity: style.opacity,
+          html: element.outerHTML.slice(0, 1600),
+        };
+      }),
+    };
+  }, { clickPoint });
+
+  await writeFile(
+    join(output, "iframe-selection-preflight.json"),
+    `${JSON.stringify({ geometry, clickPoint, preflight, errors }, null, 2)}\n`,
+    "utf8",
   );
+
+  await page.screenshot({
+    path: join(output, "iframe-selection-preflight.png"),
+    fullPage: true,
+  });
 
   const selected = page.locator("[data-mesurer-selected-measurement='true']").last();
 
