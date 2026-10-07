@@ -23,17 +23,21 @@ const BRIDGE_CAPABILITIES = Object.freeze([
   "client-message-correlation-v1",
   "idle-safe-shutdown-v1",
   "nonterminal-retention-v1",
+  "instance-binding-v1",
 ]);
 
 const BRIDGE_SOURCE_HASH = createHash("sha256")
   .update(await readFile(new URL(import.meta.url)))
   .digest("hex");
 
+const BRIDGE_INSTANCE_ID = randomUUID();
+
 const BRIDGE_IDENTITY = Object.freeze({
   name: BRIDGE_NAME,
   protocol: BRIDGE_PROTOCOL_VERSION,
   capabilities: BRIDGE_CAPABILITIES,
   sourceHash: BRIDGE_SOURCE_HASH,
+  instanceId: BRIDGE_INSTANCE_ID,
   pid: process.pid,
   canShutdown: true,
 });
@@ -480,7 +484,7 @@ const corsHeaders = (origin, exposeDenied = false) => {
 
   return {
     "Access-Control-Allow-Origin": safeOrigin,
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Mesurer-Bridge-Instance",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Vary": "Origin",
   };
@@ -1969,6 +1973,17 @@ server = createServer(async (request, response) => {
       void shutdownBridge();
     });
     writeJson(response, 200, { ok: true, bridgeState: state }, origin);
+
+    return;
+  }
+
+  if (originHeaderPresent
+    && !(request.method === "GET" && request.url === "/health")
+    && request.headers["x-mesurer-bridge-instance"] !== BRIDGE_INSTANCE_ID) {
+    writeJson(response, 409, {
+      ok: false,
+      error: "Mesurer Codex Bridge instance changed. Reconnect before sending another request.",
+    }, origin);
 
     return;
   }
