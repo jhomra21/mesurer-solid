@@ -19,8 +19,6 @@ const MAX_DISCOVERED_THREADS = 10;
 
 const TURN_HISTORY_LIMIT = 100;
 
-const DELIVERY_TTL_MS = 24 * 60 * 60_000;
-
 const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
 
 const DELIVERY_TURN_START_SKEW_MS = 5_000;
@@ -701,21 +699,28 @@ const persistedDelivery = (delivery) => ({
   updatedAt: delivery.updatedAt,
 });
 
+const deliveryIsTerminal = (delivery) =>
+  delivery.status === "completed" || delivery.status === "interrupted";
+
 const pruneDeliveries = () => {
   const now = Date.now();
 
   for (const [id, delivery] of deliveries) {
-    const terminal = delivery.status === "completed" || delivery.status === "interrupted";
-    const ttl = terminal ? TERMINAL_DELIVERY_TTL_MS : DELIVERY_TTL_MS;
+    if (!deliveryIsTerminal(delivery)) continue;
 
-    if (now - delivery.updatedAt > ttl) deliveries.delete(id);
+    if (now - delivery.updatedAt > TERMINAL_DELIVERY_TTL_MS) {
+      deliveries.delete(id);
+    }
   }
 
   if (deliveries.size <= MAX_DELIVERIES) return;
 
-  const oldest = [...deliveries.values()].sort((left, right) => left.updatedAt - right.updatedAt);
+  const terminal = [...deliveries.values()]
+    .filter(deliveryIsTerminal)
+    .sort((left, right) => left.updatedAt - right.updatedAt);
 
-  for (const delivery of oldest.slice(0, deliveries.size - MAX_DELIVERIES)) {
+  for (const delivery of terminal) {
+    if (deliveries.size <= MAX_DELIVERIES) break;
     deliveries.delete(delivery.id);
   }
 };
