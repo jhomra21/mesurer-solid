@@ -203,8 +203,13 @@ export function installIsolatedDocumentUiPassthrough(
 
     if (!flushStaleGeometry()) applyPointer();
 
-    const target = event.target instanceof realm.Element
+    const candidate = event.target instanceof realm.Element
       ? event.target.closest(DOCUMENT_UI_SELECTOR)
+      : null;
+
+    const target = candidate instanceof realm.HTMLElement
+      && candidate.getRootNode() === ownerDocument
+      ? candidate
       : null;
 
     if (!target && !pointerOverDocumentUi()) return;
@@ -212,9 +217,7 @@ export function installIsolatedDocumentUiPassthrough(
     ownedPointerId = event.pointerId;
     setPassthrough(true);
 
-    if (target instanceof realm.HTMLElement) {
-      trySetPointerCapture(target, event.pointerId);
-    }
+    if (target) trySetPointerCapture(target, event.pointerId);
   };
 
   const onPointerUp = (event: PointerEvent) => {
