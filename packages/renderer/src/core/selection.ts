@@ -99,6 +99,7 @@ export const getTargetElement = (
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
 ) => {
   const overlayHost = getOverlayHost(overlayNode);
+
   const initial = getSelectionTarget(
     point,
     overlayNode,
