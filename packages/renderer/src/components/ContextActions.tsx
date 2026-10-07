@@ -1,4 +1,5 @@
 import { For, Show, createMemo, createSignal, onCleanup, untrack } from "solid-js";
+import { getRectFromDom } from "../core/dom";
 import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
 import {
   installNestedScrollCompensation,
@@ -596,7 +597,7 @@ export function ContextActions(props: ContextActionsProps) {
 
     const rects = annotation.resolvedTargets.flatMap(({ element }) => {
       if (!element?.isConnected) return [];
-      const rect = element.getBoundingClientRect();
+      const rect = getRectFromDom(element);
 
       return [{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }];
     });
@@ -622,7 +623,7 @@ export function ContextActions(props: ContextActionsProps) {
     const rects = value.elements
       .filter((element) => element.isConnected)
       .map((element) => {
-        const rect = element.getBoundingClientRect();
+        const rect = getRectFromDom(element);
 
         return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
       });
@@ -666,7 +667,7 @@ export function ContextActions(props: ContextActionsProps) {
     const element = selectionTriggerElement();
 
     if (!element?.isConnected) return null;
-    const rect = element.getBoundingClientRect();
+    const rect = getRectFromDom(element);
     const value = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
     const currentWindow = ownerWindow();
     const size = 24;
@@ -739,7 +740,7 @@ export function ContextActions(props: ContextActionsProps) {
       return { ...documentPosition(position), nativeAnchor: false };
     }
 
-    const targetRect = binding.target.getBoundingClientRect();
+    const targetRect = getRectFromDom(binding.target);
 
     return {
       ...position,
@@ -778,7 +779,7 @@ export function ContextActions(props: ContextActionsProps) {
       return { ...documentPosition(position), nativeAnchor: false };
     }
 
-    const rect = target.getBoundingClientRect();
+    const rect = getRectFromDom(target);
 
     return {
       ...position,
