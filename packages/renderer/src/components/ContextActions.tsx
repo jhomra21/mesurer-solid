@@ -757,7 +757,10 @@ export function ContextActions(props: ContextActionsProps) {
       { width: currentWindow.innerWidth, height: currentWindow.innerHeight },
       {
         obstacles: [...markerObstacles, ...rendererObstacleRects()],
-        maxShiftRings: 1,
+        maxShiftRings: Math.ceil(
+          Math.max(currentWindow.innerWidth, currentWindow.innerHeight) / (size + 4),
+        ),
+        viewportAware: true,
       },
     );
 
