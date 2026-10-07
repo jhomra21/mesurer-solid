@@ -69,6 +69,7 @@ function MotionValues(props: {
     const animations = props.motions.filter((motion) => motion.kind === "animation");
     const transitions = props.motions.filter((motion) => motion.kind === "transition");
     const webAnimations = props.motions.filter((motion) => motion.kind === "web-animation");
+
     const properties = [...new Set(props.motions.flatMap((motion) => motion.properties))]
       .map(motionCssProperty)
       .join(", ");
@@ -192,6 +193,7 @@ export function MotionPlayer(props: {
 
   const observedOnly = () => props.observedProperties.length > 0;
   const playbackReady = () => playbackElement() === props.element;
+
   const controllable = () =>
     playbackReady()
     && !observedOnly()
@@ -237,6 +239,7 @@ export function MotionPlayer(props: {
 
       try {
         const nextMotions = readMotionDetails(element, ownerWindow);
+
         const nextAnimations = [...new Set(
           nextMotions.flatMap((motion) => motion.animation ? [motion.animation] : []),
         )];

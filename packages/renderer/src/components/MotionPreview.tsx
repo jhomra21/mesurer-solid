@@ -64,6 +64,7 @@ export function MotionPreview(props: {
       dependencies.forElement(pair.source, "");
 
       const targets = observedTargets.filter((target) => target.element === pair.source);
+
       const opaque = observedTargets.some((target) =>
         target.properties.includes("style")
         && (
@@ -117,6 +118,7 @@ export function MotionPreview(props: {
     let bounds = framingElement === element ? framingBounds : null;
 
     const originStyle = ownerWindow.getComputedStyle(element);
+
     const offsets = {
       left: Number.parseFloat(originStyle.left) || 0,
       top: Number.parseFloat(originStyle.top) || 0,
@@ -261,6 +263,7 @@ export function MotionPreview(props: {
       }
 
       const animations = getMotionAnimations(element);
+
       let changed = animations.length !== previousAnimations.length
         || animations.some((animation, index) => animation !== previousAnimations[index]);
 
@@ -445,6 +448,7 @@ export function MotionPreview(props: {
     lastSize = ownerWindow.performance.now();
 
     const Resize = (ownerWindow as Window & typeof globalThis).ResizeObserver;
+
     const resize = Resize ? new Resize(() => {
       needsSize = true;
       wake();
@@ -475,6 +479,7 @@ export function MotionPreview(props: {
 
           for (const pair of pairs) {
             const author = variables.length ? dependencies.forElement(pair.source, "") : null;
+
             const computed = variables.length && dependencies.hasOpaqueStyles(pair.source)
               ? ownerWindow.getComputedStyle(pair.source, pair.pseudo)
               : null;

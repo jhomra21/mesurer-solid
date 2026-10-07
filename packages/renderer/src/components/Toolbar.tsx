@@ -244,6 +244,7 @@ export function Toolbar(props: ToolbarProps) {
     const toolbar = toolbarElement?.getBoundingClientRect();
     const viewportWidth = props.ownerWindow.innerWidth || MOTION_PLAYER_WIDTH + VIEWPORT_PADDING * 2;
     const viewportHeightValue = props.ownerWindow.innerHeight || MOTION_PLAYER_IDEAL_HEIGHT + VIEWPORT_PADDING * 2;
+
     const width = Math.min(
       MOTION_PLAYER_WIDTH,
       Math.max(0, viewportWidth - VIEWPORT_PADDING * 2),

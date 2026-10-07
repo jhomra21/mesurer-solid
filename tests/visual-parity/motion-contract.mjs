@@ -4,15 +4,19 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 
 const url = process.env.MOTION_URL ?? "http://127.0.0.1:4179/motion-contract.html";
+
 const output = process.env.MOTION_OUT ?? "motion-artifacts";
 
 await mkdir(output, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
+
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
+
 const errors = [];
 
 page.on("pageerror", (error) => errors.push(String(error)));
+
 page.on("console", (message) => {
   if (message.type() === "error") errors.push(message.text());
 });

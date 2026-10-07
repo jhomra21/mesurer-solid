@@ -325,6 +325,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       try {
         const motions = readMotionDetails(element, view);
         const animations = getMotionAnimations(element);
+
         const ready = motions.some((motion) => motionDuration(motion) > 0)
           || animations.some((animation) => {
             try {
