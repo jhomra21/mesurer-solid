@@ -202,117 +202,118 @@ export function MotionPlayer(props: {
     && duration() > 0
     && motions().some((motion) => motion.animation);
 
-  createEffect(() => {
-    const element = props.element;
-    const ownerWindow = props.ownerWindow;
+  createEffect(
+    () => [props.element, props.ownerWindow] as const,
+    ([element, ownerWindow]) => {
+      setObservedTargets(readObservedMotion(element));
 
-    setObservedTargets(readObservedMotion(element));
+      const stopObserved = observeMotion(
+        element,
+        ownerWindow,
+        (targets) => setObservedTargets(targets),
+      );
 
-    const stopObserved = observeMotion(
-      element,
-      ownerWindow,
-      (targets) => setObservedTargets(targets),
-    );
+      onCleanup(stopObserved);
+    },
+  );
 
-    onCleanup(stopObserved);
-  });
+  createEffect(
+    () => [props.element, props.ownerWindow] as const,
+    ([element, ownerWindow]) => {
+      setPlaybackElement(null);
 
-  createEffect(() => {
-    const element = props.element;
-    const ownerWindow = props.ownerWindow;
+      const timer = ownerWindow.setTimeout(() => {
+        if (element.isConnected) setPlaybackElement(element);
+      }, 250);
 
-    setPlaybackElement(null);
+      onCleanup(() => ownerWindow.clearTimeout(timer));
+    },
+  );
 
-    const timer = ownerWindow.setTimeout(() => {
-      if (element.isConnected) setPlaybackElement(element);
-    }, 250);
+  createEffect(
+    () => [props.element, props.ownerWindow] as const,
+    ([element, ownerWindow]) => {
+      setProgress(0);
+      setPlaying(false);
+      setInspectOpen(false);
+      setSpeedOpen(false);
+      animations = [];
 
-    onCleanup(() => ownerWindow.clearTimeout(timer));
-  });
+      const first = getMotionAnimations(element)[0];
 
-  createEffect(() => {
-    const element = props.element;
-    const ownerWindow = props.ownerWindow;
+      setSpeed(first?.playbackRate ?? 1);
 
-    setProgress(0);
-    setPlaying(false);
-    setInspectOpen(false);
-    setSpeedOpen(false);
-    animations = [];
+      const refresh = () => {
+        if (!element.isConnected) {
+          setReady(false);
+          setDuration(0);
+          setMotions([]);
+          animations = [];
 
-    const first = getMotionAnimations(element)[0];
+          return;
+        }
 
-    setSpeed(first?.playbackRate ?? 1);
+        try {
+          const nextMotions = readMotionDetails(element, ownerWindow);
 
-    const refresh = () => {
-      if (!element.isConnected) {
-        setReady(false);
-        setDuration(0);
-        setMotions([]);
-        animations = [];
+          const nextAnimations = [...new Set(
+            nextMotions.flatMap((motion) => motion.animation ? [motion.animation] : []),
+          )];
 
-        return;
-      }
+          setReady(nextMotions.length > 0 || getMotionAnimations(element).length > 0);
+          setDuration(Math.max(0, ...nextMotions.map(motionDuration)));
+          setMotions(nextMotions);
+          animations = nextAnimations;
+        } catch {
+          setReady(false);
+          setDuration(0);
+          setMotions([]);
+          animations = [];
+        }
+      };
 
-      try {
-        const nextMotions = readMotionDetails(element, ownerWindow);
+      refresh();
 
-        const nextAnimations = [...new Set(
-          nextMotions.flatMap((motion) => motion.animation ? [motion.animation] : []),
-        )];
+      const interval = ownerWindow.setInterval(refresh, 250);
 
-        setReady(nextMotions.length > 0 || getMotionAnimations(element).length > 0);
-        setDuration(Math.max(0, ...nextMotions.map(motionDuration)));
-        setMotions(nextMotions);
-        animations = nextAnimations;
-      } catch {
-        setReady(false);
-        setDuration(0);
-        setMotions([]);
-        animations = [];
-      }
-    };
+      onCleanup(() => ownerWindow.clearInterval(interval));
+    },
+  );
 
-    refresh();
+  createEffect(
+    () => [props.ownerWindow, ready(), controllable(), duration()] as const,
+    ([ownerWindow, motionReady, canControl]) => {
+      if (!motionReady || !canControl) return;
 
-    const interval = ownerWindow.setInterval(refresh, 250);
+      let timer = 0;
+      let frame = 0;
+      let disposed = false;
 
-    onCleanup(() => ownerWindow.clearInterval(interval));
-  });
+      const update = () => {
+        if (disposed) return;
 
-  createEffect(() => {
-    const ownerWindow = props.ownerWindow;
+        const playback = motionPlaybackState(animations, duration());
 
-    if (!ready() || !controllable()) return;
+        setProgress(playback.progress);
+        setPlaying(playback.playing);
+        previewWakeRef.current?.();
 
-    let timer = 0;
-    let frame = 0;
-    let disposed = false;
+        if (playback.playing) {
+          frame = ownerWindow.requestAnimationFrame(update);
+        } else {
+          timer = ownerWindow.setTimeout(update, 250);
+        }
+      };
 
-    const update = () => {
-      if (disposed) return;
+      update();
 
-      const playback = motionPlaybackState(animations, duration());
-
-      setProgress(playback.progress);
-      setPlaying(playback.playing);
-      previewWakeRef.current?.();
-
-      if (playback.playing) {
-        frame = ownerWindow.requestAnimationFrame(update);
-      } else {
-        timer = ownerWindow.setTimeout(update, 250);
-      }
-    };
-
-    update();
-
-    onCleanup(() => {
-      disposed = true;
-      ownerWindow.clearTimeout(timer);
-      ownerWindow.cancelAnimationFrame(frame);
-    });
-  });
+      onCleanup(() => {
+        disposed = true;
+        ownerWindow.clearTimeout(timer);
+        ownerWindow.cancelAnimationFrame(frame);
+      });
+    },
+  );
 
   const seek = (next: number) => {
     if (!controllable()) return;
