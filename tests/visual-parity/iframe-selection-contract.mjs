@@ -95,6 +95,7 @@ try {
     const width = frame.offsetWidth;
 
     const height = frame.offsetHeight;
+
     const originLeft = frameRect.left - Math.min(
       0,
       matrix.a * width,
