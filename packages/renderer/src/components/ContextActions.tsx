@@ -912,6 +912,19 @@ export function ContextActions(props: ContextActionsProps) {
     syncAnnotationSurface(annotationId);
   };
 
+  const captureContextButtonPointer = (
+    event: PointerEvent & { currentTarget: HTMLElement },
+  ) => {
+    event.stopPropagation();
+
+    const Button = event.currentTarget.ownerDocument.defaultView?.HTMLButtonElement;
+    const button = event.composedPath().find((node) => Button && node instanceof Button);
+
+    if (!Button || !(button instanceof Button) || !event.currentTarget.contains(button)) return;
+
+    trySetPointerCapture(button, event.pointerId);
+  };
+
   const startSurfaceDrag = (event: PointerEvent & { currentTarget: HTMLDivElement }, surfaceId: string) => {
     const ElementCtor = event.currentTarget.ownerDocument.defaultView?.Element;
     const target = event.target;
@@ -1220,7 +1233,7 @@ export function ContextActions(props: ContextActionsProps) {
               "position-anchor": placement().nativeAnchor ? placement().anchorName : undefined,
               "z-index": PROTECTED_ANNOTATION_Z_INDEX,
             }}
-            onPointerDown={(event) => event.stopPropagation()}
+            onPointerDown={captureContextButtonPointer}
             onClick={(event) => event.stopPropagation()}
           >
             <div
@@ -1419,7 +1432,7 @@ export function ContextActions(props: ContextActionsProps) {
               "position-anchor": placement().nativeAnchor ? placement().anchorName : undefined,
               "z-index": ANNOTATION_PANEL_Z_INDEX,
             }}
-            onPointerDown={(event) => event.stopPropagation()}
+            onPointerDown={captureContextButtonPointer}
             onClick={(event) => event.stopPropagation()}
           >
             <div
