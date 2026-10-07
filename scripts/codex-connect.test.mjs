@@ -371,6 +371,7 @@ test("Codex SessionStart reuses a compatible bridge from another checkout and Se
             "history-recovery-v2",
             "client-message-correlation-v1",
             "idle-safe-shutdown-v1",
+            "nonterminal-retention-v1",
           ],
           sourceHash: "different-compatible-checkout",
           pid: process.pid,
