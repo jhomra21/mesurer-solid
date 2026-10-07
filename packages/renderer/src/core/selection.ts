@@ -253,8 +253,8 @@ const getPointSelectionStack = (
       !isElementWithinSelectionTarget(element, pageTarget)
       || isOverlayElement(element, overlayNode, overlayHost)
       || isInsideMesurer(element, ownerWindow)
-      || element === ownerDocument.body
-      || element === ownerDocument.documentElement
+      || element === element.ownerDocument.body
+      || element === element.ownerDocument.documentElement
     ) return;
 
     const rect = getRectFromDomCached(element);
@@ -441,8 +441,8 @@ export const getSelectionEntries = (
         !isElementWithinSelectionTarget(element, pageTarget)
         || isOverlayElement(element, overlayNode, overlayHost)
         || isInsideMesurer(element, ownerWindow)
-        || element === ownerDocument.body
-        || element === ownerDocument.documentElement
+        || element === element.ownerDocument.body
+        || element === element.ownerDocument.documentElement
       ) return false;
 
       if (elementRect.width < MIN_MULTI_TARGET_SIZE || elementRect.height < MIN_MULTI_TARGET_SIZE) return false;
