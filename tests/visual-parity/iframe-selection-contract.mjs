@@ -43,6 +43,7 @@ const clickDocumentUi = async (locator, label) => {
 
   const hit = await locator.evaluate((element) => {
     const rect = element.getBoundingClientRect();
+
     const actual = element.ownerDocument.elementFromPoint(
       rect.left + rect.width / 2,
       rect.top + rect.height / 2,
@@ -295,6 +296,7 @@ try {
 
   const contextClickState = await page.evaluate(() => {
     const root = document.querySelector("[data-mesurer-context-root='true']");
+
     const trigger = root?.querySelector("[data-mesurer-annotation-trigger='true']");
     const composer = root?.querySelector("[data-mesurer-annotation-composer='true']");
     const selected = document.querySelector(
