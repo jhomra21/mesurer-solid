@@ -762,7 +762,7 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <>
-      <Show when={!recordingActive() && props.motion?.element()}>
+      <Show when={!recordingActive() ? props.motion?.element() : null} keyed>
         {(motionElement) => {
           const geometry = motionPlayerGeometry();
 
@@ -780,7 +780,7 @@ export function Toolbar(props: ToolbarProps) {
               }}
             >
               <MotionPlayer
-                element={motionElement()}
+                element={motionElement}
                 ownerWindow={props.ownerWindow}
               />
             </div>
