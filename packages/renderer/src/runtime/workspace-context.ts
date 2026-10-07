@@ -15,13 +15,19 @@ import {
 import {
   getElementFingerprint,
   getElementSelector,
-  getInspectMeasurement,
-  getRectFromDom,
   isElementFingerprintCompatible,
   isElementFingerprintRebindable,
   isElementWithinDomTarget,
 } from "@jhomra21/mesurer-solid-dom";
 import { GUIDE_SNAP_DISTANCE } from "../core/constants";
+import {
+  getAccessibleDocuments,
+  isElementWithinAccessibleTarget,
+} from "../core/document-tree";
+import {
+  getInspectMeasurement as getProjectedInspectMeasurement,
+  getRectFromDom as getProjectedRectFromDom,
+} from "../core/dom";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import { getMesurerPageKey, subscribeMesurerPageKey } from "./page-location";
 
@@ -187,7 +193,6 @@ export function createMesurerWorkspaceRuntime(options: {
     ? targetTreeRoot
     : ownerDocument;
 
-  const observationRoot: Node = pageTarget;
   let pageKey = getMesurerPageKey(ownerWindow);
 
   const currentPersistenceKey = () =>
@@ -231,23 +236,39 @@ export function createMesurerWorkspaceRuntime(options: {
   const targetResolution = new Map<string, boolean>();
   let disposed = false;
   let mutationFrame = 0;
-  let observer: MutationObserver | null = null;
+  const watchedDocuments = new Map<Document, {
+    load: EventListener;
+    observer: MutationObserver | null;
+  }>();
+
   let watching = false;
 
   const targetKey = (annotationId: string, targetId: string) => `${annotationId}:${targetId}`;
-  const isInPageTarget = (element: Element) => isElementWithinDomTarget(element, pageTarget);
+
+  const isInPageTarget = (element: Element) =>
+    isElementWithinAccessibleTarget(element, pageTarget);
 
   const queryCandidates = (selector: string): Element[] => {
     const matches: Element[] = [];
+    const seen = new Set<Element>();
+
+    const push = (candidate: Element) => {
+      if (seen.has(candidate) || !isInPageTarget(candidate)) return;
+
+      seen.add(candidate);
+      matches.push(candidate);
+    };
 
     if (pageTarget instanceof realm.HTMLElement && pageTarget.matches(selector)) {
-      matches.push(pageTarget);
+      push(pageTarget);
     }
 
-    for (const candidate of queryRoot.querySelectorAll(selector)) {
-      if (candidate instanceof realm.Element && isInPageTarget(candidate)) {
-        matches.push(candidate);
-      }
+    for (const currentDocument of getAccessibleDocuments(pageTarget)) {
+      const root: ParentNode = currentDocument === ownerDocument
+        ? queryRoot
+        : currentDocument;
+
+      for (const candidate of root.querySelectorAll(selector)) push(candidate);
     }
 
     return matches;
@@ -313,7 +334,7 @@ export function createMesurerWorkspaceRuntime(options: {
 
     if (!candidate || candidate.localName !== target.fingerprint.tag) return null;
 
-    const currentRect = getRectFromDom(candidate);
+    const currentRect = getProjectedRectFromDom(candidate);
     const savedRect = target.lastRect;
     const positionTolerance = Math.max(4, Math.max(savedRect.width, savedRect.height) * 0.05);
     const sizeTolerance = Math.max(2, Math.max(savedRect.width, savedRect.height) * 0.03);
@@ -359,7 +380,7 @@ export function createMesurerWorkspaceRuntime(options: {
         }
 
         if (!element) continue;
-        const value = getRectFromDom(element);
+        const value = getProjectedRectFromDom(element);
 
         if (
           value.left !== target.lastRect.left
@@ -387,31 +408,81 @@ export function createMesurerWorkspaceRuntime(options: {
     });
   };
 
+  const releaseDocumentWatcher = (currentDocument: Document) => {
+    const watcher = watchedDocuments.get(currentDocument);
+
+    if (!watcher) return;
+
+    currentDocument.removeEventListener("load", watcher.load, true);
+    currentDocument.removeEventListener("scroll", scheduleRefresh, true);
+    currentDocument.defaultView?.removeEventListener("resize", scheduleRefresh);
+    watcher.observer?.disconnect();
+    watchedDocuments.delete(currentDocument);
+  };
+
+  const syncDocumentWatchers = () => {
+    if (!watching) return;
+
+    const reachable = new Set(getAccessibleDocuments(pageTarget));
+
+    for (const currentDocument of reachable) {
+      if (watchedDocuments.has(currentDocument)) continue;
+
+      const load: EventListener = () => {
+        syncDocumentWatchers();
+        scheduleRefresh();
+      };
+
+      // SAFETY: defaultView is the realm that owns currentDocument and its MutationObserver constructor.
+      const currentRealm = currentDocument.defaultView as (Window & typeof globalThis) | null;
+
+      const Observer = currentRealm?.MutationObserver;
+      const observer = Observer && currentDocument.body
+        ? new Observer(() => {
+            syncDocumentWatchers();
+            scheduleRefresh();
+          })
+        : null;
+
+      currentDocument.addEventListener("load", load, true);
+      currentDocument.addEventListener("scroll", scheduleRefresh, true);
+      currentDocument.defaultView?.addEventListener("resize", scheduleRefresh);
+      observer?.observe(currentDocument.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["id", "class", "data-testid", "role", "aria-label", "style"],
+      });
+
+      watchedDocuments.set(currentDocument, {
+        load,
+        observer,
+      });
+    }
+
+    for (const currentDocument of [...watchedDocuments.keys()]) {
+      if (!reachable.has(currentDocument)) releaseDocumentWatcher(currentDocument);
+    }
+  };
+
   const startWatching = () => {
     if (watching || disposed || annotations.length === 0) return;
+
     watching = true;
-    observer = new realm.MutationObserver(scheduleRefresh);
-    observer.observe(observationRoot, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["id", "class", "data-testid", "role", "aria-label", "style"],
-    });
-    ownerWindow.addEventListener("resize", scheduleRefresh);
-    ownerWindow.addEventListener("scroll", scheduleRefresh, true);
-    pageTarget.addEventListener("scroll", scheduleRefresh, true);
+    syncDocumentWatchers();
   };
 
   const stopWatching = () => {
     if (!watching) return;
+
     watching = false;
-    observer?.disconnect();
-    observer = null;
-    ownerWindow.removeEventListener("resize", scheduleRefresh);
-    ownerWindow.removeEventListener("scroll", scheduleRefresh, true);
-    pageTarget.removeEventListener("scroll", scheduleRefresh, true);
+
+    for (const currentDocument of [...watchedDocuments.keys()]) {
+      releaseDocumentWatcher(currentDocument);
+    }
 
     if (mutationFrame) ownerWindow.cancelAnimationFrame(mutationFrame);
+
     mutationFrame = 0;
   };
 
@@ -464,7 +535,7 @@ export function createMesurerWorkspaceRuntime(options: {
     id: `target-${index + 1}`,
     selector: getElementSelector(element),
     fingerprint: getElementFingerprint(element),
-    lastRect: getRectFromDom(element),
+    lastRect: getProjectedRectFromDom(element),
   });
 
   const select = (selectors: string[]) => {
@@ -504,7 +575,7 @@ export function createMesurerWorkspaceRuntime(options: {
     model.checkpoint();
     model.setEnabled(true);
     model.setToolMode("select");
-    const measurements = elements.map((element) => getInspectMeasurement<Element>(element, ownerWindow));
+    const measurements = elements.map((element) => getProjectedInspectMeasurement(element, ownerWindow));
     model.setSelectedMeasurements(measurements, measurements.at(-1) ?? null);
     model.setTransient({ selectionOriginRect: null });
 
@@ -630,7 +701,7 @@ export function createMesurerWorkspaceRuntime(options: {
 
       const next = exists
         ? model.current.selectedMeasurements.filter((item) => item.elementRef !== element)
-        : [...model.current.selectedMeasurements, getInspectMeasurement<Element>(element, ownerWindow)];
+        : [...model.current.selectedMeasurements, getProjectedInspectMeasurement(element, ownerWindow)];
 
       model.checkpoint();
       model.setSelectedMeasurements(next, next.at(-1) ?? null);
