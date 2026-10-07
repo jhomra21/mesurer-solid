@@ -241,7 +241,7 @@ Contributor setup, validation expectations, and repository ownership are documen
 
 ## Upstream
 
-Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@26110edbbd8cd9c22c32a82b1b91073912fbdfc2` (`v0.2.3`, verified October 3, 2026); adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
+Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@7f3f0a49ca538fea3d4bdeb8dc0d830a51678270` (`v0.2.4`, verified October 7, 2026); adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
 
 ## License
 
