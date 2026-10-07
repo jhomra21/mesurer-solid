@@ -474,7 +474,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     trySetPointerCapture(event.currentTarget, event.pointerId);
   };
 
-  const pointerMove = (event: PointerEvent) => {
+  const pointerMove = (event: MesurerPointerInput) => {
     if (!model.current.enabled || model.current.settingsOpen) return;
     const point = { x: event.clientX, y: event.clientY };
 
@@ -883,12 +883,33 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       for (const sourceDocument of reachable) {
         if (listeners.has(sourceDocument)) continue;
 
+        const PointerEventConstructor = sourceDocument.defaultView?.PointerEvent;
+        const MouseEventConstructor = sourceDocument.defaultView?.MouseEvent;
+
+        const pointerListener = (event: Event) => {
+          if (
+            PointerEventConstructor
+            && event instanceof PointerEventConstructor
+          ) {
+            handlePointer(event, sourceDocument);
+          }
+        };
+
+        const clickListener = (event: Event) => {
+          if (
+            MouseEventConstructor
+            && event instanceof MouseEventConstructor
+          ) {
+            handleClick(event);
+          }
+        };
+
         const registrations: Array<[string, EventListener]> = [
-          ["pointerdown", (event) => handlePointer(event as PointerEvent, sourceDocument)],
-          ["pointermove", (event) => handlePointer(event as PointerEvent, sourceDocument)],
-          ["pointerup", (event) => handlePointer(event as PointerEvent, sourceDocument)],
-          ["pointercancel", (event) => handlePointer(event as PointerEvent, sourceDocument)],
-          ["click", (event) => handleClick(event as MouseEvent)],
+          ["pointerdown", pointerListener],
+          ["pointermove", pointerListener],
+          ["pointerup", pointerListener],
+          ["pointercancel", pointerListener],
+          ["click", clickListener],
           ["load", () => refresh()],
         ];
 
@@ -926,7 +947,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     };
 
     const ownerLoad = () => refresh();
-    const OwnerObserver = ownerWindow.MutationObserver;
+    const OwnerObserver = ownerDocument.defaultView?.MutationObserver ?? MutationObserver;
+
     const ownerObserver = ownerDocument.body
       ? new OwnerObserver(() => refresh())
       : null;
