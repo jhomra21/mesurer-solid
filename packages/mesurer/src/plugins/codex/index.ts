@@ -783,7 +783,6 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       const persistedUiState = withUi ? readBrowserState() : null;
 
       let bridgeAvailability: BridgeAvailability = "unknown";
-      let lastBridgeError: string | null = null;
       let codexRuntime: MesurerCodexRuntime | null = null;
 
       let everConnected = false;
@@ -1378,7 +1377,6 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           try {
             const health = await ensureBridgeAvailable();
             bridgeAvailability = "available";
-            lastBridgeError = null;
             browserBridgeIssueState = null;
             everConnected = true;
             lastBridgeThread = health.thread;
@@ -1397,7 +1395,6 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             if (!routeNeedsSelection && restoredTarget) persistUiState();
           } catch (cause) {
             bridgeAvailability = "unavailable";
-            lastBridgeError = cause instanceof Error ? cause.message : String(cause);
             browserBridgeIssueState = nativeBridgeAvailable ? null : browserBridgeIssue(cause) ?? "unavailable";
             codexRuntime = await fetchRuntime().catch(() => codexRuntime);
             throw cause;
@@ -1632,7 +1629,6 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           } catch (cause) {
             if (withUi && bridgeUnavailable(cause)) {
               bridgeAvailability = "unavailable";
-              lastBridgeError = cause instanceof Error ? cause.message : String(cause);
               browserBridgeIssueState = nativeBridgeAvailable ? null : browserBridgeIssue(cause) ?? "unavailable";
               syncTool();
             }
