@@ -43,6 +43,7 @@ const BROWSER_COMPANION_REQUIRED_CAPABILITIES = [
   "history-recovery-v2",
   "client-message-correlation-v1",
   "idle-safe-shutdown-v1",
+  "nonterminal-retention-v1",
 ] as const;
 
 const BROWSER_COMPANION_PROBE_TIMEOUT_MS = 1_500;
