@@ -281,6 +281,18 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   const hoverGuide = createMemo(() => getHoveredGuide(model.state.hoverPointer, model.state.guides));
   const primarySelection = createMemo(() => groupedSelection() ?? model.state.selectedMeasurement ?? model.state.selectedMeasurements.at(-1) ?? null);
 
+  const editModeActive = () => (input.pluginTools ?? []).some(
+    (tool) => tool.modeSwitch === true && tool.toolbarMode === "edit" && (tool.active?.() ?? false),
+  );
+
+  const motionElement = createMemo(() => {
+    if (editModeActive()) return null;
+
+    const element = primarySelection()?.elementRef ?? null;
+
+    return element?.isConnected ? element : null;
+  });
+
   const optionPairOverlay = createMemo(() => getOptionPairOverlay({
     document: ownerDocument,
     window: ownerWindow,
@@ -1110,6 +1122,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           onResetSettings={() => { model.resetSettings(); onResetSelectionSpacingStyle(); activePersistence?.clearSettings(); }}
           initialPosition={resolveInitialToolbarPosition(ownerWindow, readToolbarPosition(ownerWindow, storageKey))}
           onPositionChange={(position) => writeToolbarPosition(ownerWindow, storageKey, position)}
+          motion={{ element: motionElement }}
         />
       </div>
     </Portal>

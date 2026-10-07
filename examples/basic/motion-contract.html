@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mesurer Motion Contract</title>
+    <style>
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        font-family: system-ui, sans-serif;
+      }
+
+      body {
+        background: #f4f5f7;
+        color: #18181b;
+      }
+
+      main {
+        display: grid;
+        gap: 28px;
+        padding: 120px 96px;
+      }
+
+      .motion-target {
+        display: grid;
+        width: 420px;
+        min-height: 128px;
+        place-items: center;
+        border: 1px solid #d4d4d8;
+        border-radius: 18px;
+        background: white;
+        box-shadow: 0 12px 30px rgb(15 23 42 / 8%);
+        font-size: 18px;
+        font-weight: 650;
+      }
+
+      @keyframes mesurer-contract-pulse {
+        0% { opacity: 0.35; filter: blur(0px); }
+        50% { opacity: 1; filter: blur(1px); }
+        100% { opacity: 0.35; filter: blur(0px); }
+      }
+
+      [data-testid="css-motion"] {
+        animation: mesurer-contract-pulse 2000ms linear infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="motion-target" data-testid="css-motion">CSS animation</div>
+      <div class="motion-target" data-testid="web-motion">Web Animation</div>
+      <div class="motion-target" data-testid="static-target">Static target</div>
+    </main>
+    <script type="module" src="/src/motion-contract.ts"></script>
+  </body>
+</html>
