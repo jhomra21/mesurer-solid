@@ -115,6 +115,10 @@ export function Toolbar(props: ToolbarProps) {
   let colorPickerCapabilityRevision = 0;
   const colorPickerOwnerWindow = () => toolbarElement?.ownerDocument.defaultView ?? props.ownerWindow;
 
+  const recordingActive = () => (props.pluginTools ?? []).some(
+    (tool) => tool.id === "recording" && (tool.active?.() ?? false),
+  );
+
   const commitColorPickerCapability = (supported: boolean, revision: number) => {
     colorPickerOwnerWindow().queueMicrotask(() => {
       if (revision !== colorPickerCapabilityRevision) return;
@@ -758,7 +762,7 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <>
-      <Show when={props.motion?.element()}>
+      <Show when={!recordingActive() && props.motion?.element()}>
         {(motionElement) => {
           const geometry = motionPlayerGeometry();
 
