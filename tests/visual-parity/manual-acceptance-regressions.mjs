@@ -134,6 +134,7 @@ try {
             "history-recovery-v2",
             "client-message-correlation-v1",
             "idle-safe-shutdown-v1",
+            "nonterminal-retention-v1",
           ],
           sourceHash: "browser-fixture",
           pid: 1,
