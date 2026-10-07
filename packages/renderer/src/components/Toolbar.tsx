@@ -45,10 +45,10 @@ export type ToolbarProps = {
   initialPosition?: { x: number; y: number };
   onPositionChange?: (position: { x: number; y: number }) => void;
   motion?: {
-    element: Element | null;
-    ready: boolean;
-    observedProperties: string[];
-    observedTargets: ObservedMotionTarget[];
+    element(): Element | null;
+    ready(): boolean;
+    observedProperties(): string[];
+    observedTargets(): ObservedMotionTarget[];
   };
 };
 
@@ -753,7 +753,7 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <>
-      <Show when={props.motion?.ready && props.motion.element}>
+      <Show when={props.motion?.ready() && props.motion.element()}>
         {(motionElement) => {
           const geometry = motionPlayerGeometry();
 
@@ -773,8 +773,8 @@ export function Toolbar(props: ToolbarProps) {
               <MotionPlayer
                 element={motionElement()}
                 ownerWindow={props.ownerWindow}
-                observedProperties={props.motion?.observedProperties ?? []}
-                observedTargets={props.motion?.observedTargets ?? []}
+                observedProperties={props.motion?.observedProperties() ?? []}
+                observedTargets={props.motion?.observedTargets() ?? []}
               />
             </div>
           );
