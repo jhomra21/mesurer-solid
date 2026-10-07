@@ -24,6 +24,46 @@ page.on("console", (message) => {
   if (message.type() === "error") errors.push(message.text());
 });
 
+const settle = () => page.evaluate(() => new Promise((resolve) => {
+  requestAnimationFrame(() => requestAnimationFrame(resolve));
+}));
+
+const clickDocumentUi = async (locator, label) => {
+  await locator.waitFor({ state: "visible" });
+
+  const rect = await locator.boundingBox();
+
+  assert(rect, `${label}: expected rendered geometry`);
+
+  const x = rect.x + rect.width / 2;
+  const y = rect.y + rect.height / 2;
+
+  await page.mouse.move(x, y);
+  await settle();
+
+  const hit = await locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const actual = element.ownerDocument.elementFromPoint(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+    );
+
+    return {
+      ownsHit: Boolean(actual && (actual === element || element.contains(actual))),
+      expected: element.outerHTML.slice(0, 800),
+      actual: actual?.outerHTML.slice(0, 800) ?? null,
+    };
+  });
+
+  assert.equal(
+    hit.ownsHit,
+    true,
+    `${label} did not own its visible pointer location: ${JSON.stringify(hit)}`,
+  );
+
+  await page.mouse.click(x, y);
+};
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_IFRAME_TEST__));
@@ -247,13 +287,44 @@ try {
     `Context trigger drifted away from projected iframe target: ${JSON.stringify({ triggerBox, expected: geometry.expected })}`,
   );
 
-  await trigger.click();
+  await clickDocumentUi(trigger, "iframe Context trigger");
 
   const composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
 
-  await composer.waitFor({ state: "visible" });
+  await page.waitForTimeout(250);
+
+  const contextClickState = await page.evaluate(() => {
+    const root = document.querySelector("[data-mesurer-context-root='true']");
+    const trigger = root?.querySelector("[data-mesurer-annotation-trigger='true']");
+    const composer = root?.querySelector("[data-mesurer-annotation-composer='true']");
+    const selected = document.querySelector(
+      "[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true']",
+    );
+
+    return {
+      trigger: trigger?.outerHTML.slice(0, 1200) ?? null,
+      composer: composer?.outerHTML.slice(0, 1200) ?? null,
+      selected: selected?.outerHTML.slice(0, 1200) ?? null,
+    };
+  });
+
+  await writeFile(
+    join(output, "iframe-context-click.json"),
+    `${JSON.stringify(contextClickState, null, 2)}\n`,
+    "utf8",
+  );
+
+  await page.screenshot({
+    path: join(output, "iframe-context-click.png"),
+    fullPage: true,
+  });
+
+  await composer.waitFor({ state: "visible", timeout: 5000 });
   await composer.locator("textarea").fill("Iframe context acceptance");
-  await composer.getByRole("button", { name: "Add note", exact: true }).click();
+  await clickDocumentUi(
+    composer.getByRole("button", { name: "Add note", exact: true }),
+    "iframe Context Add note",
+  );
   await composer.waitFor({ state: "hidden" });
 
   const marker = contextRoot.locator("[data-mesurer-annotation-marker='true']").first();
