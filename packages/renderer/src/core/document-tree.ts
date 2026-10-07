@@ -1,6 +1,10 @@
 import { isElementWithinDomTarget } from "@jhomra21/mesurer-solid-dom";
 import { getAccessibleFrameDocument } from "./frame-geometry";
 
+const isDocumentRoot = (
+  root: Document | ShadowRoot | Element,
+): root is Document => root.ownerDocument === null;
+
 const isElementInDocument = (
   node: Node,
   ownerDocument: Document,
@@ -13,7 +17,7 @@ const isElementInDocument = (
 export const getAccessibleDocuments = (
   root: Document | ShadowRoot | Element,
 ): Document[] => {
-  const ownerDocument = root instanceof Document
+  const ownerDocument = isDocumentRoot(root)
     ? root
     : root.ownerDocument;
 
@@ -64,7 +68,7 @@ export const getAccessibleDocuments = (
     }
   };
 
-  if (root instanceof Document) visitDocument(root);
+  if (isDocumentRoot(root)) visitDocument(root);
   else {
     seenDocuments.add(ownerDocument);
     documents.push(ownerDocument);
