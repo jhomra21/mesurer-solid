@@ -122,6 +122,12 @@ export function Toolbar(props: ToolbarProps) {
   const visibleMotionElement = createMemo(() =>
     recordingActive() ? null : props.motion?.element() ?? null);
 
+  const visibleMotionElements = createMemo(() => {
+    const element = visibleMotionElement();
+
+    return element ? [element] : [];
+  });
+
   const commitColorPickerCapability = (supported: boolean, revision: number) => {
     colorPickerOwnerWindow().queueMicrotask(() => {
       if (revision !== colorPickerCapabilityRevision) return;
@@ -765,7 +771,7 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <>
-      <Show when={visibleMotionElement()} keyed>
+      <For each={visibleMotionElements()}>
         {(motionElement) => {
           const geometry = motionPlayerGeometry();
 
@@ -789,7 +795,7 @@ export function Toolbar(props: ToolbarProps) {
             </div>
           );
         }}
-      </Show>
+      </For>
 
       <div
       ref={(element) => { toolbarElement = element; }}
