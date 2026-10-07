@@ -1,5 +1,6 @@
 import { For, Show, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import { getRectFromDom } from "../core/dom";
+import { trySetPointerCapture } from "../core/events";
 import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
 import {
   installNestedScrollCompensation,
@@ -189,6 +190,8 @@ export function ContextActions(props: ContextActionsProps) {
   let surfaceDragCleanup: (() => void) | null = null;
   let anchorElement: HTMLSpanElement | undefined;
   let annotationTriggerElement: HTMLButtonElement | undefined;
+  let annotationTriggerPointerId: number | null = null;
+  let suppressAnnotationTriggerClick = false;
   let trackedTriggerElement: Element | null = null;
   let anchoredTriggerElement: HTMLElement | null = null;
   let releaseTriggerAnchor: (() => void) | null = null;
@@ -1128,8 +1131,67 @@ export function ContextActions(props: ContextActionsProps) {
                 "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName : undefined,
                 "z-index": PROTECTED_ANNOTATION_Z_INDEX,
               }}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => { event.stopPropagation(); openNoteComposer(); }}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                annotationTriggerPointerId = event.pointerId;
+                suppressAnnotationTriggerClick = false;
+                trySetPointerCapture(event.currentTarget, event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                if (annotationTriggerPointerId !== event.pointerId) return;
+
+                const rect = event.currentTarget.getBoundingClientRect();
+
+                suppressAnnotationTriggerClick = (
+                  event.clientX < rect.left
+                  || event.clientX > rect.right
+                  || event.clientY < rect.top
+                  || event.clientY > rect.bottom
+                );
+              }}
+              onPointerUp={(event) => {
+                event.stopPropagation();
+
+                if (annotationTriggerPointerId === event.pointerId) {
+                  const rect = event.currentTarget.getBoundingClientRect();
+
+                  suppressAnnotationTriggerClick = (
+                    event.clientX < rect.left
+                    || event.clientX > rect.right
+                    || event.clientY < rect.top
+                    || event.clientY > rect.bottom
+                  );
+
+                  if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                  }
+
+                  annotationTriggerPointerId = null;
+                }
+              }}
+              onPointerCancel={(event) => {
+                event.stopPropagation();
+                suppressAnnotationTriggerClick = true;
+
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+
+                if (annotationTriggerPointerId === event.pointerId) {
+                  annotationTriggerPointerId = null;
+                }
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+
+                if (suppressAnnotationTriggerClick) {
+                  suppressAnnotationTriggerClick = false;
+
+                  return;
+                }
+
+                openNoteComposer();
+              }}
             >
               <NoteIcon size={14} />
             </button>
