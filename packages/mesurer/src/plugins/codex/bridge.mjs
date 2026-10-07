@@ -19,8 +19,6 @@ const MAX_DISCOVERED_THREADS = 10;
 
 const TURN_HISTORY_LIMIT = 100;
 
-const DELIVERY_TTL_MS = 24 * 60 * 60_000;
-
 const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
 
 const DELIVERY_TURN_START_SKEW_MS = 5_000;
@@ -678,6 +676,7 @@ const publicDelivery = (delivery) => ({
   status: delivery.status,
   turnId: delivery.turnId,
   queuedSubmissionId: delivery.queuedSubmissionId,
+  clientUserMessageId: delivery.clientUserMessageId,
   dispatch: delivery.dispatch,
   dispatchError: delivery.dispatchError,
   createdAt: delivery.createdAt,
@@ -692,6 +691,7 @@ const persistedDelivery = (delivery) => ({
   status: delivery.status,
   turnId: delivery.turnId,
   queuedSubmissionId: delivery.queuedSubmissionId,
+  clientUserMessageId: delivery.clientUserMessageId,
   transport: delivery.transport,
   dispatch: delivery.dispatch,
   dispatchError: delivery.dispatchError,
@@ -699,21 +699,28 @@ const persistedDelivery = (delivery) => ({
   updatedAt: delivery.updatedAt,
 });
 
+const deliveryIsTerminal = (delivery) =>
+  delivery.status === "completed" || delivery.status === "interrupted";
+
 const pruneDeliveries = () => {
   const now = Date.now();
 
   for (const [id, delivery] of deliveries) {
-    const terminal = delivery.status === "completed" || delivery.status === "interrupted";
-    const ttl = terminal ? TERMINAL_DELIVERY_TTL_MS : DELIVERY_TTL_MS;
+    if (!deliveryIsTerminal(delivery)) continue;
 
-    if (now - delivery.updatedAt > ttl) deliveries.delete(id);
+    if (now - delivery.updatedAt > TERMINAL_DELIVERY_TTL_MS) {
+      deliveries.delete(id);
+    }
   }
 
   if (deliveries.size <= MAX_DELIVERIES) return;
 
-  const oldest = [...deliveries.values()].sort((left, right) => left.updatedAt - right.updatedAt);
+  const terminal = [...deliveries.values()]
+    .filter(deliveryIsTerminal)
+    .sort((left, right) => left.updatedAt - right.updatedAt);
 
-  for (const delivery of oldest.slice(0, deliveries.size - MAX_DELIVERIES)) {
+  for (const delivery of terminal) {
+    if (deliveries.size <= MAX_DELIVERIES) break;
     deliveries.delete(delivery.id);
   }
 };
@@ -760,6 +767,7 @@ const loadDeliveries = async (options) => {
         status,
         turnId: normalizeString(value?.turnId),
         queuedSubmissionId: normalizeString(value?.queuedSubmissionId),
+        clientUserMessageId: normalizeString(value?.clientUserMessageId),
         transport: value?.transport === "desktop-queue" ? "desktop-queue" : "shared-app-server",
         dispatch: value?.transport === "desktop-queue"
           ? normalizeString(value?.dispatch) ?? "persisted"
@@ -797,20 +805,84 @@ const ensureDeliveriesLoaded = (options) => {
 
 const hashMessage = (message) => createHash("sha256").update(message).digest("hex");
 
-const turnUserMessages = (turn) => {
+const turnUserMessageEntries = (turn) => {
   if (!Array.isArray(turn?.items)) return [];
 
   return turn.items.flatMap((item) => {
     if (item?.type !== "userMessage" || !Array.isArray(item.content)) return [];
 
-    const text = item.content
+    const message = item.content
       .filter((input) => input?.type === "text")
       .map((input) => String(input.text ?? ""))
       .join("\n")
       .trim();
 
-    return text ? [text] : [];
+    if (!message) return [];
+
+    return [{
+      message,
+      clientUserMessageId: normalizeString(item.clientId),
+    }];
   });
+};
+
+const turnUserMessages = (turn) =>
+  turnUserMessageEntries(turn).map((entry) => entry.message);
+
+const deliveryStateFromTurn = (turn) => {
+  const turnId = normalizeString(turn?.id);
+  const ended = turn?.completedAt != null && Number.isFinite(Number(turn.completedAt));
+  let status = null;
+
+  if (turn?.status === "inProgress") status = "working";
+
+  if (turn?.status === "interrupted" && !ended) status = "working";
+
+  if (turn?.status === "completed") status = "completed";
+
+  if ((turn?.status === "interrupted" && ended) || turn?.status === "failed") {
+    status = "interrupted";
+  }
+
+  if (!turnId || !status) return null;
+
+  return {
+    turnId,
+    status,
+    dispatchError: turn?.status === "failed"
+      ? normalizeString(turn?.error?.message) ?? "Codex turn failed."
+      : null,
+    createdAt: Number.isFinite(Number(turn?.startedAt))
+      ? Number(turn.startedAt) * 1_000
+      : null,
+    updatedAt: Number.isFinite(Number(turn?.completedAt))
+      ? Number(turn.completedAt) * 1_000
+      : null,
+  };
+};
+
+const historicalDeliveryMatch = (turns, identity) => {
+  const expectedClientId = normalizeString(identity?.clientUserMessageId);
+  const expectedMessage = normalizeString(identity?.message);
+
+  if (!expectedClientId && !expectedMessage) return null;
+  const expectedHash = expectedMessage ? hashMessage(expectedMessage) : null;
+  const matches = [];
+
+  for (const turn of turns) {
+    for (const entry of turnUserMessageEntries(turn)) {
+      if (expectedClientId && entry.clientUserMessageId !== expectedClientId) continue;
+
+      if (expectedHash && hashMessage(entry.message) !== expectedHash) continue;
+
+      matches.push({ turn, entry });
+    }
+  }
+
+  if (matches.length !== 1) return null;
+  const state = deliveryStateFromTurn(matches[0].turn);
+
+  return state ? { ...matches[0], state } : null;
 };
 
 const readTurnHistory = async (thread, options) => {
@@ -869,36 +941,20 @@ const reconcileDelivery = async (delivery, options) => {
 
   if (!turn) return;
 
-  const turnId = normalizeString(turn.id);
-  const ended = turn.completedAt != null && Number.isFinite(Number(turn.completedAt));
-  let nextStatus = null;
+  const state = deliveryStateFromTurn(turn);
 
-  if (turn.status === "inProgress") nextStatus = "working";
+  if (!state) return;
 
-  if (turn.status === "interrupted" && !ended) nextStatus = "working";
-
-  if (turn.status === "completed") nextStatus = "completed";
-
-  if ((turn.status === "interrupted" && ended) || turn.status === "failed") {
-    nextStatus = "interrupted";
-  }
-
-  if (!turnId || !nextStatus) return;
-
-  const failed = turn.status === "failed";
-
-  const failureMessage = normalizeString(turn?.error?.message) ?? "Codex turn failed.";
-
-  const changed = delivery.turnId !== turnId
-    || delivery.status !== nextStatus
-    || (failed && delivery.dispatchError !== failureMessage);
+  const changed = delivery.turnId !== state.turnId
+    || delivery.status !== state.status
+    || (state.dispatchError && delivery.dispatchError !== state.dispatchError);
 
   if (!changed) return;
 
-  delivery.turnId = turnId;
-  delivery.status = nextStatus;
+  delivery.turnId = state.turnId;
+  delivery.status = state.status;
 
-  if (failed) delivery.dispatchError = failureMessage;
+  if (state.dispatchError) delivery.dispatchError = state.dispatchError;
 
   delivery.updatedAt = Date.now();
   await persistDeliveries(options);
@@ -1054,6 +1110,8 @@ const queueMessage = async (request, options) => {
     await validateLoadedThread(thread, options);
   }
 
+  const clientUserMessageId = randomUUID();
+
   const result = await daemonRequest(
     "thread/queue/add",
     {
@@ -1063,7 +1121,7 @@ const queueMessage = async (request, options) => {
         text: message,
         textElements: [],
       }],
-      clientUserMessageId: randomUUID(),
+      clientUserMessageId,
     },
     options,
     true,
@@ -1085,6 +1143,7 @@ const queueMessage = async (request, options) => {
     status: "queued",
     turnId: null,
     queuedSubmissionId,
+    clientUserMessageId,
     transport: "shared-app-server",
     dispatch: "persisted",
     dispatchError: null,
@@ -1144,12 +1203,42 @@ const queueDesktopMessage = async (request, desktop, options) => {
     status: "queued",
     turnId: null,
     queuedSubmissionId: queued.queuedSubmissionId,
+    clientUserMessageId: null,
     transport: "desktop-queue",
     dispatch,
     dispatchError,
     createdAt: now,
     updatedAt: now,
   };
+
+  try {
+    const lookup = await queueLookup(thread, queued.queuedSubmissionId, options);
+
+    if (lookup.submission) {
+      delivery.clientUserMessageId = normalizeString(lookup.submission.clientUserMessageId);
+    }
+  } catch {
+    // Desktop queue delivery already succeeded; identity enrichment is best-effort.
+  }
+
+  if (!delivery.clientUserMessageId) {
+    try {
+      const turns = await readTurnHistory(thread, options);
+      const historical = historicalDeliveryMatch(turns, { message });
+
+      if (historical) {
+        delivery.clientUserMessageId = historical.entry.clientUserMessageId;
+        delivery.turnId = historical.state.turnId;
+        delivery.status = historical.state.status;
+
+        if (historical.state.dispatchError) {
+          delivery.dispatchError = historical.state.dispatchError;
+        }
+      }
+    } catch {
+      // The durable queue receipt remains valid even if history is not reachable yet.
+    }
+  }
 
   pruneDeliveries();
   deliveries.set(delivery.id, delivery);
@@ -1185,6 +1274,8 @@ const restoreDelivery = async (request, options, desktop = null) => {
   const deliveryId = normalizeString(request.deliveryId);
   const thread = normalizeString(request.thread);
   const queuedSubmissionId = normalizeString(request.queuedSubmissionId);
+  const clientUserMessageId = normalizeString(request.clientUserMessageId);
+  const recoveryMessage = normalizeString(request.message);
 
   if (!deliveryId || !thread) {
     throw new Error("deliveryId and thread are required.");
@@ -1197,6 +1288,16 @@ const restoreDelivery = async (request, options, desktop = null) => {
       throw new Error(`Codex delivery ${deliveryId} belongs to a different thread.`);
     }
 
+    if (clientUserMessageId && existing.clientUserMessageId
+      && clientUserMessageId !== existing.clientUserMessageId) {
+      throw new Error("Codex delivery client-message identity does not match the persisted delivery.");
+    }
+
+    if (clientUserMessageId && !existing.clientUserMessageId) {
+      existing.clientUserMessageId = clientUserMessageId;
+      await persistDeliveries(options);
+    }
+
     await reconcileDelivery(existing, options).catch(() => undefined);
 
     return {
@@ -1206,36 +1307,97 @@ const restoreDelivery = async (request, options, desktop = null) => {
     };
   }
 
-  if (desktop) {
-    validateDesktopThread(thread, desktop);
+  if (desktop) validateDesktopThread(thread, desktop);
+  else await validateLoadedThread(thread, options);
 
+  let lookup = { submission: null, ambiguous: false };
+
+  try {
+    lookup = await queueLookup(thread, queuedSubmissionId, options);
+  } catch (cause) {
+    if (!desktop) throw cause;
+  }
+
+  if (lookup.submission) {
+    const message = queuedMessage(lookup.submission);
+    const queuedClientUserMessageId = normalizeString(lookup.submission.clientUserMessageId);
+
+    if (!message) {
+      throw new Error("The queued Codex submission is not a single text message and cannot be restored safely.");
+    }
+
+    if (clientUserMessageId && queuedClientUserMessageId
+      && clientUserMessageId !== queuedClientUserMessageId) {
+      throw new Error("Codex queued submission client-message identity does not match Mesurer state.");
+    }
+
+    if (recoveryMessage && hashMessage(recoveryMessage) !== hashMessage(message)) {
+      throw new Error("Codex queued submission text does not match the saved Mesurer feedback.");
+    }
+
+    const now = Date.now();
+
+    const delivery = {
+      id: deliveryId,
+      thread,
+      message,
+      messageHash: hashMessage(message),
+      status: "queued",
+      turnId: null,
+      queuedSubmissionId: normalizeString(lookup.submission.id) ?? queuedSubmissionId,
+      clientUserMessageId: queuedClientUserMessageId ?? clientUserMessageId,
+      transport: desktop ? "desktop-queue" : "shared-app-server",
+      dispatch: desktop ? "desktop-opened" : "persisted",
+      dispatchError: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    pruneDeliveries();
+    deliveries.set(delivery.id, delivery);
+    await persistDeliveries(options);
+
+    return {
+      ok: true,
+      restored: true,
+      ...publicDelivery(delivery),
+    };
+  }
+
+  if (lookup.ambiguous) {
     throw new Error(
-      "Codex Desktop delivery state is unavailable. Mesurer will not requeue the message without its original delivery record.",
+      "Multiple queued Codex submissions exist for this thread; an exact queuedSubmissionId is required to restore the delivery safely.",
     );
   }
 
-  await validateLoadedThread(thread, options);
+  let turns;
 
-  const lookup = await queueLookup(thread, queuedSubmissionId, options);
-
-  if (!lookup.submission) {
-    if (lookup.ambiguous) {
+  try {
+    turns = await readTurnHistory(thread, options);
+  } catch (cause) {
+    if (desktop) {
       throw new Error(
-        "Multiple queued Codex submissions exist for this thread; an exact queuedSubmissionId is required to restore the delivery safely.",
+        "Codex Desktop delivery state is unavailable and turn history could not be read safely.",
+        { cause },
       );
     }
 
-    if (queuedSubmissionId) {
-      throw new Error(`Codex queued submission is not available: ${queuedSubmissionId}`);
-    }
-
-    throw new Error("No queued Codex submission is available to restore for this thread.");
+    throw cause;
   }
 
-  const message = queuedMessage(lookup.submission);
+  const historical = historicalDeliveryMatch(turns, {
+    clientUserMessageId,
+    message: recoveryMessage,
+  });
 
-  if (!message) {
-    throw new Error("The queued Codex submission is not a single text message and cannot be restored safely.");
+  if (!historical) {
+    if (queuedSubmissionId) {
+      throw new Error(
+        `Codex queued submission is not available and no unique matching turn exists in history: ${queuedSubmissionId}`,
+      );
+    }
+
+    throw new Error("No queued Codex submission or unique matching turn is available to restore for this thread.");
   }
 
   const now = Date.now();
@@ -1243,16 +1405,17 @@ const restoreDelivery = async (request, options, desktop = null) => {
   const delivery = {
     id: deliveryId,
     thread,
-    message,
-    messageHash: hashMessage(message),
-    status: "queued",
-    turnId: null,
-    queuedSubmissionId: normalizeString(lookup.submission.id),
-    transport: "shared-app-server",
-    dispatch: "persisted",
-    dispatchError: null,
-    createdAt: now,
-    updatedAt: now,
+    message: historical.entry.message,
+    messageHash: hashMessage(historical.entry.message),
+    status: historical.state.status,
+    turnId: historical.state.turnId,
+    queuedSubmissionId,
+    clientUserMessageId: historical.entry.clientUserMessageId ?? clientUserMessageId,
+    transport: desktop ? "desktop-queue" : "shared-app-server",
+    dispatch: desktop ? "desktop-opened" : "persisted",
+    dispatchError: historical.state.dispatchError,
+    createdAt: historical.state.createdAt ?? now,
+    updatedAt: historical.state.updatedAt ?? now,
   };
 
   pruneDeliveries();

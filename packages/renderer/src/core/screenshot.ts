@@ -55,6 +55,7 @@ export type HostCodexBridgeRequest = {
   message?: string;
   deliveryId?: string;
   queuedSubmissionId?: string;
+  clientUserMessageId?: string;
 };
 
 export type HostCodexBridgeRuntime = {
@@ -86,6 +87,7 @@ export type HostCodexBridgeResult = {
   status?: "queued" | "working" | "completed" | "interrupted";
   turnId?: string | null;
   queuedSubmissionId?: string | null;
+  clientUserMessageId?: string | null;
   dispatch?: "persisted" | "desktop-opened" | "desktop-wake-failed";
   dispatchError?: string | null;
   createdAt?: number;

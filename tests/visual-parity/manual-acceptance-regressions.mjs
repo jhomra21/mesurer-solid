@@ -7,6 +7,8 @@ const browser = await chromium.launch({ headless: true });
 
 const errors = [];
 
+const pluginAvailabilityKey = "mesurer-parity-playground:plugins:availability";
+
 const watchDiagnostics = (page) => {
   page.on("pageerror", (error) => errors.push(String(error)));
   page.on("console", (message) => {
@@ -30,6 +32,10 @@ const assertSameBox = (actual, expected, message) => {
 let page;
 
 let settingsPage;
+
+let browserBridgeMode = "unavailable";
+
+const browserBridgeRequests = [];
 
 try {
   page = await browser.newPage({ viewport: { width: 900, height: 620 } });
@@ -117,13 +123,95 @@ try {
 
   settingsPage = await browser.newPage({ viewport: { width: 1280, height: 700 } });
   watchDiagnostics(settingsPage);
-  await settingsPage.addInitScript(() => {
-    localStorage.setItem("mesurer-plugin-settings:availability", JSON.stringify({
-      version: 3,
-      enabled: { "mesurer.codex": true },
-      state: {},
-    }));
+  await settingsPage.route("http://127.0.0.1:47365/**", async (route) => {
+    const request = route.request();
+    const requestUrl = new URL(request.url());
+
+    const bridge = {
+      name: "mesurer-codex",
+      protocol: 2,
+      capabilities: [
+        "thread-discovery-v1",
+        "durable-queue-v1",
+        "history-recovery-v2",
+        "client-message-correlation-v1",
+        "idle-safe-shutdown-v1",
+        "nonterminal-retention-v1",
+        "instance-binding-v1",
+      ],
+      sourceHash: "browser-fixture",
+      instanceId: "browser-fixture-instance",
+      pid: 1,
+      canShutdown: true,
+    };
+
+    browserBridgeRequests.push({
+      path: requestUrl.pathname,
+      headers: request.headers(),
+    });
+
+    if (requestUrl.pathname === "/health") {
+      const payload = browserBridgeMode === "unavailable"
+        ? {
+            ok: false,
+            bridge,
+            access: { allowed: true },
+            error: "Mesurer Codex companion is unavailable in this browser fixture.",
+          }
+        : {
+            ok: true,
+            bridge,
+            access: { allowed: true },
+            thread: browserBridgeMode === "connected" ? "thread-a" : null,
+            threads: browserBridgeMode === "connected" ? ["thread-a"] : [],
+            runtime: {
+              source: "shared",
+              transport: "shared-app-server",
+              available: true,
+              reason: null,
+            },
+          };
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(payload),
+      });
+
+      return;
+    }
+
+    if (requestUrl.pathname === "/threads") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          thread: browserBridgeMode === "connected" ? "thread-a" : null,
+          threadDetails: browserBridgeMode === "connected"
+            ? [{
+                id: "thread-a",
+                title: "Current Codex thread",
+                updatedAt: null,
+                connected: true,
+              }]
+            : [],
+          hasMore: false,
+        }),
+      });
+
+      return;
+    }
+
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: false, error: "Unexpected browser bridge request." }),
+    });
   });
+  await settingsPage.addInitScript((storageKey) => {
+    localStorage.removeItem(storageKey);
+  }, pluginAvailabilityKey);
   await settingsPage.goto(url, { waitUntil: "networkidle" });
 
   const toolbar = settingsPage.locator("[data-mesurer-toolbar='true']");
@@ -200,31 +288,86 @@ try {
   assert.equal(
     await codexToggle.getAttribute("aria-checked"),
     "false",
-    "A persisted beta.1 Codex-on value must stay dormant while the native host capability is absent",
+    "Browser Codex should remain opt-in when no native host is present",
   );
   assert.equal(
     await settingsPage.locator("[data-mesurer-tool-id='codex.send']").count(),
     0,
-    "Bridgeless browser hosts must not boot a half-connected Codex toolbar action",
+    "Browser Codex should stay unloaded until the user enables it",
   );
 
   await codexToggle.click();
-  await settingsPage.waitForFunction(() =>
-    document.querySelector("[data-mesurer-plugin-toggle='mesurer.codex']")?.getAttribute("aria-checked") === "false"
+
+  try {
+    await settingsPage.waitForFunction(
+      () => document.querySelector("[data-mesurer-plugin-toggle='mesurer.codex']")?.getAttribute("aria-checked") === "true",
+      undefined,
+      { timeout: 5_000 },
+    );
+  } catch {
+    const state = await settingsPage.evaluate(() => {
+      const toggle = document.querySelector("[data-mesurer-plugin-toggle='mesurer.codex']");
+      const error = document.querySelector("[data-mesurer-plugin-error='mesurer.codex']");
+
+      return {
+        checked: toggle?.getAttribute("aria-checked") ?? null,
+        disabled: toggle?.hasAttribute("disabled") ?? null,
+        error: error?.textContent?.trim() ?? null,
+        stored: localStorage.getItem("mesurer-parity-playground:plugins:availability"),
+      };
+    });
+
+    throw new Error(`Browser Codex did not remain enabled after the Settings toggle: ${JSON.stringify(state)}`);
+  }
+
+  const browserCodexTool = settingsPage.locator("button[data-mesurer-tool-id='codex.send']");
+  await browserCodexTool.waitFor({ state: "visible" });
+  assert.equal(
+    (await browserCodexTool.getAttribute("aria-label")) ?? "",
+    "Bridge not running",
+    "Browser Codex should stay enabled and explain that its local bridge is unavailable",
   );
   assert.equal(
-    await settingsPage.locator("[data-mesurer-tool-id='codex.send']").count(),
+    await dialog.locator("[data-mesurer-plugin-error='mesurer.codex']").count(),
     0,
-    "A failed Codex activation must roll back atomically and keep its toolbar action absent",
+    "Browser Codex availability must not be reported as an Electron preload error",
   );
 
-  const codexError = dialog.locator("[data-mesurer-plugin-error='mesurer.codex']");
-  await codexError.waitFor({ state: "visible" });
-  assert.match(
-    (await codexError.textContent()) ?? "",
-    /host connection is unavailable/i,
-    "Failed Codex activation should explain the missing native host capability",
+  browserBridgeMode = "empty";
+  await settingsPage.waitForFunction(
+    () => document.querySelector("button[data-mesurer-tool-id='codex.send']")?.getAttribute("aria-label") === "No reachable Codex session",
+    undefined,
+    { timeout: 7_000 },
   );
+
+  browserBridgeMode = "connected";
+  await settingsPage.waitForFunction(
+    () => document.querySelector("button[data-mesurer-tool-id='codex.send']")?.getAttribute("aria-label") === "Queue to Codex",
+    undefined,
+    { timeout: 7_000 },
+  );
+
+  assert(
+    browserBridgeRequests.some((request) =>
+      request.path === "/threads"
+      && request.headers["x-mesurer-bridge-instance"] === "browser-fixture-instance"),
+    "Browser Codex follow-up requests must bind to the exact bridge instance verified by /health",
+  );
+
+  try {
+    await settingsPage.waitForFunction((storageKey) => {
+      const raw = localStorage.getItem(storageKey);
+      const state = raw ? JSON.parse(raw) : null;
+
+      return state?.enabled?.["mesurer.codex"] === true;
+    }, pluginAvailabilityKey, { timeout: 5_000 });
+  } catch {
+    const persisted = await settingsPage.evaluate((storageKey) =>
+      localStorage.getItem(storageKey), pluginAvailabilityKey
+    );
+
+    throw new Error(`Browser Codex enabled state was not persisted: ${persisted ?? "<missing>"}`);
+  }
 
   const contextToggle = dialog.getByRole("switch", { name: "Context", exact: true });
   await contextToggle.click();
@@ -250,7 +393,7 @@ try {
   await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "visible" });
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; first-party plugins are present, bridgeless Codex stays off and rolls back failed activation, and Context can be toggled off and back on: PASS");
+  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; first-party plugins are present, browser Codex can stay enabled without an Electron preload, and Context can be toggled off and back on: PASS");
 } finally {
   await settingsPage?.close();
   await page?.close();

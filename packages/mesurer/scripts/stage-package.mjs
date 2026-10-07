@@ -13,7 +13,11 @@ mkdirSync(stageDir, { recursive: true });
 for (const path of [
   "dist",
   "skills",
+  "codex",
   "scripts/install-skill.mjs",
+  "scripts/codex-bridge.mjs",
+  "scripts/codex-connect.mjs",
+  "scripts/codex-lifecycle.mjs",
   "README.md",
   "AGENT_INTEGRATION.md",
   "LICENSE",

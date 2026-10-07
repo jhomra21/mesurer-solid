@@ -19,6 +19,8 @@ const HEALTH_POLL_MS = 2_000;
 
 const DELIVERY_POLL_MS = 750;
 
+const ACTIVE_DELIVERY_POLL_MS = 2_000;
+
 const COMPLETED_VISIBLE_MS = 1_800;
 
 const INTERRUPTED_RECONCILE_POLL_MS = 2_000;
@@ -29,8 +31,27 @@ const RECENT_THREAD_LIMIT = 10;
 
 const DEFAULT_VISIBLE_THREADS = 5;
 
-const MISSING_HOST_BRIDGE_ERROR =
-  "Codex host connection is unavailable. Electron apps must expose window.__MESURER_HOST__.codexBridge from preload.";
+const DEFAULT_BROWSER_COMPANION = "http://127.0.0.1:47365";
+
+const BROWSER_COMPANION_NAME = "mesurer-codex";
+
+const BROWSER_COMPANION_PROTOCOL_VERSION = 2;
+
+const BROWSER_COMPANION_REQUIRED_CAPABILITIES = [
+  "thread-discovery-v1",
+  "durable-queue-v1",
+  "history-recovery-v2",
+  "client-message-correlation-v1",
+  "idle-safe-shutdown-v1",
+  "nonterminal-retention-v1",
+  "instance-binding-v1",
+] as const;
+
+const BROWSER_COMPANION_PROBE_TIMEOUT_MS = 1_500;
+
+const BROWSER_COMPANION_REQUEST_TIMEOUT_MS = 15_000;
+
+const BROWSER_DISCONNECTED_POLL_MS = 5_000;
 
 const DEFAULT_INSTRUCTION = [
   "Implement the current human feedback from Mesurer in this project.",
@@ -91,6 +112,8 @@ export type MesurerCodexDelivery = {
   turnId: string | null;
   /** Codex's durable queue identity when the current CLI reports it. */
   queuedSubmissionId?: string | null;
+  /** Codex client user-message identity used to correlate a consumed queue item with turn history. */
+  clientUserMessageId?: string | null;
   /** Codex delivery state after Codex durably accepted the queue item. */
   dispatch?: MesurerCodexDispatchStatus;
   /** Optional Codex lifecycle diagnostic. */
@@ -109,6 +132,8 @@ export type MesurerCodexQueueResult = {
   status: MesurerCodexDeliveryStatus;
   /** Codex's durable queue identity when the current CLI reports it. */
   queuedSubmissionId?: string | null;
+  /** Codex client user-message identity used to correlate a consumed queue item with turn history. */
+  clientUserMessageId?: string | null;
   /** Codex delivery state after Codex durably accepted the queue item. */
   dispatch?: MesurerCodexDispatchStatus;
   /** Non-fatal wake diagnostic when persistence succeeded but dispatch could not be verified. */
@@ -179,6 +204,41 @@ export type MesurerCodexService = {
   send(request?: MesurerCodexQueueRequest): Promise<MesurerCodexQueueResult>;
 };
 
+type BrowserBridgeIdentity = {
+  name?: string;
+  protocol?: number;
+  capabilities?: string[];
+  sourceHash?: string;
+  instanceId?: string;
+};
+
+type BrowserBridgeIssue =
+  | "not-running"
+  | "timed-out"
+  | "port-conflict"
+  | "version-mismatch"
+  | "capability-mismatch"
+  | "origin-denied"
+  | "instance-changed"
+  | "unavailable";
+
+class BrowserBridgeConnectionError extends Error {
+  constructor(
+    readonly issue: BrowserBridgeIssue,
+    message: string,
+  ) {
+    super(message);
+    this.name = "BrowserBridgeConnectionError";
+  }
+}
+
+type BrowserBridgeState = {
+  registeredThreads?: number;
+  deliveries?: number;
+  nonTerminalDeliveries?: number;
+  idle?: boolean;
+};
+
 type BridgeThread = {
   id?: string;
   title?: string;
@@ -188,6 +248,9 @@ type BridgeThread = {
 
 type BridgeResponse = {
   ok?: boolean;
+  bridge?: BrowserBridgeIdentity;
+  bridgeState?: BrowserBridgeState;
+  access?: { allowed?: boolean };
   leaseId?: string;
   released?: boolean;
   runtime?: MesurerCodexRuntime;
@@ -201,6 +264,7 @@ type BridgeResponse = {
   status?: MesurerCodexDeliveryStatus;
   turnId?: string | null;
   queuedSubmissionId?: string | null;
+  clientUserMessageId?: string | null;
   dispatch?: MesurerCodexDispatchStatus;
   dispatchError?: string | null;
   createdAt?: number;
@@ -223,6 +287,7 @@ type UiDeliveryState = {
   status: UiDeliveryStatus;
   annotationIds: string[];
   queuedSubmissionId: string | null;
+  clientUserMessageId: string | null;
   dispatch: MesurerCodexDispatchStatus | null;
   dispatchError: string | null;
 };
@@ -234,9 +299,10 @@ type PersistedCodexUiState = {
   delivery: {
     id: string;
     thread: string;
-    status: "queued" | "working" | "interrupted";
+    status: "queued" | "working" | "completed" | "interrupted" | "failed";
     annotationIds: string[];
     queuedSubmissionId?: string | null;
+    clientUserMessageId?: string | null;
     dispatch?: MesurerCodexDispatchStatus | null;
     dispatchError?: string | null;
   } | null;
@@ -277,7 +343,9 @@ const readBrowserState = (): PersistedCodexUiState | null => {
       && delivery.thread.trim()
       && (delivery.status === "queued"
         || delivery.status === "working"
-        || delivery.status === "interrupted")
+        || delivery.status === "completed"
+        || delivery.status === "interrupted"
+        || delivery.status === "failed")
       && Array.isArray(delivery.annotationIds)
       ? {
           id: delivery.id.trim(),
@@ -285,6 +353,7 @@ const readBrowserState = (): PersistedCodexUiState | null => {
           status: delivery.status,
           annotationIds: delivery.annotationIds.filter((id) => id.trim().length > 0),
           queuedSubmissionId: delivery.queuedSubmissionId?.trim() || null,
+          clientUserMessageId: delivery.clientUserMessageId?.trim() || null,
           dispatch: delivery.dispatch ?? null,
           dispatchError: delivery.dispatchError?.trim() || null,
         }
@@ -321,6 +390,216 @@ type CodexBridgeHostRequest = {
   message?: string;
   deliveryId?: string;
   queuedSubmissionId?: string;
+  clientUserMessageId?: string;
+  bridgeInstanceId?: string;
+};
+
+const browserCompanionUrl = (path: string) => {
+  const base = DEFAULT_BROWSER_COMPANION.endsWith("/")
+    ? DEFAULT_BROWSER_COMPANION
+    : `${DEFAULT_BROWSER_COMPANION}/`;
+
+  return new URL(path, base).toString();
+};
+
+const assertBrowserBridgeCompatibility = (payload: BridgeResponse) => {
+  const bridge = payload.bridge;
+
+  if (!bridge) {
+    throw new BrowserBridgeConnectionError(
+      "port-conflict",
+      "Another local service or an outdated Mesurer Codex Bridge is using port 47365. Mesurer will not send data to an unverified service.",
+    );
+  }
+
+  if (bridge.name !== BROWSER_COMPANION_NAME) {
+    throw new BrowserBridgeConnectionError(
+      "port-conflict",
+      `Another local service is using port 47365 (${bridge.name ?? "unknown"}). Mesurer will not send Codex data to it.`,
+    );
+  }
+
+  if (bridge.protocol !== BROWSER_COMPANION_PROTOCOL_VERSION) {
+    throw new BrowserBridgeConnectionError(
+      "version-mismatch",
+      `Mesurer Codex Bridge is out of date (protocol ${bridge.protocol ?? "unknown"}; expected ${BROWSER_COMPANION_PROTOCOL_VERSION}). Restart the matching Mesurer Codex Bridge helper.`,
+    );
+  }
+
+  if (payload.access?.allowed === false) {
+    const origin = globalThis.location?.origin ?? "this page";
+
+    throw new BrowserBridgeConnectionError(
+      "origin-denied",
+      `Mesurer Codex Bridge does not allow this browser origin (${origin}). Allow this origin when starting the bridge.`,
+    );
+  }
+
+  const capabilities = new Set(Array.isArray(bridge.capabilities) ? bridge.capabilities : []);
+
+  const missing = BROWSER_COMPANION_REQUIRED_CAPABILITIES
+    .filter((capability) => !capabilities.has(capability));
+
+  if (missing.length > 0) {
+    throw new BrowserBridgeConnectionError(
+      "capability-mismatch",
+      `Mesurer Codex Bridge is missing required capabilities: ${missing.join(", ")}. Restart or update the matching helper.`,
+    );
+  }
+
+  if (!bridge.instanceId?.trim()) {
+    throw new BrowserBridgeConnectionError(
+      "capability-mismatch",
+      "Mesurer Codex Bridge did not provide an instance identity. Restart or update the matching helper.",
+    );
+  }
+};
+
+const bridgeIssueFromMessage = (message: string): BrowserBridgeIssue | null => {
+  if (message.includes("does not allow this browser origin")) return "origin-denied";
+
+  if (message.includes("out of date")) return "version-mismatch";
+
+  if (message.includes("missing required capabilities")
+    || message.includes("did not provide an instance identity")) return "capability-mismatch";
+
+  if (message.includes("Another local service")) return "port-conflict";
+
+  if (message.includes("instance changed")) return "instance-changed";
+
+  if (message.includes("timed out")) return "timed-out";
+
+  if (message.includes("companion is unavailable")) return "not-running";
+
+  return null;
+};
+
+const browserBridgeIssue = (cause: unknown): BrowserBridgeIssue | null => {
+  if (cause instanceof BrowserBridgeConnectionError) return cause.issue;
+
+  if (cause instanceof Error) return bridgeIssueFromMessage(cause.message);
+
+  return null;
+};
+
+const browserBridgeRequest = async (
+  request: CodexBridgeHostRequest,
+): Promise<BridgeResponse> => {
+  let url: string;
+  let init: RequestInit | undefined;
+
+  if (request.action === "health") {
+    url = browserCompanionUrl("health");
+  } else if (request.action === "threads") {
+    const params = new URLSearchParams();
+    params.set("limit", String(request.limit ?? RECENT_THREAD_LIMIT));
+
+    if (request.thread) params.set("thread", request.thread);
+    url = `${browserCompanionUrl("threads")}?${params.toString()}`;
+  } else if (request.action === "target") {
+    url = browserCompanionUrl("target");
+    init = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thread: request.thread }),
+    };
+  } else if (request.action === "queue") {
+    url = browserCompanionUrl("send");
+    init = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: request.message, thread: request.thread }),
+    };
+  } else if (request.action === "delivery") {
+    url = browserCompanionUrl(
+      `deliveries/${encodeURIComponent(String(request.deliveryId ?? ""))}`,
+    );
+  } else if (request.action === "restore") {
+    url = browserCompanionUrl("deliveries/restore");
+    init = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deliveryId: request.deliveryId,
+        thread: request.thread,
+        queuedSubmissionId: request.queuedSubmissionId,
+        clientUserMessageId: request.clientUserMessageId,
+        message: request.message,
+      }),
+    };
+  } else {
+    throw new Error(`Codex browser companion does not support ${request.action}.`);
+  }
+
+  if (request.action !== "health") {
+    const instanceId = request.bridgeInstanceId?.trim();
+
+    if (!instanceId) {
+      throw new BrowserBridgeConnectionError(
+        "instance-changed",
+        "Mesurer Codex Bridge instance changed before this request could be verified.",
+      );
+    }
+
+    const headers = new Headers(init?.headers);
+
+    headers.set("X-Mesurer-Bridge-Instance", instanceId);
+    init = { ...init, headers };
+  }
+
+  const controller = new AbortController();
+
+  const timeoutMs = request.action === "health" || request.action === "threads"
+    ? BROWSER_COMPANION_PROBE_TIMEOUT_MS
+    : BROWSER_COMPANION_REQUEST_TIMEOUT_MS;
+
+  const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    const text = await response.text();
+    let payload: BridgeResponse = {};
+
+    if (text) {
+      try {
+        // SAFETY: the local companion response is validated again by each bounded adapter before its fields are consumed.
+        payload = JSON.parse(text) as BridgeResponse;
+      } catch {
+        payload = { error: text };
+      }
+    }
+
+    if (request.action === "health") assertBrowserBridgeCompatibility(payload);
+
+    if (!response.ok || payload.ok === false) {
+      const message = payload.error ?? `Mesurer Codex companion returned HTTP ${response.status}.`;
+      const issue = bridgeIssueFromMessage(message);
+
+      if (issue) throw new BrowserBridgeConnectionError(issue, message);
+
+      throw new Error(message);
+    }
+
+    return payload;
+  } catch (cause) {
+    if (cause instanceof Error && cause.name === "AbortError") {
+      throw new BrowserBridgeConnectionError(
+        "timed-out",
+        "Mesurer Codex companion timed out.",
+      );
+    }
+
+    if (cause instanceof TypeError) {
+      throw new BrowserBridgeConnectionError(
+        "not-running",
+        `Mesurer Codex companion is unavailable at ${DEFAULT_BROWSER_COMPANION}.`,
+      );
+    }
+
+    throw cause;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
 };
 
 const bridgeRequest = async (
@@ -328,7 +607,7 @@ const bridgeRequest = async (
 ): Promise<BridgeResponse> => {
   const bridge = window.__MESURER_HOST__?.codexBridge;
 
-  if (!bridge) throw new Error(MISSING_HOST_BRIDGE_ERROR);
+  if (!bridge) throw new Error("Codex native host bridge is unavailable.");
 
   const response = await bridge(request);
 
@@ -385,6 +664,10 @@ const bridgeDelivery = (response: BridgeResponse): MesurerCodexDelivery => {
 
   if (response.queuedSubmissionId !== undefined) {
     delivery.queuedSubmissionId = response.queuedSubmissionId?.trim() || null;
+  }
+
+  if (response.clientUserMessageId !== undefined) {
+    delivery.clientUserMessageId = response.clientUserMessageId?.trim() || null;
   }
 
   if (response.dispatch !== undefined) delivery.dispatch = response.dispatch;
@@ -472,11 +755,14 @@ const truncateLabel = (value: string, max = 42) => value.length > max
   : value;
 
 const bridgeUnavailable = (cause: unknown) =>
-  cause instanceof Error
-  && (
-    cause.message === MISSING_HOST_BRIDGE_ERROR
-    || cause.message === "Codex Bridge is unavailable in this host."
-    || cause.message.includes("Codex Bridge lease")
+  browserBridgeIssue(cause) !== null
+  || (
+    cause instanceof Error
+    && (
+      cause.message === "Codex Bridge is unavailable in this host."
+      || cause.message.includes("Codex Bridge lease")
+      || cause.message.includes("Mesurer Codex Bridge")
+    )
   );
 
 export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
@@ -523,6 +809,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             status: persistedUiState.delivery.status,
             annotationIds: persistedUiState.delivery.annotationIds,
             queuedSubmissionId: persistedUiState.delivery.queuedSubmissionId ?? null,
+            clientUserMessageId: persistedUiState.delivery.clientUserMessageId ?? null,
             dispatch: persistedUiState.delivery.dispatch ?? null,
             dispatchError: persistedUiState.delivery.dispatchError ?? null,
           }
@@ -533,10 +820,53 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       let uiSendPromise: Promise<void> | null = null;
       let disposed = false;
       let leaseId: string | null = null;
+      let browserBridgeVerifiedAt = 0;
+      let browserBridgeInstanceId: string | null = null;
+      let browserBridgeIssueState: BrowserBridgeIssue | null = null;
+      const nativeBridgeAvailable = window.__MESURER_HOST__?.codexBridge !== undefined;
 
       const requestBridge = async (
         request: CodexBridgeHostRequest,
       ): Promise<BridgeResponse> => {
+        if (!nativeBridgeAvailable) {
+          try {
+            const requiresFreshVerification = request.action === "queue"
+              || request.action === "target"
+              || request.action === "delivery"
+              || request.action === "restore";
+
+            if (request.action === "health") {
+              const response = await browserBridgeRequest(request);
+
+              browserBridgeInstanceId = response.bridge?.instanceId?.trim() || null;
+              browserBridgeVerifiedAt = Date.now();
+
+              return response;
+            }
+
+            if (!browserBridgeInstanceId
+              || requiresFreshVerification
+              || Date.now() - browserBridgeVerifiedAt >= BROWSER_DISCONNECTED_POLL_MS) {
+              const health = await browserBridgeRequest({
+                action: "health",
+                thread: selectedThread ?? originThread ?? undefined,
+              });
+
+              browserBridgeInstanceId = health.bridge?.instanceId?.trim() || null;
+              browserBridgeVerifiedAt = Date.now();
+            }
+
+            return await browserBridgeRequest({
+              ...request,
+              bridgeInstanceId: browserBridgeInstanceId ?? undefined,
+            });
+          } catch (cause) {
+            browserBridgeVerifiedAt = 0;
+            browserBridgeInstanceId = null;
+            throw cause;
+          }
+        }
+
         if (request.action === "activate" || request.action === "runtime") {
           return bridgeRequest(request);
         }
@@ -547,6 +877,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       };
 
       const deactivateBridge = async () => {
+        if (!nativeBridgeAvailable) return;
         const activeLease = leaseId;
 
         if (!activeLease) return;
@@ -563,23 +894,25 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         leaseId = null;
       };
 
-      const activation = await bridgeRequest({
-        action: "activate",
-        thread: selectedThread ?? originThread ?? undefined,
-      });
+      if (nativeBridgeAvailable) {
+        const activation = await bridgeRequest({
+          action: "activate",
+          thread: selectedThread ?? originThread ?? undefined,
+        });
 
-      const activatedLease = activation.leaseId?.trim();
+        const activatedLease = activation.leaseId?.trim();
 
-      if (!activatedLease) throw new Error("Codex Bridge did not return an activation lease.");
-      leaseId = activatedLease;
-      bridgeAvailability = "available";
-      codexRuntime = bridgeRuntime(activation);
+        if (!activatedLease) throw new Error("Codex Bridge did not return an activation lease.");
+        leaseId = activatedLease;
+        bridgeAvailability = "available";
+        codexRuntime = bridgeRuntime(activation);
 
-      const activationHealth = bridgeHealth(activation);
+        const activationHealth = bridgeHealth(activation);
 
-      everConnected = true;
-      lastBridgeThread = activationHealth.thread;
-      loadedThreadIds = activationHealth.threads;
+        everConnected = true;
+        lastBridgeThread = activationHealth.thread;
+        loadedThreadIds = activationHealth.threads;
+      }
 
       ctx.lifecycle.onDispose(() => {
         if (!leaseId) return;
@@ -597,6 +930,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       });
 
       const fetchRuntime = async () => {
+        if (!nativeBridgeAvailable) return null;
         const runtime = bridgeRuntime(await requestBridge({ action: "runtime" }));
 
         if (!runtime) throw new Error("Codex Bridge returned an invalid runtime state.");
@@ -637,6 +971,27 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         if (delivery.queuedSubmissionId) request.queuedSubmissionId = delivery.queuedSubmissionId;
 
+        if (delivery.clientUserMessageId) {
+          request.clientUserMessageId = delivery.clientUserMessageId;
+        } else if (delivery.annotationIds.length > 0) {
+          const rebuilt = await feedbackPayload(
+            contextService,
+            { annotationIds: delivery.annotationIds },
+            instruction,
+          );
+
+          const exactAnnotationSet = rebuilt.annotationIds.length === delivery.annotationIds.length
+            && rebuilt.annotationIds.every((id, index) => id === delivery.annotationIds[index]);
+
+          if (!exactAnnotationSet) {
+            throw new Error(
+              "Cannot safely restore this Codex delivery because one or more saved Mesurer annotations are unavailable.",
+            );
+          }
+
+          request.message = rebuilt.message;
+        }
+
         return bridgeDelivery(await requestBridge(request));
       };
 
@@ -663,13 +1018,16 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         const persistedDelivery = activeDelivery?.id
           && (activeDelivery.status === "queued"
             || activeDelivery.status === "working"
-            || activeDelivery.status === "interrupted")
+            || activeDelivery.status === "completed"
+            || activeDelivery.status === "interrupted"
+            || activeDelivery.status === "failed")
           ? {
               id: activeDelivery.id,
               thread: activeDelivery.thread ?? currentTarget() ?? "",
               status: activeDelivery.status,
               annotationIds: [...activeDelivery.annotationIds],
               queuedSubmissionId: activeDelivery.queuedSubmissionId,
+              clientUserMessageId: activeDelivery.clientUserMessageId,
               dispatch: activeDelivery.dispatch,
               dispatchError: activeDelivery.dispatchError,
             }
@@ -781,18 +1139,66 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       let refreshRuntime = (_allowUnknown = false): Promise<void> => Promise.resolve();
 
+      const browserDiagnostic = (compact = false) => {
+        if (browserBridgeIssueState === "origin-denied") {
+          return compact ? "Browser origin not allowed" : "Allow this browser origin";
+        }
+
+        if (browserBridgeIssueState === "version-mismatch") {
+          return compact ? "Bridge version mismatch" : "Update Mesurer Codex Bridge";
+        }
+
+        if (browserBridgeIssueState === "capability-mismatch") {
+          return compact ? "Bridge capability mismatch" : "Update Mesurer Codex Bridge";
+        }
+
+        if (browserBridgeIssueState === "port-conflict") {
+          return compact ? "Port 47365 conflict" : "Port 47365 is occupied";
+        }
+
+        if (browserBridgeIssueState === "timed-out") {
+          return compact ? "Bridge did not respond" : "Mesurer Codex Bridge did not respond";
+        }
+
+        if (browserBridgeIssueState === "instance-changed") {
+          return compact ? "Codex bridge changed" : "Codex bridge changed; reconnecting";
+        }
+
+        if (browserBridgeIssueState === "not-running") {
+          return compact ? "Bridge not running" : "Mesurer Codex Bridge is not running";
+        }
+
+        return compact ? "Codex unavailable" : "Mesurer Codex Bridge is unavailable";
+      };
+
+      const connectionLabel = () => {
+        if (!nativeBridgeAvailable) {
+          return loadedThreadIds.length === 0
+            ? "No reachable local Codex session"
+            : "Connected · Local Codex Bridge";
+        }
+
+        if (codexRuntime?.source === "desktop") return "Connected · Codex Desktop";
+
+        if (codexRuntime?.source === "standalone") return "Connected · Codex CLI";
+
+        if (codexRuntime?.source === "shared") return "Connected · Codex shared server";
+
+        return "Connected · Codex";
+      };
+
       const menuItems = (): ToolMenuItemContribution[] => {
         if (bridgeAvailability !== "available") {
           const desktopPrivate = codexRuntime?.source === "desktop"
             && codexRuntime.reason === "desktop-private-transport";
 
-          const hostBridgeMissing = !window.__MESURER_HOST__?.codexBridge;
+          const browserCompanion = !nativeBridgeAvailable;
           const items: ToolMenuItemContribution[] = [];
 
-          if (bridgeAvailability === "unavailable" && hostBridgeMissing) {
+          if (bridgeAvailability === "unavailable" && browserCompanion) {
             items.push({
-              id: "codex.connection.missing-host",
-              label: "This app has not connected Mesurer to Codex",
+              id: "codex.connection.status",
+              label: browserDiagnostic(),
               disabled: () => true,
               run: () => undefined,
             });
@@ -801,8 +1207,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           items.push({
             id: "codex.thread.connect",
             label: bridgeAvailability === "unavailable"
-              ? hostBridgeMissing
-                ? "Retry host connection"
+              ? browserCompanion
+                ? "Retry Codex connection"
                 : desktopPrivate
                   ? "Retry Codex Desktop"
                   : "Retry Codex connection"
@@ -817,7 +1223,22 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         const visible = threads.slice(0, visibleThreadCount);
         const target = currentTarget();
 
-        const items: ToolMenuItemContribution[] = visible.map((thread) => {
+        const items: ToolMenuItemContribution[] = [{
+          id: "codex.connection.status",
+          label: connectionLabel(),
+          disabled: () => true,
+          run: () => undefined,
+        }];
+
+        if (!nativeBridgeAvailable && loadedThreadIds.length === 0) {
+          items.push({
+            id: "codex.thread.refresh",
+            label: "Refresh Codex sessions",
+            run: () => refreshRuntime(true),
+          });
+        }
+
+        items.push(...visible.map((thread) => {
           const prefix = thread.id === originThread
             ? "Current · "
             : thread.connected
@@ -839,7 +1260,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               syncTool();
             },
           };
-        });
+        }));
 
         if (visibleThreadCount < RECENT_THREAD_LIMIT
           && (threads.length > visibleThreadCount || recentHasMore)) {
@@ -881,18 +1302,22 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         const desktopPrivate = codexRuntime?.source === "desktop"
           && codexRuntime.reason === "desktop-private-transport";
 
-        const hostBridgeMissing = !window.__MESURER_HOST__?.codexBridge;
+        const browserCompanion = !nativeBridgeAvailable;
+
+        const browserUnavailableLabel = browserDiagnostic(true);
 
         const label = deliveryToolLabel()
           ?? (bridgeAvailability === "unavailable"
-            ? hostBridgeMissing
-              ? "Codex host not connected"
+            ? browserCompanion
+              ? browserUnavailableLabel
               : desktopPrivate
                 ? "Codex Desktop not connected"
                 : "Codex unavailable"
-            : routeNeedsSelection || (bridgeAvailability === "available" && !target)
-              ? "Choose Codex thread"
-              : "Queue to Codex");
+            : bridgeAvailability === "available" && !nativeBridgeAvailable && loadedThreadIds.length === 0
+              ? "No reachable Codex session"
+              : routeNeedsSelection || (bridgeAvailability === "available" && !target)
+                ? "Choose Codex thread"
+                : "Queue to Codex");
 
         const signature = JSON.stringify({
           bridgeAvailability,
@@ -952,6 +1377,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           try {
             const health = await ensureBridgeAvailable();
             bridgeAvailability = "available";
+            browserBridgeIssueState = null;
             everConnected = true;
             lastBridgeThread = health.thread;
             await refreshRecent(selectedThread ?? originThread ?? health.thread);
@@ -969,6 +1395,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             if (!routeNeedsSelection && restoredTarget) persistUiState();
           } catch (cause) {
             bridgeAvailability = "unavailable";
+            browserBridgeIssueState = nativeBridgeAvailable ? null : browserBridgeIssue(cause) ?? "unavailable";
             codexRuntime = await fetchRuntime().catch(() => codexRuntime);
             throw cause;
           } finally {
@@ -1011,23 +1438,49 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           thread: delivery.thread,
           status: delivery.status,
           queuedSubmissionId: delivery.queuedSubmissionId ?? activeDelivery.queuedSubmissionId,
+          clientUserMessageId: delivery.clientUserMessageId ?? activeDelivery.clientUserMessageId,
           dispatch: delivery.dispatch ?? activeDelivery.dispatch,
           dispatchError: delivery.dispatchError ?? activeDelivery.dispatchError,
         };
         persistUiState();
 
-        if (delivery.status === "queued"
-          && (delivery.dispatch === "desktop-opened"
-            || delivery.dispatch === "desktop-wake-failed")) {
+        if (delivery.status === "completed") {
+          persistUiState();
           syncTool();
 
-          return;
-        }
+          if (clearCompletedAnnotations && activeDelivery.annotationIds.length > 0) {
+            let cleanupFailed = false;
 
-        if (delivery.status === "completed") {
-          if (clearCompletedAnnotations) {
             for (const annotationId of activeDelivery.annotationIds) {
-              await contextService.removeAnnotation(annotationId);
+              try {
+                await contextService.removeAnnotation(annotationId);
+              } catch {
+                cleanupFailed = true;
+              }
+            }
+
+            let remainingAnnotationIds = activeDelivery.annotationIds;
+
+            try {
+              const savedIds = new Set(
+                (await contextService.annotations()).map((annotation) => annotation.id),
+              );
+
+              remainingAnnotationIds = activeDelivery.annotationIds
+                .filter((annotationId) => savedIds.has(annotationId));
+            } catch {
+              cleanupFailed = true;
+            }
+
+            if (cleanupFailed || remainingAnnotationIds.length > 0) {
+              persistUiState();
+              syncTool();
+              deliveryPollTimer = globalThis.setTimeout(() => {
+                deliveryPollTimer = 0;
+                void pollDelivery(delivery.id);
+              }, DELIVERY_POLL_MS);
+
+              return;
             }
           }
 
@@ -1057,7 +1510,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         deliveryPollTimer = globalThis.setTimeout(() => {
           deliveryPollTimer = 0;
           void pollDelivery(delivery.id);
-        }, DELIVERY_POLL_MS);
+        }, ACTIVE_DELIVERY_POLL_MS);
       };
 
       const pollDelivery = async (deliveryId: string): Promise<void> => {
@@ -1069,7 +1522,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           if (activeDelivery?.id !== deliveryId) return;
           let failure = cause;
 
-          if (activeDelivery.status === "queued" && activeDelivery.thread) {
+          if ((activeDelivery.status === "queued" || activeDelivery.status === "failed")
+            && activeDelivery.thread) {
             try {
               if (bridgeAvailability !== "available") await refreshRuntime(true);
               const restored = await restoreDelivery(activeDelivery);
@@ -1161,6 +1615,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               result.queuedSubmissionId = response.queuedSubmissionId?.trim() || null;
             }
 
+            if (response.clientUserMessageId !== undefined) {
+              result.clientUserMessageId = response.clientUserMessageId?.trim() || null;
+            }
+
             if (response.dispatch !== undefined) result.dispatch = response.dispatch;
 
             if (response.dispatchError !== undefined) {
@@ -1171,6 +1629,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           } catch (cause) {
             if (withUi && bridgeUnavailable(cause)) {
               bridgeAvailability = "unavailable";
+              browserBridgeIssueState = nativeBridgeAvailable ? null : browserBridgeIssue(cause) ?? "unavailable";
               syncTool();
             }
 
@@ -1186,6 +1645,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       const queueFromUi = async () => {
         if (uiSendPromise || deliveryBusy()) return;
+
+        if (activeDelivery?.status === "failed" && activeDelivery.id) {
+          clearDeliveryTimers();
+          await pollDelivery(activeDelivery.id);
+
+          return;
+        }
+
         clearDeliveryTimers();
         const target = currentTarget();
         activeDelivery = {
@@ -1194,6 +1661,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           status: "queueing",
           annotationIds: [],
           queuedSubmissionId: null,
+          clientUserMessageId: null,
           dispatch: null,
           dispatchError: null,
         };
@@ -1209,6 +1677,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               status: result.status,
               annotationIds: result.annotationIds,
               queuedSubmissionId: result.queuedSubmissionId ?? null,
+              clientUserMessageId: result.clientUserMessageId ?? null,
               dispatch: result.dispatch ?? null,
               dispatchError: result.dispatchError ?? null,
             };
@@ -1265,24 +1734,30 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       if (withUi) {
         syncTool();
 
-        try {
-          await refreshRuntime(true);
-        } catch (cause) {
+        if (nativeBridgeAvailable) {
           try {
-            await deactivateBridge();
-          } catch (cleanupCause) {
-            const startupMessage = cause instanceof Error ? cause.message : String(cause);
+            await refreshRuntime(true);
+          } catch (cause) {
+            try {
+              await deactivateBridge();
+            } catch (cleanupCause) {
+              const startupMessage = cause instanceof Error ? cause.message : String(cause);
 
-            const cleanupMessage = cleanupCause instanceof Error
-              ? cleanupCause.message
-              : String(cleanupCause);
+              const cleanupMessage = cleanupCause instanceof Error
+                ? cleanupCause.message
+                : String(cleanupCause);
 
-            throw new Error(
-              `Codex activation failed: ${startupMessage}. Native lease release also failed: ${cleanupMessage}.`,
-            );
+              throw new Error(
+                `Codex activation failed: ${startupMessage}. Native lease release also failed: ${cleanupMessage}.`,
+              );
+            }
+
+            throw cause;
           }
-
-          throw cause;
+        } else {
+          // Browser enablement is independent of companion availability. Probe in
+          // the background so Settings can commit ON even when Codex is not open yet.
+          void refreshRuntime(true).catch(() => undefined);
         }
 
         if (activeDelivery?.id) {
@@ -1296,9 +1771,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         }
 
         const interval = globalThis.setInterval(() => {
-          if (!everConnected) return;
-          void refreshRuntime().catch(() => undefined);
-        }, HEALTH_POLL_MS);
+          if (nativeBridgeAvailable && !everConnected) return;
+
+          void refreshRuntime(true).catch(() => undefined);
+        }, nativeBridgeAvailable ? HEALTH_POLL_MS : BROWSER_DISCONNECTED_POLL_MS);
 
         ctx.lifecycle.onDispose(() => {
           disposed = true;

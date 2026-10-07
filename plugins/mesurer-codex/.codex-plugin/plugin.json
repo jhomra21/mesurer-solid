@@ -1,0 +1,28 @@
+{
+  "name": "mesurer-codex",
+  "version": "0.2.1",
+  "description": "Powers Mesurer Settings → Codex from browser pages by keeping a local loopback bridge connected to Codex Desktop or CLI sessions.",
+  "author": {
+    "name": "Mesurer Solid"
+  },
+  "homepage": "https://github.com/jhomra21/mesurer-solid",
+  "repository": "https://github.com/jhomra21/mesurer-solid",
+  "license": "MIT",
+  "keywords": [
+    "mesurer",
+    "codex",
+    "ui-review",
+    "feedback"
+  ],
+  "interface": {
+    "displayName": "Mesurer Codex Bridge",
+    "shortDescription": "Connect Mesurer's in-app Codex feature to local Codex sessions",
+    "longDescription": "Local transport helper for Mesurer's own Settings → Codex integration. It starts or reuses the loopback companion, registers Codex sessions, and lets browser-hosted Mesurer queue Context feedback to Codex Desktop or CLI. This is separate from the Mesurer Solid ChatGPT/Codex agent plugin.",
+    "developerName": "Mesurer Solid",
+    "category": "Developer Tools",
+    "capabilities": [],
+    "defaultPrompt": [
+      "Use Mesurer feedback in this project."
+    ]
+  }
+}

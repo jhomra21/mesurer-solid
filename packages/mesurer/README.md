@@ -44,7 +44,7 @@ if (import.meta.env.DEV) {
 }
 ```
 
-For Vite, put this in the existing browser entry such as `src/main.tsx`, `src/main.ts`, or `src/index.tsx`. In Electron, use the renderer entry and keep privileged Electron work in preload/main. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native capture and Color Picker samples the current application window through that same capability. If preload exposes `window.__MESURER_HOST__.codexBridge`, Codex starts enabled and waits for a native activation lease before it becomes available. Browser-only hosts list Codex in Settings but start with it off. Renderer configuration remains runtime-neutral. In SSR applications, mount from a client-only module or lifecycle.
+For Vite, put this in the existing browser entry such as `src/main.tsx`, `src/main.ts`, or `src/index.tsx`. In Electron, use the renderer entry and keep privileged Electron work in preload/main. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native capture and Color Picker samples the current application window through that same capability. If preload exposes `window.__MESURER_HOST__.codexBridge`, Codex starts enabled and uses the native transport. Browser-only hosts still list Codex in Settings, start with it off, and connect through a verified local Mesurer Codex Bridge companion when enabled. Missing, outdated, and conflicting companions are explicit fail-closed states, and the browser reconnects automatically when a compatible helper appears. Renderer configuration remains runtime-neutral. In SSR applications, mount from a client-only module or lifecycle.
 
 `src/dev/mesurer.ts` is an optional organization pattern, not a required filename or directory. Do not mount Mesurer from `vite.config.ts`, server/API code, Node-only scripts, an Electron main process, or a module that also executes during SSR.
 
@@ -186,9 +186,9 @@ See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/pack
 
 ### Queue to Codex
 
-Codex starts enabled when the native host capability exists and remains toggleable under **Settings -> Plugins**. Browser-only hosts list it but start with it off.
+Codex is Mesurer's own local delivery integration and is separate from the Mesurer Solid ChatGPT/Codex agent plugin. Browser-only hosts list it in **Settings -> Plugins**, start with it off, and use the local Mesurer Codex Bridge companion when enabled. A missing helper leaves the plugin enabled with an unavailable/retry state instead of producing an Electron-preload error.
 
-Native applications install `installMesurerCodexHost()` in Electron main and expose `createMesurerCodexPreloadBridge()` from a bundled preload. The bridge runs in the native host process. Each enabled renderer owns a native lease. Settings waits for activation readiness before committing ON and waits for lease release before committing OFF. Shared sessions use Codex's local app-server directly. An inherited Codex Desktop thread uses one native queue operation and one `codex://threads/<id>` wake. Mesurer never opens the private Desktop app-tools pipe or starts a second Mesurer process.
+Native applications can install `installMesurerCodexHost()` in Electron main and expose `createMesurerCodexPreloadBridge()` from a bundled preload. That path uses an in-process native bridge and renderer-scoped lease instead of loopback HTTP. Both transports expose the same `codex:v1` service and **Queue to Codex** UI.
 
 **Queue to Codex** remains one runtime-neutral API. Shared delivery tracks Queued, Working, Finished, or Interrupted through the shared app-server. Desktop current-thread delivery keeps the durable queued submission and wake result visible without fabricating private Desktop lifecycle state. It does not create threads or invoke Steer.
 

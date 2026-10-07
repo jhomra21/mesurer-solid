@@ -1,0 +1,33 @@
+{
+  "description": "Keep Mesurer's local Codex feedback companion ready for the current session.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "^(startup|resume|clear)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/scripts/codex-connect.mjs\" --session-start",
+            "commandWindows": "node \"%PLUGIN_ROOT%\\\\scripts\\\\codex-connect.mjs\" --session-start",
+            "timeout": 15,
+            "statusMessage": "Connecting Mesurer to this Codex thread"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "^other$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/scripts/codex-connect.mjs\" --session-end",
+            "commandWindows": "node \"%PLUGIN_ROOT%\\\\scripts\\\\codex-connect.mjs\" --session-end",
+            "timeout": 1,
+            "statusMessage": "Releasing Mesurer from this Codex thread"
+          }
+        ]
+      }
+    ]
+  }
+}

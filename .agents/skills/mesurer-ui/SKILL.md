@@ -7,9 +7,9 @@ description: Use Mesurer for frontend UI implementation, review, debugging, layo
 
 Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. This skill matches `mesurer-solid@0.2.1` stable. The rendered page is the integration boundary.
 
-The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the browser controller already provides and read `window.__MESURER__` directly. The first-party `codex()` plugin is a separate human-initiated convenience for routing Context feedback through the application's native Codex host capability.
+The normal coding-agent workflow requires no Mesurer MCP server or Send-to-agent callback. Use the browser/evaluation channel the browser controller already provides and read `window.__MESURER__` directly. The first-party `codex()` plugin is a separate human-initiated **Settings -> Codex** convenience for routing Context feedback into local Codex threads. Do not confuse it with the Mesurer Solid ChatGPT/Codex agent plugin.
 
-Do not add a second Mesurer process for Codex delivery. Native applications expose the narrow `window.__MESURER_HOST__.codexBridge(request)` capability. The enabled plugin owns a renderer-scoped native lease; disabling it releases that lease without stopping Codex's shared daemon. Shared sessions use Codex's local app-server. When the native host inherited both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH` from Codex Desktop, Mesurer may queue only to that exact thread and wake it through `codex://threads/<id>`. Treat the app-tools pipe as an ownership signal only. Never connect to, proxy, or invoke it. A Desktop-bundled Codex executable must never start the shared daemon.
+For Settings -> Codex, Electron hosts can expose the narrow `window.__MESURER_HOST__.codexBridge(request)` capability. Ordinary browser hosts use the local Mesurer Codex Bridge companion on loopback when that feature is enabled. Do not start or install that companion merely to let an agent inspect Mesurer; it exists only for human-triggered Codex delivery. Neither transport may connect to Codex Desktop's private app-tools pipe. A Desktop-bundled Codex executable must never start the shared daemon.
 
 A meaningful Mesurer step must return evidence the agent actually uses.
 

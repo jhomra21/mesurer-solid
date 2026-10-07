@@ -20,6 +20,15 @@ The local MCP server is optional. It exposes structured shortcuts when exact dat
 
 This keeps Mesurer useful with any browser harness rather than coupling it to ChatGPT, Codex, Playwright, or one automation protocol.
 
+### Not the Settings -> Codex integration
+
+There are two intentionally separate integrations:
+
+- **Mesurer Solid** is this ChatGPT/Codex agent plugin. It teaches the agent how to use Mesurer and optionally provides local MCP shortcuts.
+- **Mesurer Codex Bridge** powers Mesurer's own **Settings -> Codex** toggle in browser pages. It connects that human-triggered UI to local Codex Desktop/CLI sessions. Electron hosts can provide the equivalent transport directly through preload.
+
+Installing or enabling one does not mean the other is enabled. A coding agent can use Mesurer through the browser without Mesurer's Settings -> Codex integration, and a person can use Settings -> Codex without the OpenAI agent plugin.
+
 ## Plugin package
 
 The repository root is a portable Agent Plugins package with `plugin.json`, `mcp.json`, and `skills/mesurer-ui/SKILL.md`. It also carries the current Codex compatibility overlay in `.codex-plugin/plugin.json` and `.mcp.json`.

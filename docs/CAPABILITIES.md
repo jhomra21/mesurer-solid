@@ -51,9 +51,9 @@ All public plugin factories come from `mesurer-solid/plugins`.
 - Layout Guides adds page-scoped columns, rows, and pixel grids. Mutations run through JSON-safe plugin commands, participate in plugin history, and are available through the typed `layout-guides:v1` service.
 - Screenshot adds region capture with preview, clipboard copy, download, and programmatic capture. It selects an application-native host capability, the Chromium extension adapter, or browser display capture internally, and flattens transparent native PNGs against the renderer backdrop before output.
 - Recording adds adjustable selected-region video capture, a typed `recording:v1` lifecycle, 60/120 fps settings, trim/scale preview, and MediaBunny-owned WebM/MP4 export. Browser, extension, and Electron APIs only acquire the live stream.
-- Codex starts enabled when the native host capability exists. Browser-only hosts list it in Settings but leave it off. Activation waits for a native renderer lease and Codex readiness. Disable waits for lease release. Shared delivery uses `thread/queue/add`; inherited Desktop delivery keeps a durable queue receipt without claiming private lifecycle state.
+- Codex is Mesurer's local human-to-Codex delivery integration. Electron hosts with the native bridge start it enabled. Browser hosts list it in Settings but start it off; enabling uses the loopback Mesurer Codex Bridge companion and remains enabled if that helper is temporarily unavailable. Both transports expose the same `codex:v1` service and Queue to Codex UI.
 
-Each feature guide documents the methods and behavior that belong to that plugin. The built-in factories are also exported for lower-level composition. Normal `mountMesurer()` callers get the catalog defaults automatically. Codex joins that enabled set only when `window.__MESURER_HOST__.codexBridge` exists. Settings can turn managed plugins off or back on.
+Each feature guide documents the methods and behavior that belong to that plugin. The built-in factories are also exported for lower-level composition. Normal `mountMesurer()` callers get the catalog defaults automatically. Settings can turn managed plugins off or back on; transport selection stays inside Codex.
 
 ## Agent API
 

@@ -2,7 +2,7 @@
 
 Mesurer can queue human visual feedback into Codex threads that are already open on the same computer.
 
-Codex is a first-party Mesurer plugin. Native hosts that expose the Codex capability start with it enabled. Browser-only hosts list Codex in **Settings -> Plugins** but leave it off until a native host capability exists.
+This is Mesurer's own **Codex** integration in **Settings -> Plugins**. It is separate from the **Mesurer Solid** ChatGPT/Codex agent plugin. The Settings integration is available in browser and Electron hosts; only its transport changes.
 
 ## How it works
 
@@ -10,26 +10,30 @@ Codex is a first-party Mesurer plugin. Native hosts that expose the Codex capabi
 Mesurer Context / saved notes
            |
            v
-        codex()
+        codex:v1
            |
-           | window.__MESURER_HOST__.codexBridge(request)
-           v
-  Codex Bridge in the native host process
+           +--> browser page
+           |      |
+           |      +--> 127.0.0.1:47365
+           |             |
+           |             +--> Mesurer Codex Bridge
+           |                    +--> Codex shared app-server / CLI
+           |                    +--> Codex Desktop queue + deep link
            |
-           +--> shared app-server adapter
-           |      +--> thread/loaded/list
-           |      +--> thread/list / thread/read
-           |      +--> thread/queue/add
-           |      +--> thread/turns/list
-           |
-           +--> inherited Desktop-current-thread adapter
-                  +--> codex queue --thread <exact inherited thread>
-                  +--> codex://threads/<same thread>
+           +--> Electron/native host
+                  |
+                  +--> window.__MESURER_HOST__.codexBridge(request)
+                         |
+                         +--> in-process native Codex Bridge
+                                +--> Codex shared app-server / CLI
+                                +--> inherited Desktop current thread
 ```
 
-There is no Mesurer Codex server, loopback port, helper Electron process, Codex marketplace plugin, SessionStart hook, or SessionEnd hook.
+Browser pages cannot open Codex's local socket or spawn a process. They therefore use the optional local **Mesurer Codex Bridge** companion over loopback HTTP. Electron applications can avoid that helper and expose the in-process native bridge through preload.
 
-The native **Codex Bridge** is exported by the Codex plugin at `mesurer-solid/plugins/codex/bridge`. It runs inside the application's native host process and owns Codex transport selection there. Shared sessions use Codex's local app-server; an exact inherited Desktop current thread can use the plugin-owned Desktop queue adapter described below. The bridge does not start another Mesurer service.
+Both transports implement the same `codex:v1` service and the same **Queue to Codex** UI. Callers do not select CLI versus Desktop or browser versus Electron.
+
+The local Mesurer Codex Bridge helper is not the OpenAI Mesurer Solid agent plugin. Installing the agent plugin teaches ChatGPT/Codex how to operate Mesurer; installing/running the bridge helper lets Mesurer itself send Context into local Codex threads.
 
 ## Native host wiring
 
@@ -78,13 +82,15 @@ The Codex Bridge export does not use `import.meta.url`, `process.execPath`, or p
 
 ## Settings lifecycle
 
-When the native host capability exists, Codex starts enabled with the other first-party plugins. Browser-only hosts start with Codex off.
+Codex remains listed under **Settings -> Plugins** in both browser and Electron hosts.
 
-Turning Codex on is transactional. Plugin setup requests a native activation lease and waits for Codex readiness before the plugin becomes enabled. A shared app-server connection must answer the normal health path. If a complete standalone Codex installation must start the shared daemon, activation waits for that daemon to become ready. If activation fails, Mesurer rolls the plugin load back, keeps the Settings switch off, and shows the host or runtime error in the Codex row.
+Electron/native hosts with `window.__MESURER_HOST__.codexBridge` start Codex enabled. Enabling there is transactional: Mesurer acquires one renderer-scoped native lease and proves Codex readiness before the switch commits. Disabling waits for lease release.
 
-Turning Codex off is also transactional. Mesurer asks the native host to release the plugin's lease and waits for confirmation before removing the renderer service, command, toolbar action, and persisted enabled state.
+Browser hosts start Codex off by default. When the user enables it, Mesurer keeps the plugin enabled and probes the local companion at `http://127.0.0.1:47365`. The browser verifies the helper's Mesurer identity, protocol version, required capabilities, and per-process instance identity before using it. A missing helper shows **Bridge not running**; an older protocol shows **Bridge version mismatch**; a helper missing required capabilities shows **Bridge capability mismatch**; an unrelated process on the port shows **Port 47365 conflict**. A healthy bridge with no loaded local Codex thread shows **No reachable Codex session** rather than pretending to be connected. Localhost/127 browser origins are allowed by default. Other page origins remain blocked until explicitly allowlisted on the bridge and show **Browser origin not allowed** instead of a misleading missing-bridge state. Browsers that gate loopback requests behind Local Network Access may also prompt the user for loopback access; Mesurer does not bypass that browser permission. While the toggle remains on, Mesurer periodically rechecks and connects automatically when a compatible helper or reachable local Codex session appears.
 
-Disabling the plugin does not stop Codex's shared app-server daemon. Other Codex clients may own or use that daemon.
+The browser helper is normally started or reused by the optional **Mesurer Codex Bridge** local Codex plugin when a Codex session starts. It can also be run directly with the packaged `mesurer-codex` / `mesurer-codex-connect` commands for diagnostics. Bridge compatibility is defined by the versioned protocol and required capabilities, not by an exact source hash, so compatible helpers from another checkout are reused. An incompatible helper may be replaced only when it advertises idle-safe shutdown and reports zero registered owners and zero queued/working deliveries. Queued and working delivery records do not expire by age and are never evicted by the terminal-history cap, so durable receipts survive long bridge restarts; only terminal records are TTL-pruned.
+
+Turning the Mesurer Codex plugin off removes that page's service, toolbar registration, polling, and delivery timers. Browser pages do not own the shared companion, so toggle-off does not unregister Codex sessions or stop the helper. Electron toggle-off releases that renderer's native lease before plugin removal. Neither path stops Codex's shared app-server.
 
 ## Desktop and standalone runtimes
 
@@ -123,7 +129,7 @@ Mesurer implements **Queue**, not **Steer**.
 
 When the user presses **Queue to Codex**, Mesurer queues exactly once through the active internal adapter.
 
-On the shared-app-server path, the bridge verifies the destination with `thread/loaded/list`, calls `thread/queue/add` directly, keeps Codex's queued-submission id, and correlates lifecycle through bounded turn history on the same server.
+On the shared-app-server path, the bridge verifies the destination with `thread/loaded/list`, calls `thread/queue/add` directly, keeps Codex's queued-submission id and client user-message id, and correlates lifecycle through bounded turn history on the same server.
 
 On the inherited Desktop-current-thread path, the bridge accepts only the inherited thread, invokes `codex queue --thread <id> --message <text>`, keeps the queued-submission id, and opens `codex://threads/<id>`. The deep link is a wake step, not a second message submission. If the wake fails after persistence, Mesurer reports the wake diagnostic and does not requeue.
 
@@ -137,11 +143,13 @@ Mesurer keeps bounded correlation metadata under:
 $CODEX_HOME/mesurer/codex-deliveries.json
 ```
 
-This file stores the Mesurer delivery id, destination thread, queued-submission id, prompt hash, and last known lifecycle state. It is not a second message queue. Codex's queue remains the durable queue.
+This file stores the Mesurer delivery id, destination thread, queued-submission id, Codex client user-message id when available, prompt hash, and last known lifecycle state. It is not a second message queue. Codex's queue remains the durable queue.
 
-The renderer keeps the active delivery id, destination thread, lifecycle state, and exact annotation ids in per-tab `sessionStorage` while a delivery is active or reconcilable.
+The renderer keeps the active delivery id, destination thread, lifecycle state, exact annotation ids, and available Codex correlation ids in per-tab `sessionStorage` while a delivery is active or reconcilable. A tracked **Queue failed** state remains recoverable; retry attempts restoration before Mesurer can submit another message.
 
-If history cannot be read or the exact queued prompt cannot be matched unambiguously, Mesurer leaves the delivery and annotations intact.
+A queued submission disappears from `thread/queue/list` after Codex consumes it. Recovery therefore checks the exact queue receipt first, then bounded turn history. New deliveries correlate by Codex's client user-message id. Older persisted UI state that predates that field may rebuild the exact Mesurer feedback from its still-saved annotation ids and recover only when exactly one history user message has the same text. Mesurer never requeues during restoration.
+
+If history cannot be read or the exact client/message identity cannot be matched uniquely, Mesurer leaves the delivery and annotations intact and fails closed.
 
 ## Completed annotations
 
@@ -159,15 +167,15 @@ Codex turn completion is transport state, not proof that the requested visual re
 
 ## Process lifetime
 
-Mesurer no longer owns a long-running Codex bridge process.
+The two transports have different ownership.
 
-Shared-transport requests open short-lived connections to Codex's app-server control socket and close them after each response. If that socket is unavailable, the bridge may use an existing complete standalone installation to start the shared daemon.
+The Electron/native bridge runs in the application host process. It opens short-lived connections to Codex's shared app-server and holds only renderer-scoped Mesurer leases. Mesurer never stops Codex's shared daemon.
 
-For an inherited Desktop-current-thread request, there is no Mesurer server and no socket attachment. The bridge may execute Codex's bundled command for the one durable queue operation and use the operating system's native `codex://` URL handler to wake that thread. It never starts a daemon from the Desktop-bundled executable.
+Browser pages use the local **Mesurer Codex Bridge** companion on loopback. The helper may outlive one Mesurer page because multiple pages or Codex sessions can reuse it. Codex's SessionStart integration starts or reuses the helper and registers the current session; SessionEnd unregisters that session. If a Desktop owner disappears before SessionEnd can run, the companion also reaps registrations whose ownership anchor disappeared.
 
-Mesurer does not stop Codex's shared app-server daemon when a page closes or when the plugin is disabled.
+The companion shuts itself down only after the last registered Codex owner is gone **and** no queued/working Mesurer delivery remains. Explicit local shutdown is rejected while either condition is still active. This lets a pending receipt finish and remain recoverable even after the originating Codex session begins teardown.
 
-There is no Mesurer bridge process, bridge port, or helper Electron window. The native host keeps only per-renderer activation leases. A Settings disable releases its lease before removing the plugin, and the Electron host adapter also releases leases if the owning renderer navigates, exits, or is destroyed.
+The companion is local-only. It is not a hosted relay and is not part of the OpenAI Mesurer Solid agent plugin.
 
 ## Public service
 
@@ -192,28 +200,33 @@ Runtime diagnostics stay on the native bridge. The public `codex:v1` service doe
 
 ## Security and privacy
 
-The renderer does not receive filesystem, process, or socket access. It can only call the host's narrow `codexBridge(request)` capability.
+Electron renderers do not receive filesystem, process, or socket access. They call only the narrow `window.__MESURER_HOST__.codexBridge(request)` capability. Native leases are bound to the invoking renderer and require application sender validation.
 
-Codex Bridge exposes bounded actions for activation, deactivation, health, loaded-thread listing and selection, queueing, delivery reads, and safe delivery restoration. Stateful requests require the active lease for that native renderer. Native process and socket access stay in the host process.
+Browser pages use a loopback-only HTTP companion because ordinary web code cannot access Codex's local process/socket APIs. The companion validates browser origins and exposes only bounded Codex operations for health, thread discovery/selection, queueing, delivery reads, and restoration. A successful `/health` probe also returns a random identity for that exact companion process. Mesurer binds every subsequent browser request to that identity with `X-Mesurer-Bridge-Instance`; if the helper restarts or another process takes the port between verification and use, the request fails and Mesurer reconnects instead of transferring trust to the replacement process. Localhost/127 origins are trusted by default. A non-loopback origin must be explicitly allowlisted when the bridge starts, for example `mesurer-codex --origin https://app.example.com`. A denied origin may read only the bridge's minimal compatibility diagnostic from `/health`; it receives no thread ids, delivery state, instance identity, or Codex data, and privileged endpoints remain blocked. The companion must never bind a public network interface or become a remote relay.
 
-There is no localhost HTTP listener, so Mesurer does not need CORS configuration for Codex delivery.
+Neither transport connects to Codex Desktop's private app-tools pipe. Desktop ownership signals remain ownership signals only.
 
 ## Browser-only hosts
 
-A normal browser page cannot use the native Codex Bridge by itself. Mesurer lists Codex in Settings but leaves it off when `window.__MESURER_HOST__.codexBridge` is absent. An explicit enable attempt fails atomically and stays off.
+A normal browser page keeps the Codex row in Settings. The user can enable it without an Electron preload.
 
-There is no manual `mesurer-codex` command or standalone browser bridge.
+Once enabled, Mesurer probes the local companion. If a compatible helper and at least one loaded local Codex thread are available, Mesurer discovers the destinations and **Queue to Codex** works normally. If the helper is absent, incompatible, replaced after verification, or the port belongs to another service, the plugin remains enabled but fail-closed with an explicit diagnostic. If the helper is healthy but has no loaded thread, Mesurer reports **No reachable Codex session**. It never sends to an unverified or newly substituted local process, and it automatically retries compatibility, process identity, and session availability while the toggle remains on.
+
+The optional helper can be installed from this repository as **Mesurer Codex Bridge**. It is deliberately separate from **Mesurer Solid**, the OpenAI agent plugin.
+
+For npm-installed workflows the package also exposes:
+
+```bash
+mesurer-codex
+mesurer-codex-connect
+```
+
+These commands are local diagnostics/connection helpers, not hosted services.
 
 ## Requirements
 
-Shared delivery requires Codex's local app-server and queued-thread API. Automatic daemon startup requires a complete standalone Codex installation. The Desktop-current-thread fallback also requires the host process to inherit the thread environment from Codex Desktop; a private Desktop stdio app-server by itself is still not enough to identify a current thread safely.
+Browser delivery requires the local Mesurer Codex Bridge companion to be reachable on loopback. The helper in turn needs a supported local Codex installation/session. Electron delivery can use the in-process native bridge directly and does not require the loopback companion.
 
-The current integration relies on:
-
-- Codex's app-server control socket;
-- `thread/loaded/list`;
-- bounded `thread/list`, `thread/read`, and turn-history reads;
-- `thread/queue/add`;
-- `thread/queue/list` for safe delivery restoration.
+Shared delivery relies on Codex's local app-server and queued-thread APIs. The current integration uses `thread/loaded/list`, bounded thread metadata/history reads, `thread/queue/add`, and `thread/queue/list` for safe restoration. Desktop-current-thread delivery may use Codex's durable queue command plus the native `codex://threads/<id>` wake path when exact ownership is known.
 
 Mesurer sends Context text through this path, not image attachments.

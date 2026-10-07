@@ -15,6 +15,9 @@ if (command !== "install") {
   const source = new URL("../skills/mesurer-ui/", import.meta.url);
   const injector = new URL("../dist/inject-script.js", import.meta.url);
   const mediaBunnyVendor = new URL("../dist/mediabunny-vendor.js", import.meta.url);
+  const codexBridge = new URL("../codex/codex-bridge.mjs", import.meta.url);
+  const codexConnect = new URL("../codex/codex-connect.mjs", import.meta.url);
+  const codexLifecycle = new URL("../codex/codex-lifecycle.mjs", import.meta.url);
   const destination = resolve(process.cwd(), ".agents/skills/mesurer-ui");
   const assets = resolve(destination, "assets");
 
@@ -24,6 +27,9 @@ if (command !== "install") {
   } else if (!existsSync(injector) || !existsSync(mediaBunnyVendor)) {
     console.error("Mesurer injector assets are missing. Reinstall mesurer-solid and retry.");
     process.exitCode = 1;
+  } else if (!existsSync(codexBridge) || !existsSync(codexConnect) || !existsSync(codexLifecycle)) {
+    console.error("Mesurer Codex companion assets are missing. Reinstall mesurer-solid and retry.");
+    process.exitCode = 1;
   } else {
     if (force) rmSync(destination, { recursive: true, force: true });
     mkdirSync(resolve(destination, ".."), { recursive: true });
@@ -31,6 +37,9 @@ if (command !== "install") {
     mkdirSync(assets, { recursive: true });
     cpSync(injector, resolve(assets, "inject-script.js"));
     cpSync(mediaBunnyVendor, resolve(assets, "mediabunny-vendor.js"));
-    console.log(`Installed Mesurer Agent Skill and injector assets at ${destination}`);
+    cpSync(codexBridge, resolve(assets, "codex-bridge.mjs"));
+    cpSync(codexConnect, resolve(assets, "codex-connect.mjs"));
+    cpSync(codexLifecycle, resolve(assets, "codex-lifecycle.mjs"));
+    console.log(`Installed Mesurer Agent Skill and local Codex companion assets at ${destination}`);
   }
 }

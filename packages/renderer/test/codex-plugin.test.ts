@@ -38,7 +38,13 @@ const annotation: MesurerAnnotation = {
 };
 
 const createContextService = () => {
-  const removeAnnotation = vi.fn(async (_annotationId: string) => {});
+  const savedAnnotations = [annotation];
+
+  const removeAnnotation = vi.fn(async (annotationId: string) => {
+    const index = savedAnnotations.findIndex((candidate) => candidate.id === annotationId);
+
+    if (index >= 0) savedAnnotations.splice(index, 1);
+  });
 
   const contextText = vi.fn(async (request?: MesurerContextRequest) => {
     if (request && "annotation" in request) return `annotation evidence ${request.annotation}`;
@@ -53,7 +59,7 @@ const createContextService = () => {
     contextText,
     copyContext: async () => {},
     select: async () => { throw new Error("select() is not needed by this contract"); },
-    annotations: async () => [annotation],
+    annotations: async () => [...savedAnnotations],
     removeAnnotation,
     review: async () => [],
     capturePlan: async () => { throw new Error("capturePlan() is not needed by this contract"); },
@@ -65,6 +71,8 @@ const createContextService = () => {
 };
 
 const DELIVERY_POLL_MS_FOR_TEST = 750;
+
+const ACTIVE_DELIVERY_POLL_MS_FOR_TEST = 2_000;
 
 const bridgeUrlForRequest = (request: HostCodexBridgeRequest) => {
   if (request.action === "health") return { url: "http://127.0.0.1:47365/health" };
@@ -116,6 +124,8 @@ const bridgeUrlForRequest = (request: HostCodexBridgeRequest) => {
           deliveryId: request.deliveryId,
           thread: request.thread,
           queuedSubmissionId: request.queuedSubmissionId,
+          clientUserMessageId: request.clientUserMessageId,
+          message: request.message,
         }),
       },
     };
@@ -204,28 +214,432 @@ type BridgeMockHandler = (
   init?: RequestInit,
 ) => Promise<BridgeMockResponse>;
 
-const bridgeFetchMock = (handler: BridgeMockHandler) => vi.fn(handler);
+const COMPATIBLE_BROWSER_BRIDGE = {
+  name: "mesurer-codex",
+  protocol: 2,
+  capabilities: [
+    "thread-discovery-v1",
+    "durable-queue-v1",
+    "history-recovery-v2",
+    "client-message-correlation-v1",
+    "idle-safe-shutdown-v1",
+    "nonterminal-retention-v1",
+    "instance-binding-v1",
+  ],
+  sourceHash: "test-source",
+  instanceId: "test-bridge-instance",
+  pid: 1,
+  canShutdown: true,
+};
+
+const bridgeFetchMock = (
+  handler: BridgeMockHandler,
+  options: { identity?: boolean } = {},
+) => vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  const response = await handler(input, init);
+
+  if (options.identity === false) return response;
+
+  return {
+    ...response,
+    async text() {
+      const text = await response.text();
+
+      if (!text) return text;
+
+      try {
+        const payload = JSON.parse(text);
+
+        return JSON.stringify({ bridge: COMPATIBLE_BROWSER_BRIDGE, ...payload });
+      } catch {
+        return text;
+      }
+    },
+  };
+});
 
 describe("codex", () => {
-  it("fails activation atomically when the native host capability is missing", async () => {
+  it("loads without a native host and uses the browser Codex companion", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
     delete window.__MESURER_HOST__;
 
+    const fetchMock = bridgeFetchMock(async (input) => {
+      const url = String(input);
+
+      if (url === "http://127.0.0.1:47365/health") {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "browser-thread",
+            threads: ["browser-thread"],
+          }),
+        };
+      }
+
+      if (url.startsWith("http://127.0.0.1:47365/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "browser-thread",
+            threadDetails: [{
+              id: "browser-thread",
+              title: "Browser Codex thread",
+              updatedAt: 1,
+              connected: true,
+            }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected browser companion request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
     await host.load(defineMesurerPlugin({
-      id: "test.context-missing-host",
+      id: "test.context-browser-companion",
       provides: ["context:v1"],
       setup(ctx) {
         ctx.service.provide("context:v1", contextService);
       },
     }));
 
-    await expect(host.load(codex({ ui: false }))).rejects.toThrow(
-      "Codex host connection is unavailable",
-    );
+    await host.load(codex({ ui: false }));
+    expect(host.has("mesurer.codex")).toBe(true);
+
+    const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
+
+    expect(service).toBeDefined();
+    await expect(service?.health()).resolves.toEqual({
+      thread: "browser-thread",
+      threads: ["browser-thread"],
+    });
+    await expect(service?.listThreads()).resolves.toEqual({
+      thread: "browser-thread",
+      threads: [{
+        id: "browser-thread",
+        title: "Browser Codex thread",
+        updatedAt: 1,
+        connected: true,
+      }],
+      hasMore: false,
+    });
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it("shows an explicit update state for an incompatible browser Codex Bridge", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+
+    delete window.__MESURER_HOST__;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("http://127.0.0.1:47365/health");
+
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          bridge: {
+            name: "mesurer-codex",
+            protocol: 1,
+            capabilities: [],
+            sourceHash: "stale-source",
+          },
+          thread: "stale-thread",
+          threads: ["stale-thread"],
+        }),
+      };
+    }, { identity: false });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-incompatible-browser-bridge",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(host.tools().find((tool) => tool.id === "codex.send")?.label)
+      .toBe("Bridge version mismatch");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    host.dispose();
+  });
+
+  it("shows an explicit authorization state when the browser origin is not allowed", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+
+    delete window.__MESURER_HOST__;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("http://127.0.0.1:47365/health");
+
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          bridge: COMPATIBLE_BROWSER_BRIDGE,
+          access: { allowed: false },
+        }),
+      };
+    }, { identity: false });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-browser-origin-denied",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await vi.advanceTimersByTimeAsync(0);
+
+    const tool = host.tools().find((candidate) => candidate.id === "codex.send");
+
+    expect(tool?.label).toBe("Browser origin not allowed");
+    expect(tool?.menu?.items[0]?.label).toBe("Allow this browser origin");
+    expect(tool?.disabled?.()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    host.dispose();
+  });
+
+  it("automatically reconnects when a compatible browser Codex Bridge appears later", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    let available = false;
+
+    delete window.__MESURER_HOST__;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        if (!available) throw new TypeError("fetch failed");
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-self-heal",
+            threads: ["thread-self-heal"],
+          }),
+        };
+      }
+
+      if (url.includes("/threads?")) {
+        if (!available) throw new Error("threads must not be queried before bridge health succeeds");
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-self-heal",
+            threadDetails: [{
+              id: "thread-self-heal",
+              title: "Recovered Codex session",
+              updatedAt: 1,
+              connected: true,
+            }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected self-heal request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-browser-self-heal",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(host.tools().find((tool) => tool.id === "codex.send")?.label)
+      .toBe("Bridge not running");
+
+    available = true;
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(host.tools().find((tool) => tool.id === "codex.send")?.label)
+      .toBe("Queue to Codex");
+    expect(fetchMock.mock.calls.some(([input]) =>
+      String(input).includes("/threads?"))).toBe(true);
+
+    host.dispose();
+  });
+
+  it("reverifies browser bridge compatibility immediately before queue writes", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    const requests: string[] = [];
+
+    delete window.__MESURER_HOST__;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      requests.push(url);
+
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-write-check",
+            threads: ["thread-write-check"],
+          }),
+        };
+      }
+
+      if (url.endsWith("/send")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-write-check",
+            output: "queued",
+            delivery: "queued",
+            deliveryId: "delivery-write-check",
+            status: "queued",
+            queuedSubmissionId: "queue-write-check",
+            clientUserMessageId: "client-write-check",
+            dispatch: "persisted",
+            dispatchError: null,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected preflight request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-browser-write-preflight",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex({ ui: false }));
+
+    const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
+
+    await expect(service?.queue({ thread: "thread-write-check" })).resolves.toMatchObject({
+      thread: "thread-write-check",
+      deliveryId: "delivery-write-check",
+      queuedSubmissionId: "queue-write-check",
+      clientUserMessageId: "client-write-check",
+    });
+
+    expect(requests).toEqual([
+      "http://127.0.0.1:47365/health",
+      "http://127.0.0.1:47365/send",
+    ]);
+
+    host.dispose();
+  });
+
+  it("stops browser Codex probes and removes page-owned resources when disabled", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+
+    delete window.__MESURER_HOST__;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-browser-cleanup",
+            threads: ["thread-browser-cleanup"],
+          }),
+        };
+      }
+
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-browser-cleanup",
+            threadDetails: [{
+              id: "thread-browser-cleanup",
+              title: "Browser cleanup",
+              updatedAt: 1,
+              connected: true,
+            }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected browser cleanup request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-browser-cleanup",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(host.has("mesurer.codex")).toBe(true);
+    expect(host.service.get(MESURER_CODEX_SERVICE_ID)).toBeDefined();
+    expect(host.tools().some((tool) => tool.id === "codex.send")).toBe(true);
+
+    const requestsBeforeDisable = fetchMock.mock.calls.length;
+
+    host.remove("mesurer.codex");
     expect(host.has("mesurer.codex")).toBe(false);
     expect(host.service.get(MESURER_CODEX_SERVICE_ID)).toBeUndefined();
+    expect(host.tools().some((tool) => tool.id === "codex.send")).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(fetchMock).toHaveBeenCalledTimes(requestsBeforeDisable);
+    expect(fetchMock.mock.calls.some(([input]) =>
+      /\/shutdown|\/threads\/unregister/.test(String(input)))).toBe(false);
   });
 
   it("holds one native lease until the managed plugin pre-disable barrier releases it", async () => {
@@ -250,11 +664,13 @@ describe("codex", () => {
 
     await host.hook.emit(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, "mesurer.codex");
 
-    expect(bridge.mock.calls.some(([request]) =>
-      request.action === "deactivate" && request.leaseId === "lease-test")).toBe(true);
+    expect(bridge.mock.calls.filter(([request]) =>
+      request.action === "deactivate" && request.leaseId === "lease-test")).toHaveLength(1);
 
     host.remove("mesurer.codex");
     expect(host.has("mesurer.codex")).toBe(false);
+    expect(bridge.mock.calls.filter(([request]) =>
+      request.action === "deactivate" && request.leaseId === "lease-test")).toHaveLength(1);
   });
 
   it("sends saved Context evidence through the native Codex Bridge", async () => {
@@ -264,7 +680,7 @@ describe("codex", () => {
     const fetchMock = bridgeFetchMock(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued", deliveryId: "delivery-1", status: "queued", queuedSubmissionId: "queue-1", dispatch: "persisted", dispatchError: null }),
+      text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued", deliveryId: "delivery-1", status: "queued", queuedSubmissionId: "queue-1", clientUserMessageId: "client-1", dispatch: "persisted", dispatchError: null }),
     }));
 
     vi.stubGlobal("fetch", fetchMock);
@@ -287,6 +703,7 @@ describe("codex", () => {
       deliveryId: "delivery-1",
       status: "queued",
       queuedSubmissionId: "queue-1",
+      clientUserMessageId: "client-1",
       dispatch: "persisted",
       dispatchError: null,
       annotationIds: ["note-1"],
@@ -557,21 +974,23 @@ describe("codex", () => {
     const initial = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(initial?.label).toBe("Queue to Codex");
     expect(initial?.disabled?.()).toBe(false);
-    await initial?.menu?.items[0]?.run();
+    await initial?.menu?.items.find((item) => item.id === "codex.thread.thread-a")?.run();
 
     await vi.waitFor(() => {
       const tool = host.tools().find((candidate) => candidate.id === "codex.send");
       expect(tool?.label).toBe("Queue to Codex");
       expect(tool?.disabled?.()).toBe(false);
-      expect(tool?.menu?.items).toHaveLength(6);
-      expect(tool?.menu?.items[0]?.label).toBe("Current · Original task");
-      expect(tool?.menu?.items[5]?.label).toBe("Show 5 more…");
+      expect(tool?.menu?.items).toHaveLength(7);
+      expect(tool?.menu?.items[0]?.label).toBe("Connected · Codex shared server");
+      expect(tool?.menu?.items[1]?.label).toBe("Current · Original task");
+      expect(tool?.menu?.items[6]?.label).toBe("Show 5 more…");
     });
 
     const tool = host.tools().find((candidate) => candidate.id === "codex.send");
     await tool?.menu?.items.find((item) => item.id === "codex.thread.show-more")?.run();
     const expanded = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(expanded?.menu?.items.map((item) => item.label)).toEqual([
+      "Connected · Codex shared server",
       "Current · Original task",
       "Second task",
       "Third task",
@@ -585,7 +1004,6 @@ describe("codex", () => {
     expect(sendBodies[0]?.thread).toBe("thread-a");
     host.dispose();
   });
-
 
   it("shows queued work as busy, suppresses duplicate sends, and removes completed annotations", async () => {
     vi.useFakeTimers();
@@ -676,15 +1094,17 @@ describe("codex", () => {
     let tool = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(tool?.label).toBe("Queued for Codex");
     expect(tool?.disabled?.()).toBe(true);
-    expect(tool?.menu?.items[0]?.label).toContain("Queued");
-    expect(tool?.menu?.items[0]?.disabled?.()).toBe(true);
+    const queuedThread = tool?.menu?.items.find((item) => item.id === "codex.thread.thread-a");
+    expect(tool?.menu?.items[0]?.label).toBe("Connected · Codex shared server");
+    expect(queuedThread?.label).toContain("Queued");
+    expect(queuedThread?.disabled?.()).toBe(true);
 
     await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
     tool = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(tool?.label).toBe("Codex working…");
     expect(removeAnnotation).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
     tool = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(tool?.label).toBe("Codex finished");
     expect(tool?.disabled?.()).toBe(true);
@@ -792,11 +1212,11 @@ describe("codex", () => {
     await host.command.execute("codex.send");
     expect(sendCount).toBe(1);
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
     expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Codex working…");
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
     let tool = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(tool?.label).toBe("Codex interrupted");
     expect(tool?.disabled?.()).toBe(false);
@@ -885,7 +1305,7 @@ describe("codex", () => {
 
     const chooser = firstHost.tools()
       .find((candidate) => candidate.id === "codex.send")
-      ?.menu?.items[0];
+      ?.menu?.items.find((item) => item.id === "codex.thread.thread-a");
 
     await chooser?.run();
     firstHost.dispose();
@@ -1078,10 +1498,136 @@ describe("codex", () => {
       .toBe("Queued for Codex");
     expect(removeAnnotation).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
     expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Codex working…");
     expect(removeAnnotation).not.toHaveBeenCalled();
+
+    host.dispose();
+    vi.useRealTimers();
+  });
+
+  it("keeps polling desktop-opened queued work until a delayed completion arrives", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService, removeAnnotation } = createContextService();
+    let sendCount = 0;
+    let deliveryReads = 0;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-delayed-desktop",
+            threads: ["thread-delayed-desktop"],
+          }),
+        };
+      }
+
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-delayed-desktop",
+            threadDetails: [{
+              id: "thread-delayed-desktop",
+              title: "Delayed desktop turn",
+              updatedAt: 10,
+              connected: true,
+            }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      if (url.endsWith("/send")) {
+        sendCount += 1;
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-delayed-desktop",
+            output: "Queued message queue-delayed for thread thread-delayed-desktop.",
+            delivery: "queued",
+            deliveryId: "delivery-delayed",
+            status: "queued",
+            queuedSubmissionId: "queue-delayed",
+            clientUserMessageId: "client-delayed",
+            dispatch: "desktop-opened",
+            dispatchError: null,
+          }),
+        };
+      }
+
+      if (url.endsWith("/deliveries/delivery-delayed")) {
+        deliveryReads += 1;
+        const completed = deliveryReads >= 4;
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            deliveryId: "delivery-delayed",
+            thread: "thread-delayed-desktop",
+            status: completed ? "completed" : "queued",
+            turnId: completed ? "turn-delayed" : null,
+            queuedSubmissionId: "queue-delayed",
+            clientUserMessageId: "client-delayed",
+            dispatch: "desktop-opened",
+            dispatchError: null,
+            createdAt: 1,
+            updatedAt: deliveryReads,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected delayed desktop request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-delayed-desktop-lifecycle",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await host.command.execute("codex.send");
+
+    expect(sendCount).toBe(1);
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Queued for Codex");
+
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    expect(deliveryReads).toBe(1);
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Queued for Codex");
+
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST * 2);
+    expect(deliveryReads).toBe(3);
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Queued for Codex");
+    expect(removeAnnotation).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
+    expect(deliveryReads).toBe(4);
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Codex finished");
+    expect(removeAnnotation).toHaveBeenCalledTimes(1);
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(sendCount).toBe(1);
 
     host.dispose();
     vi.useRealTimers();
@@ -1099,6 +1645,8 @@ describe("codex", () => {
       deliveryId: string;
       thread: string;
       queuedSubmissionId?: string;
+      clientUserMessageId?: string;
+      message?: string;
     }> = [];
 
     const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -1238,19 +1786,194 @@ describe("codex", () => {
       deliveryId: "delivery-restart-1",
       thread: "thread-a",
       queuedSubmissionId: "queue-restart-1",
+      message: [
+        "Implement the current human feedback from Mesurer in this project. Treat the rendered page as the source of truth, preserve unrelated Mesurer review state, and verify the affected UI in the live page with Mesurer before claiming completion.",
+        "",
+        "Mesurer evidence",
+        "annotation evidence note-1",
+      ].join("\n"),
     }]);
     expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Queued for Codex");
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
     expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Codex working…");
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
     expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Codex finished");
     expect(removeAnnotation).toHaveBeenCalledTimes(1);
     expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(sendCount).toBe(1);
+
+    secondHost.dispose();
+    vi.useRealTimers();
+  });
+
+  it("keeps recovered completion persisted until exact annotation cleanup succeeds", async () => {
+    vi.useFakeTimers();
+    const firstHost = createMesurerPluginHost();
+    const { service: firstContext } = createContextService();
+    let sendCount = 0;
+    let phase: "first" | "second" = "first";
+    const restoreBodies: unknown[] = [];
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ ok: true, thread: "thread-a", threads: ["thread-a"] }),
+        };
+      }
+
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            threadDetails: [{ id: "thread-a", title: "Current task", updatedAt: 10, connected: true }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      if (url.endsWith("/send")) {
+        sendCount += 1;
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            output: "queued",
+            delivery: "queued",
+            deliveryId: "delivery-history-ui",
+            status: "queued",
+            queuedSubmissionId: "queue-history-ui",
+            clientUserMessageId: "client-history-ui",
+            dispatch: "desktop-opened",
+            dispatchError: null,
+          }),
+        };
+      }
+
+      if (url.endsWith("/deliveries/delivery-history-ui")) {
+        if (phase === "first") {
+          return {
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({
+              ok: true,
+              deliveryId: "delivery-history-ui",
+              thread: "thread-a",
+              status: "queued",
+              turnId: null,
+              queuedSubmissionId: "queue-history-ui",
+              clientUserMessageId: "client-history-ui",
+              dispatch: "desktop-opened",
+              dispatchError: null,
+              createdAt: 1,
+              updatedAt: 1,
+            }),
+          };
+        }
+
+        return {
+          ok: false,
+          status: 404,
+          text: async () => JSON.stringify({
+            ok: false,
+            error: "Codex delivery is not available: delivery-history-ui",
+          }),
+        };
+      }
+
+      if (url.endsWith("/deliveries/restore")) {
+        restoreBodies.push(JSON.parse(String(init?.body)));
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            restored: true,
+            deliveryId: "delivery-history-ui",
+            thread: "thread-a",
+            status: "completed",
+            turnId: "turn-history-ui",
+            queuedSubmissionId: "queue-history-ui",
+            clientUserMessageId: "client-history-ui",
+            dispatch: "desktop-opened",
+            dispatchError: null,
+            createdAt: 1,
+            updatedAt: 2,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await firstHost.load(defineMesurerPlugin({
+      id: "test.context-history-ui-first",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", firstContext);
+      },
+    }));
+    await firstHost.load(codex());
+    await firstHost.command.execute("codex.send");
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    expect(sendCount).toBe(1);
+    firstHost.dispose();
+
+    phase = "second";
+    const secondHost = createMesurerPluginHost();
+    const { service: secondContext, removeAnnotation } = createContextService();
+    await secondHost.load(defineMesurerPlugin({
+      id: "test.context-history-ui-second",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", secondContext);
+      },
+    }));
+    await secondHost.load(codex());
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(sendCount).toBe(1);
+    expect(restoreBodies).toHaveLength(1);
+    expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Codex finished");
+    expect(removeAnnotation).toHaveBeenCalledTimes(1);
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    await expect(secondContext.annotations()).resolves.toEqual([]);
+
+    const persisted = JSON.parse(
+      sessionStorage.getItem("mesurer-codex-ui:v2:http://localhost:3000/") ?? "{}",
+    );
+
+    expect(persisted.delivery?.status).toBe("completed");
+    expect(persisted.delivery?.annotationIds).toEqual(["note-1"]);
+
+    await vi.advanceTimersByTimeAsync(1_800);
+    expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Queue to Codex");
+
+    const cleared = JSON.parse(
+      sessionStorage.getItem("mesurer-codex-ui:v2:http://localhost:3000/") ?? "{}",
+    );
+
+    expect(cleared.delivery).toBeNull();
     expect(sendCount).toBe(1);
 
     secondHost.dispose();
