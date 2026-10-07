@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, createSignal, onCleanup, onSettled, untrack } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, onSettled, untrack } from "solid-js";
 import { Portal } from "@solidjs/web";
 import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesurer-solid-core";
 import { ColorPicker } from "./components/ColorPicker";
@@ -10,7 +10,6 @@ import { GUIDE_DRAG_HOLD_MS } from "./core/constants";
 import { getDistanceOverlay, updateDistanceForResize } from "./core/distances";
 import { getInspectMeasurement, updateMeasurementForResize } from "./core/dom";
 import { isEditableKeyboardEvent, trySetPointerCapture } from "./core/events";
-import { getMotionAnimations, motionDuration, readMotionDetails } from "./core/motion";
 import { getRectFromPoints, getViewportSize, normalizeRect } from "./core/geometry";
 import { getGuideRect, getSnapGuidePosition } from "./core/guides";
 import {
@@ -42,7 +41,6 @@ import {
   type SelectionEntriesCache,
 } from "./core/selection";
 import { getSelectedMeasurementHit } from "./core/selection-helpers";
-import { observeMotion, readObservedMotion, type ObservedMotionTarget } from "./core/observed-motion";
 import type { Guide, InspectMeasurement, Measurement, Point, Rect } from "./core/types";
 import { createId } from "./core/utils";
 import {
@@ -283,9 +281,6 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   const hoverGuide = createMemo(() => getHoveredGuide(model.state.hoverPointer, model.state.guides));
   const primarySelection = createMemo(() => groupedSelection() ?? model.state.selectedMeasurement ?? model.state.selectedMeasurements.at(-1) ?? null);
 
-  const [motionObservedTargets, setMotionObservedTargets] = createSignal<ObservedMotionTarget[]>([]);
-  const [motionNativeReady, setMotionNativeReady] = createSignal(false);
-
   const editModeActive = () => (input.pluginTools ?? []).some(
     (tool) => tool.modeSwitch === true && tool.toolbarMode === "edit" && (tool.active?.() ?? false),
   );
@@ -296,72 +291,6 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     const element = primarySelection()?.elementRef ?? null;
 
     return element?.isConnected ? element : null;
-  });
-
-  const motionObservedProperties = createMemo(() =>
-    [...new Set(motionObservedTargets().flatMap((target) => target.properties))]);
-
-  const motionReady = createMemo(() =>
-    motionNativeReady() || motionObservedProperties().length > 0);
-
-  createEffect(() => {
-    const element = motionElement();
-
-    setMotionObservedTargets([]);
-    setMotionNativeReady(false);
-
-    if (!element) return;
-
-    const view = element.ownerDocument.defaultView ?? ownerWindow;
-    let disposed = false;
-
-    const refreshNative = () => {
-      if (disposed || !element.isConnected) {
-        setMotionNativeReady(false);
-
-        return;
-      }
-
-      try {
-        const motions = readMotionDetails(element, view);
-        const animations = getMotionAnimations(element);
-
-        const ready = motions.some((motion) => motionDuration(motion) > 0)
-          || animations.some((animation) => {
-            try {
-              const timing = animation.effect?.getTiming();
-
-              return Boolean(
-                timing
-                && (timing.duration === "auto" || Number(timing.duration) > 0),
-              );
-            } catch {
-              return false;
-            }
-          });
-
-        setMotionNativeReady(ready);
-      } catch {
-        setMotionNativeReady(false);
-      }
-    };
-
-    setMotionObservedTargets(readObservedMotion(element));
-    refreshNative();
-
-    const stopObserved = observeMotion(
-      element,
-      view,
-      (targets) => setMotionObservedTargets(targets),
-    );
-
-    const interval = view.setInterval(refreshNative, 250);
-
-    onCleanup(() => {
-      disposed = true;
-      stopObserved();
-      view.clearInterval(interval);
-    });
   });
 
   const optionPairOverlay = createMemo(() => getOptionPairOverlay({
@@ -1193,12 +1122,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           onResetSettings={() => { model.resetSettings(); onResetSelectionSpacingStyle(); activePersistence?.clearSettings(); }}
           initialPosition={resolveInitialToolbarPosition(ownerWindow, readToolbarPosition(ownerWindow, storageKey))}
           onPositionChange={(position) => writeToolbarPosition(ownerWindow, storageKey, position)}
-          motion={{
-            element: motionElement,
-            ready: motionReady,
-            observedProperties: motionObservedProperties,
-            observedTargets: motionObservedTargets,
-          }}
+          motion={{ element: motionElement }}
         />
       </div>
     </Portal>
