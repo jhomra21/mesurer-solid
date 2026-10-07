@@ -788,3 +788,7 @@ body.mesurer-solid-xray .mesurer-ti-close {
     transition: none !important;
   }
 }
+
+[data-mesurer-root="true"][data-mesurer-recording-active] [data-mesurer-motion-surface="true"] {
+  display: none !important;
+}
