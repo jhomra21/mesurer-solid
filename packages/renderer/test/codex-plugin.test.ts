@@ -223,6 +223,7 @@ const COMPATIBLE_BROWSER_BRIDGE = {
     "history-recovery-v2",
     "client-message-correlation-v1",
     "idle-safe-shutdown-v1",
+    "nonterminal-retention-v1",
   ],
   sourceHash: "test-source",
   pid: 1,
