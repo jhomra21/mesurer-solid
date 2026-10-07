@@ -376,6 +376,7 @@ export const motionPlaybackProgress = (
   const timing = animation.effect?.getTiming();
   const elapsed = Math.max(0, time - (timing?.delay ?? 0));
   const looping = timing?.iterations === Infinity;
+
   const position = looping && (animation.playState === "running" || elapsed > duration)
     ? elapsed % duration
     : elapsed;
@@ -431,6 +432,7 @@ export const scrubAnimations = (
     controlledAnimations.add(animation);
 
     const timing = animation.effect?.getTiming();
+
     const elapsed = timing?.iterations === Infinity
       ? currentTime
       : Math.min(currentTime, animationDuration(animation, duration));
