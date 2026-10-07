@@ -44,6 +44,7 @@ const BROWSER_COMPANION_REQUIRED_CAPABILITIES = [
   "client-message-correlation-v1",
   "idle-safe-shutdown-v1",
   "nonterminal-retention-v1",
+  "instance-binding-v1",
 ] as const;
 
 const BROWSER_COMPANION_PROBE_TIMEOUT_MS = 1_500;
@@ -208,7 +209,28 @@ type BrowserBridgeIdentity = {
   protocol?: number;
   capabilities?: string[];
   sourceHash?: string;
+  instanceId?: string;
 };
+
+type BrowserBridgeIssue =
+  | "not-running"
+  | "timed-out"
+  | "port-conflict"
+  | "version-mismatch"
+  | "capability-mismatch"
+  | "origin-denied"
+  | "instance-changed"
+  | "unavailable";
+
+class BrowserBridgeConnectionError extends Error {
+  constructor(
+    readonly issue: BrowserBridgeIssue,
+    message: string,
+  ) {
+    super(message);
+    this.name = "BrowserBridgeConnectionError";
+  }
+}
 
 type BrowserBridgeState = {
   registeredThreads?: number;
@@ -369,6 +391,7 @@ type CodexBridgeHostRequest = {
   deliveryId?: string;
   queuedSubmissionId?: string;
   clientUserMessageId?: string;
+  bridgeInstanceId?: string;
 };
 
 const browserCompanionUrl = (path: string) => {
@@ -383,19 +406,22 @@ const assertBrowserBridgeCompatibility = (payload: BridgeResponse) => {
   const bridge = payload.bridge;
 
   if (!bridge) {
-    throw new Error(
+    throw new BrowserBridgeConnectionError(
+      "port-conflict",
       "Another local service or an outdated Mesurer Codex Bridge is using port 47365. Mesurer will not send data to an unverified service.",
     );
   }
 
   if (bridge.name !== BROWSER_COMPANION_NAME) {
-    throw new Error(
+    throw new BrowserBridgeConnectionError(
+      "port-conflict",
       `Another local service is using port 47365 (${bridge.name ?? "unknown"}). Mesurer will not send Codex data to it.`,
     );
   }
 
   if (bridge.protocol !== BROWSER_COMPANION_PROTOCOL_VERSION) {
-    throw new Error(
+    throw new BrowserBridgeConnectionError(
+      "version-mismatch",
       `Mesurer Codex Bridge is out of date (protocol ${bridge.protocol ?? "unknown"}; expected ${BROWSER_COMPANION_PROTOCOL_VERSION}). Restart the matching Mesurer Codex Bridge helper.`,
     );
   }
@@ -403,7 +429,8 @@ const assertBrowserBridgeCompatibility = (payload: BridgeResponse) => {
   if (payload.access?.allowed === false) {
     const origin = globalThis.location?.origin ?? "this page";
 
-    throw new Error(
+    throw new BrowserBridgeConnectionError(
+      "origin-denied",
       `Mesurer Codex Bridge does not allow this browser origin (${origin}). Allow this origin when starting the bridge.`,
     );
   }
@@ -414,10 +441,45 @@ const assertBrowserBridgeCompatibility = (payload: BridgeResponse) => {
     .filter((capability) => !capabilities.has(capability));
 
   if (missing.length > 0) {
-    throw new Error(
+    throw new BrowserBridgeConnectionError(
+      "capability-mismatch",
       `Mesurer Codex Bridge is missing required capabilities: ${missing.join(", ")}. Restart or update the matching helper.`,
     );
   }
+
+  if (!bridge.instanceId?.trim()) {
+    throw new BrowserBridgeConnectionError(
+      "capability-mismatch",
+      "Mesurer Codex Bridge did not provide an instance identity. Restart or update the matching helper.",
+    );
+  }
+};
+
+const bridgeIssueFromMessage = (message: string): BrowserBridgeIssue | null => {
+  if (message.includes("does not allow this browser origin")) return "origin-denied";
+
+  if (message.includes("out of date")) return "version-mismatch";
+
+  if (message.includes("missing required capabilities")
+    || message.includes("did not provide an instance identity")) return "capability-mismatch";
+
+  if (message.includes("Another local service")) return "port-conflict";
+
+  if (message.includes("instance changed")) return "instance-changed";
+
+  if (message.includes("timed out")) return "timed-out";
+
+  if (message.includes("companion is unavailable")) return "not-running";
+
+  return null;
+};
+
+const browserBridgeIssue = (cause: unknown): BrowserBridgeIssue | null => {
+  if (cause instanceof BrowserBridgeConnectionError) return cause.issue;
+
+  if (cause instanceof Error) return bridgeIssueFromMessage(cause.message);
+
+  return null;
 };
 
 const browserBridgeRequest = async (
@@ -469,6 +531,22 @@ const browserBridgeRequest = async (
     throw new Error(`Codex browser companion does not support ${request.action}.`);
   }
 
+  if (request.action !== "health") {
+    const instanceId = request.bridgeInstanceId?.trim();
+
+    if (!instanceId) {
+      throw new BrowserBridgeConnectionError(
+        "instance-changed",
+        "Mesurer Codex Bridge instance changed before this request could be verified.",
+      );
+    }
+
+    const headers = new Headers(init?.headers);
+
+    headers.set("X-Mesurer-Bridge-Instance", instanceId);
+    init = { ...init, headers };
+  }
+
   const controller = new AbortController();
 
   const timeoutMs = request.action === "health" || request.action === "threads"
@@ -494,17 +572,28 @@ const browserBridgeRequest = async (
     if (request.action === "health") assertBrowserBridgeCompatibility(payload);
 
     if (!response.ok || payload.ok === false) {
-      throw new Error(payload.error ?? `Mesurer Codex companion returned HTTP ${response.status}.`);
+      const message = payload.error ?? `Mesurer Codex companion returned HTTP ${response.status}.`;
+      const issue = bridgeIssueFromMessage(message);
+
+      if (issue) throw new BrowserBridgeConnectionError(issue, message);
+
+      throw new Error(message);
     }
 
     return payload;
   } catch (cause) {
     if (cause instanceof Error && cause.name === "AbortError") {
-      throw new Error("Mesurer Codex companion timed out.");
+      throw new BrowserBridgeConnectionError(
+        "timed-out",
+        "Mesurer Codex companion timed out.",
+      );
     }
 
     if (cause instanceof TypeError) {
-      throw new Error(`Mesurer Codex companion is unavailable at ${DEFAULT_BROWSER_COMPANION}.`);
+      throw new BrowserBridgeConnectionError(
+        "not-running",
+        `Mesurer Codex companion is unavailable at ${DEFAULT_BROWSER_COMPANION}.`,
+      );
     }
 
     throw cause;
@@ -666,15 +755,14 @@ const truncateLabel = (value: string, max = 42) => value.length > max
   : value;
 
 const bridgeUnavailable = (cause: unknown) =>
-  cause instanceof Error
-  && (
-    cause.message === "Codex Bridge is unavailable in this host."
-    || cause.message.includes("Codex Bridge lease")
-    || cause.message.includes("Mesurer Codex companion is unavailable")
-    || cause.message.includes("Mesurer Codex companion timed out")
-    || cause.message.includes("Mesurer Codex Bridge")
-    || cause.message.includes("Another local service")
-    || cause.message.includes("browser origin")
+  browserBridgeIssue(cause) !== null
+  || (
+    cause instanceof Error
+    && (
+      cause.message === "Codex Bridge is unavailable in this host."
+      || cause.message.includes("Codex Bridge lease")
+      || cause.message.includes("Mesurer Codex Bridge")
+    )
   );
 
 export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
@@ -734,6 +822,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       let disposed = false;
       let leaseId: string | null = null;
       let browserBridgeVerifiedAt = 0;
+      let browserBridgeInstanceId: string | null = null;
+      let browserBridgeIssueState: BrowserBridgeIssue | null = null;
       const nativeBridgeAvailable = window.__MESURER_HOST__?.codexBridge !== undefined;
 
       const requestBridge = async (
@@ -741,27 +831,39 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       ): Promise<BridgeResponse> => {
         if (!nativeBridgeAvailable) {
           try {
-            const writeRequiresFreshVerification = request.action === "queue"
+            const requiresFreshVerification = request.action === "queue"
               || request.action === "target"
+              || request.action === "delivery"
               || request.action === "restore";
 
-            if (request.action !== "health"
-              && (writeRequiresFreshVerification
-                || Date.now() - browserBridgeVerifiedAt >= BROWSER_DISCONNECTED_POLL_MS)) {
-              await browserBridgeRequest({
+            if (request.action === "health") {
+              const response = await browserBridgeRequest(request);
+
+              browserBridgeInstanceId = response.bridge?.instanceId?.trim() || null;
+              browserBridgeVerifiedAt = Date.now();
+
+              return response;
+            }
+
+            if (!browserBridgeInstanceId
+              || requiresFreshVerification
+              || Date.now() - browserBridgeVerifiedAt >= BROWSER_DISCONNECTED_POLL_MS) {
+              const health = await browserBridgeRequest({
                 action: "health",
                 thread: selectedThread ?? originThread ?? undefined,
               });
+
+              browserBridgeInstanceId = health.bridge?.instanceId?.trim() || null;
               browserBridgeVerifiedAt = Date.now();
             }
 
-            const response = await browserBridgeRequest(request);
-
-            if (request.action === "health") browserBridgeVerifiedAt = Date.now();
-
-            return response;
+            return await browserBridgeRequest({
+              ...request,
+              bridgeInstanceId: browserBridgeInstanceId ?? undefined,
+            });
           } catch (cause) {
             browserBridgeVerifiedAt = 0;
+            browserBridgeInstanceId = null;
             throw cause;
           }
         }
@@ -1038,8 +1140,44 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       let refreshRuntime = (_allowUnknown = false): Promise<void> => Promise.resolve();
 
+      const browserDiagnostic = (compact = false) => {
+        if (browserBridgeIssueState === "origin-denied") {
+          return compact ? "Browser origin not allowed" : "Allow this browser origin";
+        }
+
+        if (browserBridgeIssueState === "version-mismatch") {
+          return compact ? "Bridge version mismatch" : "Update Mesurer Codex Bridge";
+        }
+
+        if (browserBridgeIssueState === "capability-mismatch") {
+          return compact ? "Bridge capability mismatch" : "Update Mesurer Codex Bridge";
+        }
+
+        if (browserBridgeIssueState === "port-conflict") {
+          return compact ? "Port 47365 conflict" : "Port 47365 is occupied";
+        }
+
+        if (browserBridgeIssueState === "timed-out") {
+          return compact ? "Bridge did not respond" : "Mesurer Codex Bridge did not respond";
+        }
+
+        if (browserBridgeIssueState === "instance-changed") {
+          return compact ? "Codex bridge changed" : "Codex bridge changed; reconnecting";
+        }
+
+        if (browserBridgeIssueState === "not-running") {
+          return compact ? "Bridge not running" : "Mesurer Codex Bridge is not running";
+        }
+
+        return compact ? "Codex unavailable" : "Mesurer Codex Bridge is unavailable";
+      };
+
       const connectionLabel = () => {
-        if (!nativeBridgeAvailable) return "Connected · Local Codex Bridge";
+        if (!nativeBridgeAvailable) {
+          return loadedThreadIds.length === 0
+            ? "No reachable local Codex session"
+            : "Connected · Local Codex Bridge";
+        }
 
         if (codexRuntime?.source === "desktop") return "Connected · Codex Desktop";
 
@@ -1059,20 +1197,9 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           const items: ToolMenuItemContribution[] = [];
 
           if (bridgeAvailability === "unavailable" && browserCompanion) {
-            const diagnostic = lastBridgeError?.includes("does not allow this browser origin")
-              ? "Allow this browser origin"
-              : lastBridgeError?.includes("out of date")
-                || lastBridgeError?.includes("missing required capabilities")
-                ? "Update Mesurer Codex Bridge"
-                : lastBridgeError?.includes("Another local service")
-                  ? "Port 47365 is occupied"
-                  : lastBridgeError?.includes("timed out")
-                    ? "Mesurer Codex Bridge did not respond"
-                    : "Mesurer Codex Bridge is not running";
-
             items.push({
               id: "codex.connection.status",
-              label: diagnostic,
+              label: browserDiagnostic(),
               disabled: () => true,
               run: () => undefined,
             });
@@ -1103,6 +1230,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           disabled: () => true,
           run: () => undefined,
         }];
+
+        if (!nativeBridgeAvailable && loadedThreadIds.length === 0) {
+          items.push({
+            id: "codex.thread.refresh",
+            label: "Refresh Codex sessions",
+            run: () => refreshRuntime(true),
+          });
+        }
 
         items.push(...visible.map((thread) => {
           const prefix = thread.id === originThread
@@ -1170,14 +1305,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         const browserCompanion = !nativeBridgeAvailable;
 
-        const browserUnavailableLabel = lastBridgeError?.includes("does not allow this browser origin")
-          ? "Authorize Codex origin"
-          : lastBridgeError?.includes("out of date")
-            || lastBridgeError?.includes("missing required capabilities")
-            ? "Update Codex Bridge"
-            : lastBridgeError?.includes("Another local service")
-              ? "Codex bridge conflict"
-              : "Codex bridge not running";
+        const browserUnavailableLabel = browserDiagnostic(true);
 
         const label = deliveryToolLabel()
           ?? (bridgeAvailability === "unavailable"
@@ -1186,9 +1314,11 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               : desktopPrivate
                 ? "Codex Desktop not connected"
                 : "Codex unavailable"
-            : routeNeedsSelection || (bridgeAvailability === "available" && !target)
-              ? "Choose Codex thread"
-              : "Queue to Codex");
+            : bridgeAvailability === "available" && !nativeBridgeAvailable && loadedThreadIds.length === 0
+              ? "No reachable Codex session"
+              : routeNeedsSelection || (bridgeAvailability === "available" && !target)
+                ? "Choose Codex thread"
+                : "Queue to Codex");
 
         const signature = JSON.stringify({
           bridgeAvailability,
@@ -1249,6 +1379,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             const health = await ensureBridgeAvailable();
             bridgeAvailability = "available";
             lastBridgeError = null;
+            browserBridgeIssueState = null;
             everConnected = true;
             lastBridgeThread = health.thread;
             await refreshRecent(selectedThread ?? originThread ?? health.thread);
@@ -1267,6 +1398,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           } catch (cause) {
             bridgeAvailability = "unavailable";
             lastBridgeError = cause instanceof Error ? cause.message : String(cause);
+            browserBridgeIssueState = nativeBridgeAvailable ? null : browserBridgeIssue(cause) ?? "unavailable";
             codexRuntime = await fetchRuntime().catch(() => codexRuntime);
             throw cause;
           } finally {
@@ -1501,6 +1633,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             if (withUi && bridgeUnavailable(cause)) {
               bridgeAvailability = "unavailable";
               lastBridgeError = cause instanceof Error ? cause.message : String(cause);
+              browserBridgeIssueState = nativeBridgeAvailable ? null : browserBridgeIssue(cause) ?? "unavailable";
               syncTool();
             }
 
