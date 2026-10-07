@@ -136,6 +136,7 @@ export function createXrayScope(options: {
       const currentRealm = currentDocument.defaultView as (Window & typeof globalThis) | null;
 
       const Observer = currentRealm?.MutationObserver;
+
       const observer = Observer && currentDocument.body
         ? new Observer(() => syncDocumentTree())
         : null;
@@ -152,7 +153,7 @@ export function createXrayScope(options: {
       });
     }
 
-    for (const currentDocument of [...documentWatchers.keys()]) {
+    for (const currentDocument of documentWatchers.keys()) {
       if (!documents.has(currentDocument)) releaseDocumentWatcher(currentDocument);
     }
   };
@@ -187,7 +188,7 @@ export function createXrayScope(options: {
     dispose() {
       if (visible) setVisible(false);
 
-      for (const currentDocument of [...documentWatchers.keys()]) {
+      for (const currentDocument of documentWatchers.keys()) {
         releaseDocumentWatcher(currentDocument);
       }
 
