@@ -37,8 +37,9 @@ try {
     if (!(frame instanceof HTMLIFrameElement)) throw new Error("Missing same-origin iframe fixture");
 
     const target = frame.contentDocument?.querySelector("[data-testid='frame-target']");
+    const FrameElement = frame.contentWindow?.Element;
 
-    if (!(target instanceof frame.contentWindow!.Element)) throw new Error("Missing iframe target");
+    if (!FrameElement || !(target instanceof FrameElement)) throw new Error("Missing iframe target");
 
     const frameRect = frame.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();
