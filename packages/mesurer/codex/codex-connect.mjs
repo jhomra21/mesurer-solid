@@ -19,6 +19,7 @@ const REQUIRED_BRIDGE_CAPABILITIES = [
   "client-message-correlation-v1",
   "idle-safe-shutdown-v1",
   "nonterminal-retention-v1",
+  "instance-binding-v1",
 ];
 
 const IDLE_SAFE_SHUTDOWN_CAPABILITY = "idle-safe-shutdown-v1";
