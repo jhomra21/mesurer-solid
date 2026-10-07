@@ -723,7 +723,7 @@ export function createMesurerWorkspaceRuntime(options: {
         return;
       }
 
-      const rect = element.getBoundingClientRect();
+      const rect = getProjectedRectFromDom(element);
 
       model.setHoverTarget(
         element,
