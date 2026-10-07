@@ -21,7 +21,7 @@ The historical `605d202a4cd0404bb7a4808a11b574174bb14d1a` suite still protects t
 
 When Mesurer Solid adopts or materially updates an upstream UI component, add a focused browser comparison against the current audited upstream commit. The comparison should isolate that component from intentional product differences around it and check rendered pixels plus its control, layout, style, and icon contract.
 
-Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and grid states compare directly with the current audited upstream `26110edbbd8cd9c22c32a82b1b91073912fbdfc2` (`v0.2.3`), including the shared floating-menu hairline/radius tokens adopted during stable readiness. Mesurer Solid keeps its one-toolbar plugin architecture outside that component comparison.
+Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and grid states remain compared with their last relevant upstream source, `26110edbbd8cd9c22c32a82b1b91073912fbdfc2` (`v0.2.3`), including the shared floating-menu hairline/radius tokens adopted during stable readiness. Mesurer Solid keeps its one-toolbar plugin architecture outside that component comparison.
 
 Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
 
