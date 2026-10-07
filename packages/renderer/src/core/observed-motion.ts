@@ -205,10 +205,12 @@ export function observeMotion(
 
         try {
           const style = view.getComputedStyle(element);
+
           const values = OBSERVED_MOTION_PROPERTIES.map((property) =>
             style.getPropertyValue(property));
 
           const inline = inlineStyleFor(element);
+
           const authorVariables = dependencies.forElement(
             element,
             [
@@ -225,6 +227,7 @@ export function observeMotion(
 
           const inputs = OBSERVED_MOTION_PROPERTIES.map((property) => {
             const declaration = inline?.getPropertyValue(property) ?? "";
+
             const variables = [
               ...cssVariables(declaration),
               ...(authorVariables.get(property) ?? []),
