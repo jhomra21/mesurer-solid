@@ -134,6 +134,81 @@ const waitForDelivery = async (bridgeUrl, deliveryId, predicate, timeoutMs = 10_
   throw new Error(`Timed out waiting for delivery ${deliveryId}.`);
 };
 
+test("Codex bridge retains a five-hour-old queued delivery across restart", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-old-active-"));
+  const stateDir = join(root, "mesurer");
+  const fakeCodex = join(root, "fake-codex.mjs");
+  const now = Date.now();
+  const old = now - 5 * 60 * 60_000;
+
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(fakeCodex, "#!/usr/bin/env node\n");
+  await chmod(fakeCodex, 0o755);
+  await writeFile(join(stateDir, "codex-deliveries.json"), `${JSON.stringify({
+    version: 1,
+    deliveries: [{
+      id: "delivery-five-hours-old",
+      thread: "thread-old-active",
+      message: "durable receipt survives a long restart",
+      messageHash: "legacy-hash",
+      transport: "desktop-app",
+      status: "queued",
+      turnId: null,
+      queuedSubmissionId: "queue-five-hours-old",
+      clientUserMessageId: "client-five-hours-old",
+      dispatch: "persisted",
+      dispatchError: null,
+      createdAt: old,
+      updatedAt: old,
+    }],
+  })}\n`);
+
+  const child = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--thread", "thread-old-active",
+    "--codex", fakeCodex,
+  ], {
+    env: testProcessEnv(root),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
+    const health = await fetch(`${bridgeUrl}/health`, {
+      headers: { Origin: "http://localhost:5173" },
+    });
+
+    assert.equal(health.status, 200, stderr);
+    const healthPayload = await health.json();
+
+    assert.equal(
+      healthPayload.bridge?.capabilities?.includes("nonterminal-retention-v1"),
+      true,
+    );
+    assert.equal(healthPayload.bridgeState?.nonTerminalDeliveries, 1);
+
+    const response = await fetch(
+      `${bridgeUrl}/deliveries/delivery-five-hours-old`,
+      { headers: { Origin: "http://localhost:5173" } },
+    );
+
+    assert.equal(response.status, 200, stderr);
+    const delivery = await response.json();
+
+    assert.equal(delivery.status, "queued");
+    assert.equal(delivery.queuedSubmissionId, "queue-five-hours-old");
+    assert.equal(delivery.clientUserMessageId, "client-five-hours-old");
+    assert.equal(delivery.updatedAt, old);
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await waitForExit(child).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Codex bridge auto-binds the launching thread and routes only registered threads", async () => {
   const root = await mkdtemp(join(tmpdir(), "mesurer-codex-bridge-"));
   const argsPath = join(root, "args.jsonl");
