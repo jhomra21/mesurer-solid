@@ -103,6 +103,7 @@ export const getInspectMeasurement = (
   ownerWindow: Window = window,
 ): InspectMeasurement => {
   const elementWindow = element.ownerDocument.defaultView ?? ownerWindow;
+
   const measurement = getDomInspectMeasurement<Element>(
     element,
     elementWindow,
