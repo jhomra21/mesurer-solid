@@ -5,6 +5,41 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
+const rawFetch = globalThis.fetch;
+
+const bridgeFetch = async (input, init = {}) => {
+  const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+  const headers = new Headers(init.headers ?? (input instanceof Request ? input.headers : undefined));
+  const origin = headers.get("Origin");
+
+  if (!origin || url.pathname === "/health" || init.method === "OPTIONS") {
+    return rawFetch(input, init);
+  }
+
+  let health;
+
+  try {
+    health = await rawFetch(`${url.origin}/health`, {
+      headers: { Origin: origin },
+    });
+  } catch {
+    return rawFetch(input, init);
+  }
+
+  if (!health.ok) return rawFetch(input, init);
+
+  const payload = await health.json().catch(() => null);
+  const instanceId = payload?.bridge?.instanceId;
+
+  if (payload?.access?.allowed !== true || typeof instanceId !== "string" || !instanceId) {
+    return rawFetch(input, init);
+  }
+
+  headers.set("X-Mesurer-Bridge-Instance", instanceId);
+
+  return rawFetch(input, { ...init, headers });
+};
+
 const bridgeScript = new URL("../packages/mesurer/codex/codex-bridge.mjs", import.meta.url);
 
 const testProcessEnv = (root) => {
@@ -118,7 +153,7 @@ const waitForDelivery = async (bridgeUrl, deliveryId, predicate, timeoutMs = 10_
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const response = await fetch(`${bridgeUrl}/deliveries/${deliveryId}`, {
+    const response = await bridgeFetch(`${bridgeUrl}/deliveries/${deliveryId}`, {
       headers: { Origin: "http://localhost:5173" },
     });
 
@@ -177,7 +212,7 @@ test("Codex bridge retains a five-hour-old queued delivery across restart", asyn
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const health = await fetch(`${bridgeUrl}/health`, {
+    const health = await bridgeFetch(`${bridgeUrl}/health`, {
       headers: { Origin: "http://localhost:5173" },
     });
 
@@ -190,7 +225,7 @@ test("Codex bridge retains a five-hour-old queued delivery across restart", asyn
     );
     assert.equal(healthPayload.bridgeState?.nonTerminalDeliveries, 1);
 
-    const response = await fetch(
+    const response = await bridgeFetch(
       `${bridgeUrl}/deliveries/delivery-five-hours-old`,
       { headers: { Origin: "http://localhost:5173" } },
     );
@@ -233,7 +268,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const health = await fetch(`${bridgeUrl}/health`, {
+    const health = await bridgeFetch(`${bridgeUrl}/health`, {
       headers: { Origin: "http://localhost:5173" },
     });
 
@@ -256,7 +291,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     assert.equal(healthPayload.access?.allowed, true);
     assert.equal(health.headers.get("access-control-allow-origin"), "http://localhost:5173");
 
-    const deniedHealth = await fetch(`${bridgeUrl}/health`, {
+    const deniedHealth = await bridgeFetch(`${bridgeUrl}/health`, {
       headers: { Origin: "https://example.com" },
     });
 
@@ -272,7 +307,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     assert.equal("threads" in deniedHealthPayload, false);
     assert.equal("bridgeState" in deniedHealthPayload, false);
 
-    const forbiddenOrigin = await fetch(`${bridgeUrl}/send`, {
+    const forbiddenOrigin = await bridgeFetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -287,7 +322,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
       "https://example.com",
     );
 
-    const browserRegistration = await fetch(`${bridgeUrl}/threads/register`, {
+    const browserRegistration = await bridgeFetch(`${bridgeUrl}/threads/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -298,7 +333,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
 
     assert.equal(browserRegistration.status, 403);
 
-    const registration = await fetch(`${bridgeUrl}/threads/register`, {
+    const registration = await bridgeFetch(`${bridgeUrl}/threads/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ thread: "thread-b" }),
@@ -311,7 +346,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
       threads: ["thread-a", "thread-b"],
     });
 
-    const switchBack = await fetch(`${bridgeUrl}/target`, {
+    const switchBack = await bridgeFetch(`${bridgeUrl}/target`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -322,7 +357,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
 
     assert.equal(switchBack.status, 200, stderr);
 
-    const sendToOther = await fetch(`${bridgeUrl}/send`, {
+    const sendToOther = await bridgeFetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -340,14 +375,14 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     assert.equal(sent.status, "queued");
     assert.match(sent.deliveryId, /^[0-9a-f-]{36}$/);
 
-    const queuedStatus = await fetch(`${bridgeUrl}/deliveries/${sent.deliveryId}`, {
+    const queuedStatus = await bridgeFetch(`${bridgeUrl}/deliveries/${sent.deliveryId}`, {
       headers: { Origin: "http://127.0.0.1:4255" },
     });
 
     assert.equal(queuedStatus.status, 200);
     assert.equal((await queuedStatus.json()).status, "queued");
 
-    const browserLifecycle = await fetch(`${bridgeUrl}/lifecycle`, {
+    const browserLifecycle = await bridgeFetch(`${bridgeUrl}/lifecycle`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -363,7 +398,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
 
     assert.equal(browserLifecycle.status, 403);
 
-    const started = await fetch(`${bridgeUrl}/lifecycle`, {
+    const started = await bridgeFetch(`${bridgeUrl}/lifecycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -377,7 +412,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     assert.equal(started.status, 200);
     assert.equal((await started.json()).status, "working");
 
-    const completed = await fetch(`${bridgeUrl}/lifecycle`, {
+    const completed = await bridgeFetch(`${bridgeUrl}/lifecycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -390,13 +425,13 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     assert.equal(completed.status, 200);
     assert.equal((await completed.json()).status, "completed");
 
-    const completedStatus = await fetch(`${bridgeUrl}/deliveries/${sent.deliveryId}`, {
+    const completedStatus = await bridgeFetch(`${bridgeUrl}/deliveries/${sent.deliveryId}`, {
       headers: { Origin: "http://127.0.0.1:4255" },
     });
 
     assert.equal((await completedStatus.json()).status, "completed");
 
-    const unknownThread = await fetch(`${bridgeUrl}/send`, {
+    const unknownThread = await bridgeFetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -440,7 +475,7 @@ test("Codex bridge normalizes explicitly allowed browser origins", async () => {
   try {
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const health = await fetch(`${bridgeUrl}/health`, {
+    const health = await bridgeFetch(`${bridgeUrl}/health`, {
       headers: { Origin: "https://example.com" },
     });
 
@@ -454,7 +489,7 @@ test("Codex bridge normalizes explicitly allowed browser origins", async () => {
     assert.equal(healthPayload.access?.allowed, true);
     assert.equal(healthPayload.thread, "thread-origin");
 
-    const target = await fetch(`${bridgeUrl}/target`, {
+    const target = await bridgeFetch(`${bridgeUrl}/target`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -495,7 +530,7 @@ test("Codex bridge supports explicitly allowed opaque browser origins", async ()
   try {
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const health = await fetch(`${bridgeUrl}/health`, {
+    const health = await bridgeFetch(`${bridgeUrl}/health`, {
       headers: { Origin: "null" },
     });
 
@@ -506,7 +541,7 @@ test("Codex bridge supports explicitly allowed opaque browser origins", async ()
     assert.equal(healthPayload.access?.allowed, true);
     assert.equal(healthPayload.thread, "thread-null-origin");
 
-    const target = await fetch(`${bridgeUrl}/target`, {
+    const target = await bridgeFetch(`${bridgeUrl}/target`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -549,7 +584,7 @@ if (args[0] === "queue") console.log("queued without a parseable receipt");
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const send = await fetch(`${bridgeUrl}/send`, {
+    const send = await bridgeFetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -565,7 +600,7 @@ if (args[0] === "queue") console.log("queued without a parseable receipt");
     const delivery = await send.json();
     assert.equal(delivery.status, "queued");
 
-    const unregister = await fetch(`${bridgeUrl}/threads/unregister`, {
+    const unregister = await bridgeFetch(`${bridgeUrl}/threads/unregister`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ thread: "thread-owner" }),
@@ -574,7 +609,7 @@ if (args[0] === "queue") console.log("queued without a parseable receipt");
     assert.equal(unregister.status, 200, stderr);
 
     await new Promise((resolve) => setTimeout(resolve, 400));
-    const health = await fetch(`${bridgeUrl}/health`);
+    const health = await bridgeFetch(`${bridgeUrl}/health`);
     assert.equal(health.status, 200);
     const healthPayload = await health.json();
 
@@ -582,14 +617,14 @@ if (args[0] === "queue") console.log("queued without a parseable receipt");
     assert.equal(healthPayload.bridgeState?.nonTerminalDeliveries, 1);
     assert.equal(healthPayload.bridgeState?.idle, false);
 
-    const shutdown = await fetch(`${bridgeUrl}/shutdown`, { method: "POST" });
+    const shutdown = await bridgeFetch(`${bridgeUrl}/shutdown`, { method: "POST" });
     assert.equal(shutdown.status, 409);
     const blocked = await shutdown.json();
 
     assert.match(blocked.error, /still in use/);
     assert.equal(blocked.bridgeState?.nonTerminalDeliveries, 1);
 
-    const started = await fetch(`${bridgeUrl}/lifecycle`, {
+    const started = await bridgeFetch(`${bridgeUrl}/lifecycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -602,7 +637,7 @@ if (args[0] === "queue") console.log("queued without a parseable receipt");
 
     assert.equal(started.status, 200, stderr);
 
-    const completed = await fetch(`${bridgeUrl}/lifecycle`, {
+    const completed = await bridgeFetch(`${bridgeUrl}/lifecycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -650,7 +685,7 @@ test("another Codex thread can register itself with a running bridge", async () 
     register.stderr.on("data", (chunk) => { registerStderr += chunk.toString(); });
     assert.equal(await waitForExit(register), 0, registerStderr);
 
-    const health = await fetch(`${bridgeUrl}/health`);
+    const health = await bridgeFetch(`${bridgeUrl}/health`);
     assert.equal(health.status, 200);
     const healthPayload = await health.json();
     assert.equal(healthPayload.ok, true);
@@ -695,7 +730,7 @@ test("Codex bridge discovers recent same-project threads through app-server", as
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const list = await fetch(`${bridgeUrl}/threads?thread=thread-a&limit=10`, {
+    const list = await bridgeFetch(`${bridgeUrl}/threads?thread=thread-a&limit=10`, {
       headers: { Origin: "http://localhost:5173" },
     });
 
@@ -720,7 +755,7 @@ test("Codex bridge discovers recent same-project threads through app-server", as
       hasMore: false,
     });
 
-    const send = await fetch(`${bridgeUrl}/send`, {
+    const send = await bridgeFetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -810,7 +845,7 @@ if (args[0] === "queue") {
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const send = await fetch(`${bridgeUrl}/send`, {
+    const send = await bridgeFetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -903,7 +938,7 @@ appendFileSync(
   try {
     const firstUrl = await waitForLine(first.stdout, "BRIDGE_URL=");
 
-    const send = await fetch(`${firstUrl}/send`, {
+    const send = await bridgeFetch(`${firstUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -953,7 +988,7 @@ appendFileSync(
       "codex://threads/thread-desktop-restart",
     ]]);
 
-    const staleLifecycle = await fetch(`${secondUrl}/lifecycle`, {
+    const staleLifecycle = await bridgeFetch(`${secondUrl}/lifecycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -970,7 +1005,7 @@ appendFileSync(
       ignored: "desktop-history-authoritative",
     });
 
-    const stillQueued = await fetch(`${secondUrl}/deliveries/${sent.deliveryId}`, {
+    const stillQueued = await bridgeFetch(`${secondUrl}/deliveries/${sent.deliveryId}`, {
       headers: { Origin: "http://localhost:5173" },
     });
 
@@ -1094,7 +1129,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const send = await fetch(`${bridgeUrl}/send`, {
+    const send = await bridgeFetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1135,7 +1170,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
 
     await new Promise((resolve) => setTimeout(resolve, 1_500));
 
-    const read = await fetch(`${bridgeUrl}/deliveries/${queued.deliveryId}`, {
+    const read = await bridgeFetch(`${bridgeUrl}/deliveries/${queued.deliveryId}`, {
       headers: { Origin: "http://localhost:5173" },
     });
 
@@ -1279,7 +1314,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const sendCompleted = await fetch(`${bridgeUrl}/send`, {
+    const sendCompleted = await bridgeFetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1344,7 +1379,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
 
     assert.equal(stillWorkingAfterSyntheticInterrupt.turnId, "turn-history-complete");
 
-    const staleInterrupt = await fetch(`${bridgeUrl}/lifecycle`, {
+    const staleInterrupt = await bridgeFetch(`${bridgeUrl}/lifecycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1361,7 +1396,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       ignored: "desktop-history-authoritative",
     });
 
-    const remainsWorking = await fetch(`${bridgeUrl}/deliveries/${completedDelivery.deliveryId}`, {
+    const remainsWorking = await bridgeFetch(`${bridgeUrl}/deliveries/${completedDelivery.deliveryId}`, {
       headers: { Origin: "http://localhost:5173" },
     });
 
@@ -1381,7 +1416,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
 
     assert.equal(completed.turnId, "turn-history-complete");
 
-    const sendInterrupted = await fetch(`${bridgeUrl}/send`, {
+    const sendInterrupted = await bridgeFetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1704,7 +1739,7 @@ appendFileSync(
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const restore = await fetch(`${bridgeUrl}/deliveries/restore`, {
+    const restore = await bridgeFetch(`${bridgeUrl}/deliveries/restore`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1759,7 +1794,7 @@ appendFileSync(
       "codex://threads/thread-desktop",
     ]]);
 
-    const staleLifecycle = await fetch(`${bridgeUrl}/lifecycle`, {
+    const staleLifecycle = await bridgeFetch(`${bridgeUrl}/lifecycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1886,13 +1921,13 @@ if (args[0] === "app-server") {
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const missing = await fetch(`${bridgeUrl}/deliveries/delivery-restored-1`, {
+    const missing = await bridgeFetch(`${bridgeUrl}/deliveries/delivery-restored-1`, {
       headers: { Origin: "http://localhost:5173" },
     });
 
     assert.equal(missing.status, 404);
 
-    const restore = await fetch(`${bridgeUrl}/deliveries/restore`, {
+    const restore = await bridgeFetch(`${bridgeUrl}/deliveries/restore`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1913,7 +1948,7 @@ if (args[0] === "app-server") {
     assert.equal(restored.status, "queued");
     assert.equal(restored.dispatch, "resumed");
 
-    const started = await fetch(`${bridgeUrl}/lifecycle`, {
+    const started = await bridgeFetch(`${bridgeUrl}/lifecycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1927,7 +1962,7 @@ if (args[0] === "app-server") {
     assert.equal(started.status, 200);
     assert.equal((await started.json()).status, "working");
 
-    const completed = await fetch(`${bridgeUrl}/lifecycle`, {
+    const completed = await bridgeFetch(`${bridgeUrl}/lifecycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2048,7 +2083,7 @@ if (args[0] === "app-server") {
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const restore = await fetch(`${bridgeUrl}/deliveries/restore`, {
+    const restore = await bridgeFetch(`${bridgeUrl}/deliveries/restore`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -2160,7 +2195,7 @@ if (args[0] === "queue") {
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const send = await fetch(`${bridgeUrl}/send`, {
+    const send = await bridgeFetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -2241,7 +2276,7 @@ if (args[0] === "queue") {
   try {
     const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-    const send = await fetch(`${bridgeUrl}/send`, {
+    const send = await bridgeFetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -2333,7 +2368,7 @@ if (args[0] === "queue") {
     try {
       const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
 
-      const send = await fetch(`${bridgeUrl}/send`, {
+      const send = await bridgeFetch(`${bridgeUrl}/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
