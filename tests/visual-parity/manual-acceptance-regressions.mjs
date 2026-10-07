@@ -33,6 +33,10 @@ let page;
 
 let settingsPage;
 
+let browserBridgeMode = "unavailable";
+
+const browserBridgeRequests = [];
+
 try {
   page = await browser.newPage({ viewport: { width: 900, height: 620 } });
   watchDiagnostics(page);
@@ -120,28 +124,88 @@ try {
   settingsPage = await browser.newPage({ viewport: { width: 1280, height: 700 } });
   watchDiagnostics(settingsPage);
   await settingsPage.route("http://127.0.0.1:47365/**", async (route) => {
+    const request = route.request();
+    const requestUrl = new URL(request.url());
+    const bridge = {
+      name: "mesurer-codex",
+      protocol: 2,
+      capabilities: [
+        "thread-discovery-v1",
+        "durable-queue-v1",
+        "history-recovery-v2",
+        "client-message-correlation-v1",
+        "idle-safe-shutdown-v1",
+        "nonterminal-retention-v1",
+        "instance-binding-v1",
+      ],
+      sourceHash: "browser-fixture",
+      instanceId: "browser-fixture-instance",
+      pid: 1,
+      canShutdown: true,
+    };
+
+    browserBridgeRequests.push({
+      path: requestUrl.pathname,
+      headers: request.headers(),
+    });
+
+    if (requestUrl.pathname === "/health") {
+      const payload = browserBridgeMode === "unavailable"
+        ? {
+            ok: false,
+            bridge,
+            access: { allowed: true },
+            error: "Mesurer Codex companion is unavailable in this browser fixture.",
+          }
+        : {
+            ok: true,
+            bridge,
+            access: { allowed: true },
+            thread: browserBridgeMode === "connected" ? "thread-a" : null,
+            threads: browserBridgeMode === "connected" ? ["thread-a"] : [],
+            runtime: {
+              source: "shared",
+              transport: "shared-app-server",
+              available: true,
+              reason: null,
+            },
+          };
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(payload),
+      });
+
+      return;
+    }
+
+    if (requestUrl.pathname === "/threads") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          thread: browserBridgeMode === "connected" ? "thread-a" : null,
+          threadDetails: browserBridgeMode === "connected"
+            ? [{
+                id: "thread-a",
+                title: "Current Codex thread",
+                updatedAt: null,
+                connected: true,
+              }]
+            : [],
+          hasMore: false,
+        }),
+      });
+
+      return;
+    }
+
     await route.fulfill({
-      status: 200,
+      status: 404,
       contentType: "application/json",
-      body: JSON.stringify({
-        ok: false,
-        bridge: {
-          name: "mesurer-codex",
-          protocol: 2,
-          capabilities: [
-            "thread-discovery-v1",
-            "durable-queue-v1",
-            "history-recovery-v2",
-            "client-message-correlation-v1",
-            "idle-safe-shutdown-v1",
-            "nonterminal-retention-v1",
-          ],
-          sourceHash: "browser-fixture",
-          pid: 1,
-          canShutdown: true,
-        },
-        error: "Mesurer Codex companion is unavailable in this browser fixture.",
-      }),
+      body: JSON.stringify({ ok: false, error: "Unexpected browser bridge request." }),
     });
   });
   await settingsPage.addInitScript((storageKey) => {
@@ -259,13 +323,34 @@ try {
   await browserCodexTool.waitFor({ state: "visible" });
   assert.equal(
     (await browserCodexTool.getAttribute("aria-label")) ?? "",
-    "Codex bridge not running",
+    "Bridge not running",
     "Browser Codex should stay enabled and explain that its local bridge is unavailable",
   );
   assert.equal(
     await dialog.locator("[data-mesurer-plugin-error='mesurer.codex']").count(),
     0,
     "Browser Codex availability must not be reported as an Electron preload error",
+  );
+
+  browserBridgeMode = "empty";
+  await settingsPage.waitForFunction(
+    () => document.querySelector("button[data-mesurer-tool-id='codex.send']")?.getAttribute("aria-label") === "No reachable Codex session",
+    undefined,
+    { timeout: 7_000 },
+  );
+
+  browserBridgeMode = "connected";
+  await settingsPage.waitForFunction(
+    () => document.querySelector("button[data-mesurer-tool-id='codex.send']")?.getAttribute("aria-label") === "Queue to Codex",
+    undefined,
+    { timeout: 7_000 },
+  );
+
+  assert(
+    browserBridgeRequests.some((request) =>
+      request.path === "/threads"
+      && request.headers["x-mesurer-bridge-instance"] === "browser-fixture-instance"),
+    "Browser Codex follow-up requests must bind to the exact bridge instance verified by /health",
   );
 
   try {
