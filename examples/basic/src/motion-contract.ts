@@ -37,11 +37,15 @@ const stateFor = (selector: string): AnimationState[] => {
 
   if (!(target instanceof Element)) throw new Error(`Motion target not found: ${selector}`);
 
-  return target.getAnimations({ subtree: true }).map((animation) => ({
-    playState: animation.playState,
-    currentTime: typeof animation.currentTime === "number" ? animation.currentTime : null,
-    playbackRate: animation.playbackRate,
-  }));
+  return target.getAnimations({ subtree: true }).map((animation) => {
+    const currentTime = Number(animation.currentTime);
+
+    return {
+      playState: animation.playState,
+      currentTime: Number.isFinite(currentTime) ? currentTime : null,
+      playbackRate: animation.playbackRate,
+    };
+  });
 };
 
 declare global {
