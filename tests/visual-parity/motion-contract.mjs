@@ -59,7 +59,42 @@ try {
   const scrubber = player.locator("[data-mesurer-motion-scrubber='true']");
   const speed = player.locator("[data-mesurer-motion-speed='true']");
 
-  await player.waitFor({ state: "visible" });
+  const preflight = await page.evaluate(() => {
+    const target = document.querySelector("[data-testid='css-motion']");
+    const toolbar = document.querySelector("[data-mesurer-toolbar='true']");
+    const surface = document.querySelector("[data-mesurer-motion-surface='true']");
+    const selected = document.querySelectorAll("[data-mesurer-selection-box='true'], [data-mesurer-selected='true']");
+
+    return {
+      targetAnimations: target instanceof Element
+        ? target.getAnimations({ subtree: true }).map((animation) => ({
+            id: animation.id,
+            playState: animation.playState,
+            currentTime: Number(animation.currentTime),
+            timing: animation.effect?.getTiming() ?? null,
+            keyframes: animation.effect && "getKeyframes" in animation.effect
+              ? animation.effect.getKeyframes()
+              : [],
+          }))
+        : [],
+      toolbar: toolbar?.outerHTML ?? null,
+      motionSurface: surface?.outerHTML ?? null,
+      selectionMarkers: selected.length,
+    };
+  });
+
+  await writeFile(
+    join(output, "motion-preflight.json"),
+    `${JSON.stringify({ preflight, errors }, null, 2)}\n`,
+    "utf8",
+  );
+
+  await page.screenshot({
+    path: join(output, "motion-preflight.png"),
+    fullPage: true,
+  });
+
+  await player.waitFor({ state: "visible", timeout: 5000 });
   await scrubber.waitFor({ state: "visible" });
 
   assert.equal(
