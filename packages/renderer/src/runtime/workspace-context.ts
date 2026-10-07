@@ -57,6 +57,7 @@ export type MesurerWorkspaceSnapshot = {
 
 export type MesurerWorkspaceRuntime = {
   snapshot(): MesurerWorkspaceSnapshot;
+  elementRect(element: Element): Rect;
   currentSelection(): { elements: Element[]; region: Rect | null };
   clearSelection(): void;
   toggleSelection(element: Element): void;
@@ -672,6 +673,9 @@ export function createMesurerWorkspaceRuntime(options: {
         guides: model.current.guides.map((guide) => ({ ...guide })),
         annotations: annotations.map(copyAnnotation),
       };
+    },
+    elementRect(element) {
+      return getProjectedRectFromDom(element);
     },
     currentSelection() {
       return {
