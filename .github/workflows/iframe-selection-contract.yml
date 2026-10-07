@@ -1,0 +1,69 @@
+name: iframe-selection-contract
+
+on:
+  pull_request:
+    paths:
+      - "packages/mesurer-dom/src/**"
+      - "packages/renderer/src/core/dom.ts"
+      - "packages/renderer/src/core/selection.ts"
+      - "packages/renderer/src/core/selection-helpers.ts"
+      - "packages/renderer/src/core/frame-geometry.ts"
+      - "examples/basic/iframe-selection.html"
+      - "examples/basic/src/iframe-selection.ts"
+      - "tests/visual-parity/iframe-selection-contract.mjs"
+      - ".github/workflows/iframe-selection-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run build:foundations
+      - run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
+      - run: bunx playwright install --with-deps chromium
+      - name: Start iframe fixture
+        run: |
+          cd examples/basic
+          bunx vite --host 127.0.0.1 --port 4181 --strictPort > ../../iframe-selection-vite.log 2>&1 &
+          echo $! > ../../iframe-selection-vite.pid
+          cd ../..
+          ready=0
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent --show-error http://127.0.0.1:4181/iframe-selection.html >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat iframe-selection-vite.log || true
+            exit 1
+          fi
+      - name: Exercise same-origin iframe selection
+        env:
+          IFRAME_SELECTION_URL: http://127.0.0.1:4181/iframe-selection.html
+          IFRAME_SELECTION_OUT: iframe-selection-artifacts
+        run: bun tests/visual-parity/iframe-selection-contract.mjs
+      - name: Assert Solid runtime diagnostics are clean
+        if: always()
+        run: |
+          if grep -nE 'STRICT_READ_UNTRACKED|\$\$pointermove' iframe-selection-vite.log; then
+            echo "Iframe fixture emitted strict-read or pointer-handler diagnostics."
+            exit 1
+          fi
+      - name: Upload iframe evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-iframe-selection-contract
+          path: iframe-selection-artifacts
+          if-no-files-found: warn
+          retention-days: 14

@@ -3,6 +3,10 @@ import { CLICK_CYCLE_THRESHOLD, MIN_MULTI_TARGET_SIZE, MIN_SINGLE_TARGET_SIZE } 
 import { getBodyElementsCached, getFrameToken, getRectFromDomCached } from "./dom";
 import { isInsideMesurer, isMesurerInputBoundary } from "./events";
 import { rectsOverlap } from "./geometry";
+import {
+  getAccessibleFrameDocument,
+  parentPointToFrame,
+} from "./frame-geometry";
 import { pickMultiTargets, pickPointTarget, pickSingleTarget } from "./targets";
 import { getDomTreeRoot, getVisualElementAtPoint, isElementWithinDomTarget, withPointerEventsDisabled } from "@jhomra21/mesurer-solid-dom";
 import type { Point, Rect } from "./types";
@@ -95,20 +99,36 @@ export const getTargetElement = (
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
 ) => {
   const overlayHost = getOverlayHost(overlayNode);
-  const element = getSelectionTarget(point, overlayNode, ownerDocument, pageTarget);
-  const ownerWindow = ownerDocument.defaultView;
-  const ElementConstructor = ownerWindow?.Element;
 
-  if (!ownerWindow || !ElementConstructor || !(element instanceof ElementConstructor)) return null;
+  const initial = getSelectionTarget(
+    point,
+    overlayNode,
+    ownerDocument,
+    pageTarget,
+  );
+
+  const ownerWindow = ownerDocument.defaultView;
+
+  if (!ownerWindow || !initial) return null;
+
+  const element = deepestAccessibleFrameHit(initial, point);
 
   if (
-    !isElementWithinDomTarget(element, pageTarget)
+    !isElementWithinSelectionTarget(element, pageTarget)
     || isOverlayElement(element, overlayNode, overlayHost)
     || isInsideMesurer(element, ownerWindow)
-  ) return null;
+  ) {
+    return null;
+  }
 
-  if (element === ownerDocument.body || element === ownerDocument.documentElement) return null;
-  const rect = element.getBoundingClientRect();
+  if (
+    element === element.ownerDocument.body
+    || element === element.ownerDocument.documentElement
+  ) {
+    return null;
+  }
+
+  const rect = getRectFromDomCached(element);
 
   return rect.width > 2 && rect.height > 2 ? element : null;
 };
@@ -123,16 +143,92 @@ const isSameClickSpot = (left: Point, right: Point) =>
   Math.abs(left.x - right.x) <= CLICK_CYCLE_THRESHOLD
   && Math.abs(left.y - right.y) <= CLICK_CYCLE_THRESHOLD;
 
-const composedParentElement = (
-  element: Element,
-  ownerWindow: Window,
-): Element | null => {
+const containingFrame = (ownerDocument: Document): Element | null => {
+  try {
+    return ownerDocument.defaultView?.frameElement ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const composedParentElement = (element: Element): Element | null => {
   if (element.parentElement) return element.parentElement;
-  // SAFETY: ownerWindow is the browsing-context global for element's document and owns the ShadowRoot constructor used below.
-  const realm = ownerWindow as Window & typeof globalThis;
+
   const root = element.getRootNode();
 
-  return root instanceof realm.ShadowRoot ? root.host : null;
+  if (isShadowRoot(root)) return root.host;
+
+  return containingFrame(element.ownerDocument);
+};
+
+const isElementWithinSelectionTarget = (
+  element: Element,
+  target: HTMLElement | ShadowRoot,
+) => {
+  if (isElementWithinDomTarget(element, target)) return true;
+
+  const targetDocument = target.ownerDocument;
+  let currentDocument = element.ownerDocument;
+  const seen = new Set<Document>();
+
+  while (
+    currentDocument !== targetDocument
+    && !seen.has(currentDocument)
+  ) {
+    seen.add(currentDocument);
+
+    const frame = containingFrame(currentDocument);
+
+    if (!frame) return false;
+
+    if (
+      frame.ownerDocument === targetDocument
+      && isElementWithinDomTarget(frame, target)
+    ) {
+      return true;
+    }
+
+    currentDocument = frame.ownerDocument;
+  }
+
+  return false;
+};
+
+const deepestAccessibleFrameHit = (
+  element: Element,
+  point: Point,
+) => {
+  let current = element;
+  let currentPoint = point;
+
+  for (let depth = 0; depth < 16; depth += 1) {
+    const childDocument = getAccessibleFrameDocument(current);
+
+    if (!childDocument) break;
+
+    const childPoint = parentPointToFrame(current, currentPoint);
+
+    if (childPoint.x < 0 || childPoint.y < 0) break;
+
+    const child = getVisualElementAtPoint(
+      childPoint,
+      childDocument,
+      childDocument,
+    );
+
+    if (
+      !child
+      || child === childDocument.body
+      || child === childDocument.documentElement
+    ) {
+      break;
+    }
+
+    current = child;
+    currentPoint = childPoint;
+  }
+
+  return current;
 };
 
 const getPointSelectionStack = (
@@ -155,14 +251,14 @@ const getPointSelectionStack = (
     if (!element || seen.has(element)) return;
 
     if (
-      !isElementWithinDomTarget(element, pageTarget)
+      !isElementWithinSelectionTarget(element, pageTarget)
       || isOverlayElement(element, overlayNode, overlayHost)
       || isInsideMesurer(element, ownerWindow)
-      || element === ownerDocument.body
-      || element === ownerDocument.documentElement
+      || element === element.ownerDocument.body
+      || element === element.ownerDocument.documentElement
     ) return;
 
-    const rect = element.getBoundingClientRect();
+    const rect = getRectFromDomCached(element);
 
     if (rect.width <= 2 || rect.height <= 2) return;
     seen.add(element);
@@ -176,7 +272,7 @@ const getPointSelectionStack = (
       add(current);
 
       if (current === pageTarget) break;
-      current = composedParentElement(current, ownerWindow);
+      current = composedParentElement(current);
     }
   };
 
@@ -343,11 +439,11 @@ export const getSelectionEntries = (
     .map((element) => ({ element, rect: getRectFromDomCached(element) }))
     .filter(({ element, rect: elementRect }) => {
       if (
-        !isElementWithinDomTarget(element, pageTarget)
+        !isElementWithinSelectionTarget(element, pageTarget)
         || isOverlayElement(element, overlayNode, overlayHost)
         || isInsideMesurer(element, ownerWindow)
-        || element === ownerDocument.body
-        || element === ownerDocument.documentElement
+        || element === element.ownerDocument.body
+        || element === element.ownerDocument.documentElement
       ) return false;
 
       if (elementRect.width < MIN_MULTI_TARGET_SIZE || elementRect.height < MIN_MULTI_TARGET_SIZE) return false;

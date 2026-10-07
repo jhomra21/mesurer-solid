@@ -5,6 +5,7 @@ import type { EdgeVisibility } from "../core/edge-visibility";
 import type { MesurerTheme } from "../core/persistence";
 import { MEASURE_LABEL_OFFSET, MEASURE_TRANSITION_MS } from "../core/constants";
 import { installNestedScrollCompensation } from "../runtime/nested-scroll-compensation";
+import { getRectFromDom } from "../core/dom";
 
 export type MeasurementBoxProps = {
   measurement: Measurement | InspectMeasurement | null;
@@ -60,7 +61,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     const target = liveSelectedTarget();
 
     if (!target || !chromeElement || !labelElement) return;
-    const rect = target.getBoundingClientRect();
+    const rect = getRectFromDom(target);
     const ownerWindow = target.ownerDocument.defaultView;
     const selectionRoot = chromeElement.parentElement;
 
@@ -102,9 +103,14 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     // move into <body> through <Portal>; imperatively reparenting this rendered
     // root breaks the reconciler when direct editing changes reactive state.
     // Targets that genuinely live in a ShadowRoot keep local overlay ownership.
-    const documentBacked = target.getRootNode() === target.ownerDocument && Boolean(target.ownerDocument.body);
+    const rendererDocument = chromeElement?.ownerDocument;
+
+    const documentBacked = target.ownerDocument === rendererDocument
+      && target.getRootNode() === target.ownerDocument
+      && Boolean(target.ownerDocument.body);
 
     if (documentBacked) setSelectionPortalTarget(target.ownerDocument.body);
+    else setSelectionPortalTarget(null);
 
     // Native absolute anchors already follow window/document scrolling. A
     // portaled surface does not inherit nested overflow scrolling, so compensate

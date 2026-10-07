@@ -4,10 +4,12 @@ import {
   getRectFromDom as getDomRect,
 } from "@jhomra21/mesurer-solid-dom";
 import { denormalizeRect, getViewportSize, normalizeRect } from "./geometry";
+import { getAccessibleFrameDocument, projectRect } from "./frame-geometry";
 import type { InspectMeasurement, Measurement, Rect } from "./types";
 import { createId } from "./utils";
 
-export const getRectFromDom = (element: Element): Rect => getDomRect(element);
+export const getRectFromDom = (element: Element): Rect =>
+  projectRect(getDomRect(element), element.ownerDocument);
 
 let rectCacheFrame = -1;
 
@@ -45,34 +47,52 @@ let cachedDocument: Document | null = null;
 export const getBodyElementsCached = (ownerDocument: Document = document) => {
   const frame = getFrameToken();
 
-  if (frame === cachedFrame && cachedDocument === ownerDocument && cachedElements.length > 0) return cachedElements;
-  cachedFrame = frame;
-  cachedDocument = ownerDocument;
-  const elements: Element[] = [];
-  const ElementConstructor = ownerDocument.defaultView?.Element;
-
-  if (!ElementConstructor) {
-    cachedElements = elements;
-
+  if (
+    frame === cachedFrame
+    && cachedDocument === ownerDocument
+    && cachedElements.length > 0
+  ) {
     return cachedElements;
   }
 
-  const visit = (root: Document | ShadowRoot | Element) => {
-    const walker = ownerDocument.createTreeWalker(root, 1);
-    let node = walker.nextNode();
+  cachedFrame = frame;
+  cachedDocument = ownerDocument;
 
-    while (node) {
-      if (node instanceof ElementConstructor) {
-        elements.push(node);
+  const elements: Element[] = [];
+  const visitedDocuments = new Set<Document>();
 
-        if (node.shadowRoot) visit(node.shadowRoot);
+  const visitDocument = (currentDocument: Document) => {
+    if (visitedDocuments.has(currentDocument)) return;
+
+    visitedDocuments.add(currentDocument);
+
+    const ElementConstructor = currentDocument.defaultView?.Element;
+
+    if (!ElementConstructor || !currentDocument.body) return;
+
+    const visit = (root: Document | ShadowRoot | Element) => {
+      const walker = currentDocument.createTreeWalker(root, 1);
+      let node = walker.nextNode();
+
+      while (node) {
+        if (node instanceof ElementConstructor) {
+          elements.push(node);
+
+          if (node.shadowRoot) visit(node.shadowRoot);
+
+          const childDocument = getAccessibleFrameDocument(node);
+
+          if (childDocument) visitDocument(childDocument);
+        }
+
+        node = walker.nextNode();
       }
+    };
 
-      node = walker.nextNode();
-    }
+    visit(currentDocument.body);
   };
 
-  if (ownerDocument.body) visit(ownerDocument.body);
+  visitDocument(ownerDocument);
   cachedElements = elements;
 
   return cachedElements;
@@ -81,7 +101,22 @@ export const getBodyElementsCached = (ownerDocument: Document = document) => {
 export const getInspectMeasurement = (
   element: Element,
   ownerWindow: Window = window,
-): InspectMeasurement => getDomInspectMeasurement<Element>(element, ownerWindow, createId());
+): InspectMeasurement => {
+  const elementWindow = element.ownerDocument.defaultView ?? ownerWindow;
+
+  const measurement = getDomInspectMeasurement<Element>(
+    element,
+    elementWindow,
+    createId(),
+  );
+
+  return {
+    ...measurement,
+    rect: projectRect(measurement.rect, element.ownerDocument),
+    paddingRect: projectRect(measurement.paddingRect, element.ownerDocument),
+    marginRect: projectRect(measurement.marginRect, element.ownerDocument),
+  };
+};
 
 export const updateMeasurementForResize = (
   measurement: Measurement,
@@ -90,7 +125,7 @@ export const updateMeasurementForResize = (
 ): Measurement => {
   let rect = measurement.rect;
 
-  if (measurement.elementRef && ownerDocument.contains(measurement.elementRef)) rect = getRectFromDom(measurement.elementRef);
+  if (measurement.elementRef?.isConnected) rect = getRectFromDom(measurement.elementRef);
   else if (measurement.normalizedRect) rect = denormalizeRect(measurement.normalizedRect, viewport);
 
   return { ...measurement, rect, normalizedRect: normalizeRect(rect, viewport), originRect: undefined };

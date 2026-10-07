@@ -11,6 +11,10 @@ import { getDistanceOverlay, updateDistanceForResize } from "./core/distances";
 import { getInspectMeasurement, updateMeasurementForResize } from "./core/dom";
 import { isEditableKeyboardEvent, trySetPointerCapture } from "./core/events";
 import { getRectFromPoints, getViewportSize, normalizeRect } from "./core/geometry";
+import {
+  getAccessibleFrameDocument,
+  projectPoint,
+} from "./core/frame-geometry";
 import { getGuideRect, getSnapGuidePosition } from "./core/guides";
 import {
   getHoveredGuide,
@@ -100,6 +104,26 @@ type Environment = {
   portalMount: HTMLElement;
   ownedPortalMount: boolean;
 };
+
+type MesurerPointerInput = {
+  currentTarget: HTMLDivElement;
+  clientX: number;
+  clientY: number;
+  button: number;
+  buttons: number;
+  pointerId: number;
+  shiftKey: boolean;
+  altKey: boolean;
+  preventDefault(): void;
+  stopPropagation(): void;
+};
+
+type MesurerPointerMoveInput = {
+  clientX: number;
+  clientY: number;
+  altKey: boolean;
+};
+
 
 let instanceCount = 0;
 
@@ -417,7 +441,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     model.endAction();
   };
 
-  const pointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+  const pointerDown = (event: MesurerPointerInput) => {
     if (model.current.settingsOpen || !model.current.enabled || event.button !== 0) return;
 
     if (model.current.toolMode === "none") return;
@@ -468,7 +492,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     trySetPointerCapture(event.currentTarget, event.pointerId);
   };
 
-  const pointerMove = (event: PointerEvent) => {
+  const pointerMove = (event: MesurerPointerMoveInput) => {
     if (!model.current.enabled || model.current.settingsOpen) return;
     const point = { x: event.clientX, y: event.clientY };
 
@@ -504,7 +528,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     model.setTransient({ end: point, isDragging });
   };
 
-  const pointerUp = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+  const pointerUp = (event: MesurerPointerInput) => {
     if (!model.current.enabled) return;
 
     if (model.current.toolMode === "guides") {
@@ -639,7 +663,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     model.setTransient({ guidePreview: null });
   };
 
-  const guidePointerDown = (guide: Guide, event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+  const guidePointerDown = (guide: Guide, event: MesurerPointerInput) => {
     if (!model.current.enabled || event.button !== 0 || model.current.settingsOpen) return;
     event.preventDefault(); event.stopPropagation();
     model.checkpoint();
@@ -659,7 +683,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     trySetPointerCapture(event.currentTarget, event.pointerId);
   };
 
-  const guidePointerUp = (_guide: Guide, event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+  const guidePointerUp = (_guide: Guide, event: MesurerPointerInput) => {
     event.stopPropagation();
     model.setTransient({ draggingGuideId: null });
 
@@ -751,6 +775,228 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     },
   );
 
+  const collectAccessibleFrameDocuments = () => {
+    const documents = new Set<Document>();
+    const pending = [ownerDocument];
+
+    while (pending.length > 0) {
+      const currentDocument = pending.pop();
+
+      if (!currentDocument || documents.has(currentDocument)) continue;
+
+      documents.add(currentDocument);
+
+      const roots: Array<Document | ShadowRoot | Element> = [currentDocument];
+
+      while (roots.length > 0) {
+        const root = roots.pop();
+
+        if (!root) continue;
+
+        const walker = currentDocument.createTreeWalker(root, 1);
+        let node = walker.nextNode();
+
+        while (node) {
+          const ElementConstructor = currentDocument.defaultView?.Element;
+
+          if (ElementConstructor && node instanceof ElementConstructor) {
+            if (node.shadowRoot) roots.push(node.shadowRoot);
+
+            const childDocument = getAccessibleFrameDocument(node);
+
+            if (childDocument && !documents.has(childDocument)) pending.push(childDocument);
+          }
+
+          node = walker.nextNode();
+        }
+      }
+    }
+
+    documents.delete(ownerDocument);
+
+    return documents;
+  };
+
+  const installFramePointerInput = () => {
+    const listeners = new Map<Document, Array<[string, EventListener]>>();
+    const observers = new Map<Document, MutationObserver>();
+    let disposed = false;
+
+    const toPointerInput = (
+      event: PointerEvent,
+      sourceDocument: Document,
+    ): MesurerPointerInput | null => {
+      const overlay = rootElement?.querySelector<HTMLDivElement>(
+        "[data-mesurer-interaction-overlay='true']",
+      );
+
+      if (!overlay) return null;
+
+      const point = projectPoint(
+        { x: event.clientX, y: event.clientY },
+        sourceDocument,
+        ownerDocument,
+      );
+
+      if (point.x < 0 || point.y < 0) return null;
+
+      return {
+        currentTarget: overlay,
+        clientX: point.x,
+        clientY: point.y,
+        button: event.button,
+        buttons: event.buttons,
+        pointerId: event.pointerId,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+        preventDefault: () => event.preventDefault(),
+        stopPropagation: () => event.stopPropagation(),
+      };
+    };
+
+    const handlePointer = (
+      event: PointerEvent,
+      sourceDocument: Document,
+    ) => {
+      if (
+        !model.current.enabled
+        || model.current.settingsOpen
+        || model.current.toolMode !== "select"
+      ) {
+        return;
+      }
+
+      const inputEvent = toPointerInput(event, sourceDocument);
+
+      if (!inputEvent) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      if (event.type === "pointerdown") pointerDown(inputEvent);
+      else if (event.type === "pointermove") pointerMove(inputEvent);
+      else if (event.type === "pointerup") pointerUp(inputEvent);
+      else pointerLeave();
+    };
+
+    const handleClick = (event: MouseEvent) => {
+      if (
+        !model.current.enabled
+        || model.current.settingsOpen
+        || model.current.toolMode !== "select"
+        || event.detail === 0
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+
+    const refresh = () => {
+      if (disposed) return;
+
+      const reachable = collectAccessibleFrameDocuments();
+
+      for (const sourceDocument of reachable) {
+        if (listeners.has(sourceDocument)) continue;
+
+        const PointerEventConstructor = sourceDocument.defaultView?.PointerEvent;
+        const MouseEventConstructor = sourceDocument.defaultView?.MouseEvent;
+
+        const pointerListener = (event: Event) => {
+          if (
+            PointerEventConstructor
+            && event instanceof PointerEventConstructor
+          ) {
+            handlePointer(event, sourceDocument);
+          }
+        };
+
+        const clickListener = (event: Event) => {
+          if (
+            MouseEventConstructor
+            && event instanceof MouseEventConstructor
+          ) {
+            handleClick(event);
+          }
+        };
+
+        const registrations: Array<[string, EventListener]> = [
+          ["pointerdown", pointerListener],
+          ["pointermove", pointerListener],
+          ["pointerup", pointerListener],
+          ["pointercancel", pointerListener],
+          ["click", clickListener],
+          ["load", () => refresh()],
+        ];
+
+        for (const [type, listener] of registrations) {
+          sourceDocument.addEventListener(type, listener, true);
+        }
+
+        listeners.set(sourceDocument, registrations);
+
+        const Observer = sourceDocument.defaultView?.MutationObserver;
+
+        if (Observer && sourceDocument.body) {
+          const observer = new Observer(() => refresh());
+
+          observer.observe(sourceDocument.body, {
+            childList: true,
+            subtree: true,
+          });
+
+          observers.set(sourceDocument, observer);
+        }
+      }
+
+      for (const [sourceDocument, registrations] of listeners) {
+        if (reachable.has(sourceDocument)) continue;
+
+        for (const [type, listener] of registrations) {
+          sourceDocument.removeEventListener(type, listener, true);
+        }
+
+        listeners.delete(sourceDocument);
+        observers.get(sourceDocument)?.disconnect();
+        observers.delete(sourceDocument);
+      }
+    };
+
+    const ownerLoad = () => refresh();
+    const OwnerObserver = ownerDocument.defaultView?.MutationObserver ?? MutationObserver;
+
+    const ownerObserver = ownerDocument.body
+      ? new OwnerObserver(() => refresh())
+      : null;
+
+    ownerDocument.addEventListener("load", ownerLoad, true);
+    ownerObserver?.observe(ownerDocument.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    refresh();
+
+    return () => {
+      disposed = true;
+      ownerDocument.removeEventListener("load", ownerLoad, true);
+      ownerObserver?.disconnect();
+
+      for (const observer of observers.values()) observer.disconnect();
+
+      for (const [sourceDocument, registrations] of listeners) {
+        for (const [type, listener] of registrations) {
+          sourceDocument.removeEventListener(type, listener, true);
+        }
+      }
+
+      observers.clear();
+      listeners.clear();
+    };
+  };
+
   onSettled(() => {
     ensureMesurerStyles(MESURER_STYLES, env.portalTarget);
 
@@ -763,6 +1009,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       && ownerWindow.CSS.supports("position-anchor: --mesurer-native-anchor")
       && ownerWindow.CSS.supports("left: anchor(left)"),
     );
+
+    const releaseFramePointerInput = installFramePointerInput();
 
     const textInspectorPortalTarget = nativeDocumentInspector ? ownerDocument.body : env.portalTarget;
 
@@ -1061,6 +1309,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       ownerWindow.removeEventListener("pointermove", globalGuideMove, true);
       ownerWindow.removeEventListener("pointerup", globalGuideEnd, true);
       ownerWindow.removeEventListener("pointercancel", globalGuideEnd, true);
+      releaseFramePointerInput();
       textInspector?.destroy(); textInspector = null;
       xrayScope.dispose();
       builtinController.dispose();

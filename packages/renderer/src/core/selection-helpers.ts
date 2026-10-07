@@ -1,6 +1,7 @@
 // Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
 import { getRectFromDom } from "./dom";
 import { isMesurerUiNode } from "./events";
+import { projectPoint } from "./frame-geometry";
 import type { InspectMeasurement, Point } from "./types";
 
 const isShadowRoot = (value: Node): value is ShadowRoot => value.nodeType === 11;
@@ -59,13 +60,39 @@ export const getSelectedMeasurementHit = (params: {
     }
   }
 
-  if (params.exact) return candidates.find((candidate) => candidate.element === elements[0])?.measurement ?? null;
+  const hitCandidate = (
+    candidate: (typeof candidates)[number],
+    exact: boolean,
+  ) => {
+    const hits = candidate.element.ownerDocument === ownerDocument
+      ? elements
+      : (() => {
+          const localPoint = projectPoint(
+            params.point,
+            ownerDocument,
+            candidate.element.ownerDocument,
+          );
 
-  for (const hit of elements) {
-    for (const candidate of candidates) {
-      if (candidate.element === hit || candidate.element.contains(hit)) return candidate.measurement;
-    }
-  }
+          if (localPoint.x < 0 || localPoint.y < 0) return [];
+
+          return candidate.element.ownerDocument.elementsFromPoint(
+            localPoint.x,
+            localPoint.y,
+          );
+        })();
+
+    if (exact) return candidate.element === hits[0];
+
+    return hits.some((hit) =>
+      candidate.element === hit || candidate.element.contains(hit));
+  };
+
+  const hit = candidates.find((candidate) =>
+    hitCandidate(candidate, params.exact ?? false));
+
+  if (hit) return hit.measurement;
+
+  if (params.exact) return null;
 
   for (const candidate of candidates) {
     const rect = candidate.rect;
