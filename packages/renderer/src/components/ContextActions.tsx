@@ -529,10 +529,38 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const rendererRoot = props.rendererRoot;
-  const RendererObserver = rendererRoot?.ownerDocument.defaultView?.MutationObserver;
+  const rendererWindow = rendererRoot?.ownerDocument.defaultView;
+  const RendererObserver = rendererWindow?.MutationObserver;
+  const RendererElement = rendererWindow?.Element;
+  const motionSurfaceSelector = "[data-mesurer-motion-surface='true']";
 
-  const rendererObstacleObserver = RendererObserver
-    ? new RendererObserver(() => bumpTriggerPlacement())
+  const rendererObstacleObserver = RendererObserver && RendererElement
+    ? new RendererObserver((records) => {
+        const isMotionSurfaceNode = (node: Node) =>
+          node instanceof RendererElement
+          && (
+            node.matches(motionSurfaceSelector)
+            || Boolean(node.querySelector(motionSurfaceSelector))
+          );
+
+        const relevant = records.some((record) => {
+          if (record.type === "attributes") {
+            return record.target instanceof RendererElement
+              && record.target.matches(motionSurfaceSelector);
+          }
+
+          if (
+            record.target instanceof RendererElement
+            && Boolean(record.target.closest(motionSurfaceSelector))
+          ) {
+            return true;
+          }
+
+          return [...record.addedNodes, ...record.removedNodes].some(isMotionSurfaceNode);
+        });
+
+        if (relevant) bumpTriggerPlacement();
+      })
     : null;
 
   if (rendererRoot && rendererObstacleObserver) {
