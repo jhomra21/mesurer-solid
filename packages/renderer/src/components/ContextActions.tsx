@@ -529,19 +529,20 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const rendererRoot = props.rendererRoot;
+  const RendererObserver = rendererRoot?.ownerDocument.defaultView?.MutationObserver;
 
-  const rendererObstacleObserver = rendererRoot
-    ? new (rendererRoot.ownerDocument.defaultView?.MutationObserver ?? MutationObserver)(
-        () => bumpTriggerPlacement(),
-      )
+  const rendererObstacleObserver = RendererObserver
+    ? new RendererObserver(() => bumpTriggerPlacement())
     : null;
 
-  rendererObstacleObserver?.observe(rendererRoot!, {
-    subtree: true,
-    childList: true,
-    attributes: true,
-    attributeFilter: ["style", "hidden"],
-  });
+  if (rendererRoot && rendererObstacleObserver) {
+    rendererObstacleObserver.observe(rendererRoot, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["style", "hidden"],
+    });
+  }
 
   let placementTarget = currentSelectionTriggerElement();
   observeTriggerGeometry(placementTarget);
