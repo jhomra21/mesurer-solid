@@ -1,4 +1,4 @@
-import { For, Show, createSignal, flush, onSettled } from "solid-js";
+import { For, Show, createMemo, createSignal, flush, onSettled } from "solid-js";
 import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesurer-solid-core";
 import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel } from "../model/create-mesurer-model";
@@ -118,6 +118,9 @@ export function Toolbar(props: ToolbarProps) {
   const recordingActive = () => (props.pluginTools ?? []).some(
     (tool) => tool.id === "recording" && (tool.active?.() ?? false),
   );
+
+  const visibleMotionElement = createMemo(() =>
+    recordingActive() ? null : props.motion?.element() ?? null);
 
   const commitColorPickerCapability = (supported: boolean, revision: number) => {
     colorPickerOwnerWindow().queueMicrotask(() => {
@@ -762,7 +765,7 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <>
-      <Show when={!recordingActive() ? props.motion?.element() : null} keyed>
+      <Show when={visibleMotionElement()} keyed>
         {(motionElement) => {
           const geometry = motionPlayerGeometry();
 
