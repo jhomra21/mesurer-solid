@@ -11,10 +11,8 @@ import { getDistanceOverlay, updateDistanceForResize } from "./core/distances";
 import { getInspectMeasurement, updateMeasurementForResize } from "./core/dom";
 import { isEditableKeyboardEvent, trySetPointerCapture } from "./core/events";
 import { getRectFromPoints, getViewportSize, normalizeRect } from "./core/geometry";
-import {
-  getAccessibleFrameDocument,
-  projectPoint,
-} from "./core/frame-geometry";
+import { getAccessibleDocuments } from "./core/document-tree";
+import { projectPoint } from "./core/frame-geometry";
 import { getGuideRect, getSnapGuidePosition } from "./core/guides";
 import {
   getHoveredGuide,
@@ -775,47 +773,11 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     },
   );
 
-  const collectAccessibleFrameDocuments = () => {
-    const documents = new Set<Document>();
-    const pending = [ownerDocument];
-
-    while (pending.length > 0) {
-      const currentDocument = pending.pop();
-
-      if (!currentDocument || documents.has(currentDocument)) continue;
-
-      documents.add(currentDocument);
-
-      const roots: Array<Document | ShadowRoot | Element> = [currentDocument];
-
-      while (roots.length > 0) {
-        const root = roots.pop();
-
-        if (!root) continue;
-
-        const walker = currentDocument.createTreeWalker(root, 1);
-        let node = walker.nextNode();
-
-        while (node) {
-          const ElementConstructor = currentDocument.defaultView?.Element;
-
-          if (ElementConstructor && node instanceof ElementConstructor) {
-            if (node.shadowRoot) roots.push(node.shadowRoot);
-
-            const childDocument = getAccessibleFrameDocument(node);
-
-            if (childDocument && !documents.has(childDocument)) pending.push(childDocument);
-          }
-
-          node = walker.nextNode();
-        }
-      }
-    }
-
-    documents.delete(ownerDocument);
-
-    return documents;
-  };
+  const collectAccessibleFrameDocuments = () =>
+    new Set(
+      getAccessibleDocuments(pageTarget)
+        .filter((sourceDocument) => sourceDocument !== ownerDocument),
+    );
 
   const installFramePointerInput = () => {
     const listeners = new Map<Document, Array<[string, EventListener]>>();
