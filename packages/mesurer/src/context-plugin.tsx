@@ -318,6 +318,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
           coordinateSpace: "document",
+          rendererRoot: solid.rendererRoot,
         };
 
         disposeUi = render(() => (
