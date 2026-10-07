@@ -9,20 +9,59 @@ type MotionDependencyRule = {
   properties: Map<string, string[]>;
 };
 
-const mediaTextForRule = (rule: CSSRule) =>
-  "media" in rule ? String(rule.media?.mediaText ?? "") : "";
+const mediaTextForRule = (rule: CSSRule) => {
+  if (!("media" in rule)) return "";
 
-const importedSheetForRule = (rule: CSSRule) =>
-  "styleSheet" in rule ? rule.styleSheet : null;
+  // SAFETY: CSS rules exposing a media property use the CSSMediaList contract.
+  const candidate = rule as CSSMediaRule | CSSImportRule;
 
-const nestedRulesForRule = (rule: CSSRule) =>
-  "cssRules" in rule ? rule.cssRules : null;
+  return candidate.media?.mediaText ?? "";
+};
 
-const styleForRule = (rule: CSSRule) =>
-  "style" in rule ? rule.style : null;
+const importedSheetForRule = (rule: CSSRule) => {
+  if (!("styleSheet" in rule)) return null;
 
-const keyframesNameForRule = (rule: CSSRule) =>
-  "name" in rule ? String(rule.name ?? "") : "";
+  // SAFETY: CSSImportRule is the CSS rule shape exposing styleSheet.
+  const candidate = rule as CSSImportRule;
+
+  return candidate.styleSheet;
+};
+
+const nestedRulesForRule = (rule: CSSRule) => {
+  if (!("cssRules" in rule)) return null;
+
+  // SAFETY: rules exposing cssRules implement the CSS grouping-rule contract.
+  const candidate = rule as CSSGroupingRule;
+
+  return candidate.cssRules;
+};
+
+const styleForRule = (rule: CSSRule) => {
+  if (!("style" in rule)) return null;
+
+  // SAFETY: rules exposing style provide a CSSStyleDeclaration.
+  const candidate = rule as CSSStyleRule | CSSKeyframeRule;
+
+  return candidate.style;
+};
+
+const keyframesNameForRule = (rule: CSSRule) => {
+  if (!("name" in rule)) return "";
+
+  // SAFETY: the CSS rule shape exposing name here is a keyframes rule.
+  const candidate = rule as CSSKeyframesRule;
+
+  return candidate.name;
+};
+
+const selectorForRule = (rule: CSSRule) => {
+  if (!("selectorText" in rule)) return undefined;
+
+  // SAFETY: selectorText is provided by CSSStyleRule.
+  const candidate = rule as CSSStyleRule;
+
+  return candidate.selectorText;
+};
 
 export function createMotionDependencies(document?: Document) {
   let scopes = new WeakMap<Node, MotionDependencyRule[]>();
@@ -132,9 +171,7 @@ export function createMotionDependencies(document?: Document) {
 
         if (properties.size) {
           result.push({
-            selector: "selectorText" in rule
-              ? String(rule.selectorText ?? "")
-              : undefined,
+            selector: selectorForRule(rule),
             animation,
             properties,
           });
