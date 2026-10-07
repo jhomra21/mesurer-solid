@@ -17,7 +17,7 @@ import {
   scrubAnimations,
   type MotionDetails,
 } from "../core/motion";
-import type { ObservedMotionTarget } from "../core/observed-motion";
+import { observeMotion, readObservedMotion } from "../core/observed-motion";
 import { MotionPreview, type MotionPreviewWakeRef } from "./MotionPreview";
 
 const SPEED_PRESETS = [0.25, 0.5, 1, 2] as const;
@@ -175,8 +175,6 @@ function MotionValues(props: {
 export function MotionPlayer(props: {
   element: Element;
   ownerWindow: Window;
-  observedProperties: string[];
-  observedTargets: ObservedMotionTarget[];
 }) {
   const [duration, setDuration] = createSignal(0);
   const [progress, setProgress] = createSignal(0);
@@ -187,11 +185,15 @@ export function MotionPlayer(props: {
   const [inspectOpen, setInspectOpen] = createSignal(false);
   const [speedOpen, setSpeedOpen] = createSignal(false);
   const [playbackElement, setPlaybackElement] = createSignal<Element | null>(null);
+  const [observedTargets, setObservedTargets] = createSignal(readObservedMotion(props.element));
 
   const previewWakeRef: MotionPreviewWakeRef = { current: null };
   let animations: Animation[] = [];
 
-  const observedOnly = () => props.observedProperties.length > 0;
+  const observedProperties = createMemo(() =>
+    [...new Set(observedTargets().flatMap((target) => target.properties))]);
+
+  const observedOnly = () => observedProperties().length > 0;
   const playbackReady = () => playbackElement() === props.element;
 
   const controllable = () =>
@@ -199,6 +201,21 @@ export function MotionPlayer(props: {
     && !observedOnly()
     && duration() > 0
     && motions().some((motion) => motion.animation);
+
+  createEffect(() => {
+    const element = props.element;
+    const ownerWindow = props.ownerWindow;
+
+    setObservedTargets(readObservedMotion(element));
+
+    const stopObserved = observeMotion(
+      element,
+      ownerWindow,
+      (targets) => setObservedTargets(targets),
+    );
+
+    onCleanup(stopObserved);
+  });
 
   createEffect(() => {
     const element = props.element;
@@ -326,7 +343,7 @@ export function MotionPlayer(props: {
   };
 
   return (
-    <Show when={ready() || props.observedProperties.length > 0}>
+    <Show when={ready() || observedProperties().length > 0}>
       <div
         data-mesurer-motion-player="true"
         data-mesurer-inspector-ui="true"
@@ -346,7 +363,7 @@ export function MotionPlayer(props: {
             <MotionPreview
               element={props.element}
               ownerWindow={props.ownerWindow}
-              observedTargets={props.observedTargets}
+              observedTargets={observedTargets()}
               wakeRef={previewWakeRef}
             />
           </button>
@@ -454,7 +471,7 @@ export function MotionPlayer(props: {
               motions={motions()}
               ownerWindow={props.ownerWindow}
               element={props.element}
-              observedProperties={props.observedProperties}
+              observedProperties={observedProperties()}
             />
           </div>
         </Show>
