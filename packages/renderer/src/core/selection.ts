@@ -3,6 +3,7 @@ import { CLICK_CYCLE_THRESHOLD, MIN_MULTI_TARGET_SIZE, MIN_SINGLE_TARGET_SIZE } 
 import { getBodyElementsCached, getFrameToken, getRectFromDomCached } from "./dom";
 import { isInsideMesurer, isMesurerInputBoundary } from "./events";
 import { rectsOverlap } from "./geometry";
+import { isElementWithinAccessibleTarget } from "./document-tree";
 import {
   getAccessibleFrameDocument,
   parentPointToFrame,
@@ -114,7 +115,7 @@ export const getTargetElement = (
   const element = deepestAccessibleFrameHit(initial, point);
 
   if (
-    !isElementWithinSelectionTarget(element, pageTarget)
+    !isElementWithinAccessibleTarget(element, pageTarget)
     || isOverlayElement(element, overlayNode, overlayHost)
     || isInsideMesurer(element, ownerWindow)
   ) {
@@ -159,39 +160,6 @@ const composedParentElement = (element: Element): Element | null => {
   if (isShadowRoot(root)) return root.host;
 
   return containingFrame(element.ownerDocument);
-};
-
-const isElementWithinSelectionTarget = (
-  element: Element,
-  target: HTMLElement | ShadowRoot,
-) => {
-  if (isElementWithinDomTarget(element, target)) return true;
-
-  const targetDocument = target.ownerDocument;
-  let currentDocument = element.ownerDocument;
-  const seen = new Set<Document>();
-
-  while (
-    currentDocument !== targetDocument
-    && !seen.has(currentDocument)
-  ) {
-    seen.add(currentDocument);
-
-    const frame = containingFrame(currentDocument);
-
-    if (!frame) return false;
-
-    if (
-      frame.ownerDocument === targetDocument
-      && isElementWithinDomTarget(frame, target)
-    ) {
-      return true;
-    }
-
-    currentDocument = frame.ownerDocument;
-  }
-
-  return false;
 };
 
 const deepestAccessibleFrameHit = (
@@ -251,7 +219,7 @@ const getPointSelectionStack = (
     if (!element || seen.has(element)) return;
 
     if (
-      !isElementWithinSelectionTarget(element, pageTarget)
+      !isElementWithinAccessibleTarget(element, pageTarget)
       || isOverlayElement(element, overlayNode, overlayHost)
       || isInsideMesurer(element, ownerWindow)
       || element === element.ownerDocument.body
@@ -439,7 +407,7 @@ export const getSelectionEntries = (
     .map((element) => ({ element, rect: getRectFromDomCached(element) }))
     .filter(({ element, rect: elementRect }) => {
       if (
-        !isElementWithinSelectionTarget(element, pageTarget)
+        !isElementWithinAccessibleTarget(element, pageTarget)
         || isOverlayElement(element, overlayNode, overlayHost)
         || isInsideMesurer(element, ownerWindow)
         || element === element.ownerDocument.body
