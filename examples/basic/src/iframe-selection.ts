@@ -1,9 +1,11 @@
 import { mountMesurer } from "../../../packages/mesurer/src/index";
+import { context } from "../../../packages/mesurer/src/plugins";
 
 const subject = mountMesurer({
   target: document.body,
   isolate: false,
   persistKey: "mesurer-iframe-selection-contract",
+  plugins: [context()],
 });
 
 await subject.ready;

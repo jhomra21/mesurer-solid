@@ -193,6 +193,7 @@ export type MesurerWorkspaceContextSource = {
     }>;
     guides: Array<{ id: string; orientation: "vertical" | "horizontal"; position: number }>;
   } | null;
+  elementRect?(element: Element): MesurerContextRect;
   currentSelection(): { elements: Element[]; region: MesurerContextRect | null };
   annotations(): MesurerAnnotation[];
   annotation(id: string): (MesurerAnnotation & { resolvedTargets: Array<{ target: MesurerAnnotationTarget; element: Element | null }> }) | null;
@@ -237,6 +238,9 @@ export function captureMesurerContext(options: {
 
   if (!snapshot) throw new Error("Mesurer workspace is not ready yet.");
 
+  const elementRect = (element: Element) =>
+    rect(runtime.elementRect?.(element) ?? element.getBoundingClientRect());
+
   let anchorElements: Element[] = [];
   let anchorRegions: MesurerContextRect[] = [];
   let scope: MesurerContextV1["scope"] = { kind: "workspace" };
@@ -270,7 +274,7 @@ export function captureMesurerContext(options: {
     if (!anchorElements.length && !selection.region) throw new Error("Mesurer has no current selection.");
     anchorRegions = selection.region
       ? [selection.region]
-      : anchorElements.map((element) => rect(element.getBoundingClientRect()));
+      : anchorElements.map(elementRect);
     scope = { kind: "selection" };
   } else {
     anchorElements = uniqueElements([
@@ -285,7 +289,7 @@ export function captureMesurerContext(options: {
     ? []
     : anchorRegions.length
       ? anchorRegions
-      : anchorElements.map((element) => rect(element.getBoundingClientRect()));
+      : anchorElements.map(elementRect);
 
   const evidence = selectMesurerRelevantEvidence({
     workspace: {
@@ -325,9 +329,24 @@ export function captureMesurerContext(options: {
 
   const targets: MesurerContextTarget[] = targetElements.map((element) => {
     const ref = preferredRefByElement.get(element) ?? nextRef();
+    const projected = elementRect(element);
+    const inspection = inspectDomElement(element);
+
     refByElement.set(element, ref);
 
-    return { ref, inspection: inspectDomElement(element) };
+    return {
+      ref,
+      inspection: {
+        ...inspection,
+        rect: {
+          ...projected,
+          right: projected.left + projected.width,
+          bottom: projected.top + projected.height,
+          x: projected.left,
+          y: projected.top,
+        },
+      },
+    };
   });
 
   const contextMeasurements = measurements.map((measurement): MesurerContextMeasurement => {

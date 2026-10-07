@@ -121,7 +121,7 @@ export const getInspectMeasurement = (
 export const updateMeasurementForResize = (
   measurement: Measurement,
   viewport = getViewportSize(),
-  ownerDocument: Document = document,
+  _ownerDocument: Document = document,
 ): Measurement => {
   let rect = measurement.rect;
 

@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Add Motion inspection for selected animated elements, including live preview, play/pause, scrubbing, playback speed, keyframe details, Web Animations API targets, and read-only detection of observed JavaScript motion.
+- Add same-origin iframe inspection across Select, measurement geometry, X-ray, Motion, and Context. Pointer input and rectangles project through scaled/transformed frame ancestry, Context evidence and annotation chrome stay aligned in the top viewport, and inaccessible cross-origin frames fail closed.
 - Restore Mesurer's browser **Settings -> Codex** path through the local Mesurer Codex Bridge companion while keeping Electron on its native preload bridge. Browser users can enable Codex without an Electron host; a missing companion stays in an unavailable/retry state instead of rolling the plugin back with a preload error.
 - Keep the Mesurer Solid ChatGPT/Codex agent plugin separate from the Mesurer Codex Bridge helper so agent-side Mesurer usage and human-triggered Queue to Codex remain independent features.
 - Preserve Codex's client user-message identity alongside the queued-submission receipt and recover missing Mesurer delivery records from one exact turn-history match after Codex has already consumed the queue item. Failed tracked deliveries retain their recovery identity and retry restoration before Mesurer can submit anything again.

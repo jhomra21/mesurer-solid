@@ -24,6 +24,47 @@ page.on("console", (message) => {
   if (message.type() === "error") errors.push(message.text());
 });
 
+const settle = () => page.evaluate(() => new Promise((resolve) => {
+  requestAnimationFrame(() => requestAnimationFrame(resolve));
+}));
+
+const clickDocumentUi = async (locator, label) => {
+  await locator.waitFor({ state: "visible" });
+
+  const rect = await locator.boundingBox();
+
+  assert(rect, `${label}: expected rendered geometry`);
+
+  const x = rect.x + rect.width / 2;
+  const y = rect.y + rect.height / 2;
+
+  await page.mouse.move(x, y);
+  await settle();
+
+  const hit = await locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+
+    const actual = element.ownerDocument.elementFromPoint(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+    );
+
+    return {
+      ownsHit: Boolean(actual && (actual === element || element.contains(actual))),
+      expected: element.outerHTML.slice(0, 800),
+      actual: actual?.outerHTML.slice(0, 800) ?? null,
+    };
+  });
+
+  assert.equal(
+    hit.ownsHit,
+    true,
+    `${label} did not own its visible pointer location: ${JSON.stringify(hit)}`,
+  );
+
+  await page.mouse.click(x, y);
+};
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_IFRAME_TEST__));
@@ -46,8 +87,48 @@ try {
 
     const frameRect = frame.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();
-    const scaleX = frameRect.width / frame.offsetWidth;
-    const scaleY = frameRect.height / frame.offsetHeight;
+    const transform = getComputedStyle(frame).transform;
+    const matrix = new DOMMatrixReadOnly(transform === "none" ? undefined : transform);
+
+    if (!matrix.is2D) throw new Error("Iframe contract requires a 2D transform");
+
+    const width = frame.offsetWidth;
+
+    const height = frame.offsetHeight;
+
+    const originLeft = frameRect.left - Math.min(
+      0,
+      matrix.a * width,
+      matrix.c * height,
+      matrix.a * width + matrix.c * height,
+    );
+
+    const originTop = frameRect.top - Math.min(
+      0,
+      matrix.b * width,
+      matrix.d * height,
+      matrix.b * width + matrix.d * height,
+    );
+
+    const localLeft = frame.clientLeft + targetRect.left;
+    const localTop = frame.clientTop + targetRect.top;
+
+    const project = (x, y) => ({
+      x: originLeft + matrix.a * x + matrix.c * y,
+      y: originTop + matrix.b * x + matrix.d * y,
+    });
+
+    const corners = [
+      project(localLeft, localTop),
+      project(localLeft + targetRect.width, localTop),
+      project(localLeft, localTop + targetRect.height),
+      project(localLeft + targetRect.width, localTop + targetRect.height),
+    ];
+
+    const left = Math.min(...corners.map((point) => point.x));
+    const top = Math.min(...corners.map((point) => point.y));
+    const right = Math.max(...corners.map((point) => point.x));
+    const bottom = Math.max(...corners.map((point) => point.y));
 
     return {
       frame: {
@@ -57,8 +138,12 @@ try {
         height: frameRect.height,
         clientLeft: frame.clientLeft,
         clientTop: frame.clientTop,
-        scaleX,
-        scaleY,
+        matrix: {
+          a: matrix.a,
+          b: matrix.b,
+          c: matrix.c,
+          d: matrix.d,
+        },
       },
       target: {
         left: targetRect.left,
@@ -67,10 +152,10 @@ try {
         height: targetRect.height,
       },
       expected: {
-        left: frameRect.left + (frame.clientLeft + targetRect.left) * scaleX,
-        top: frameRect.top + (frame.clientTop + targetRect.top) * scaleY,
-        width: targetRect.width * scaleX,
-        height: targetRect.height * scaleY,
+        left,
+        top,
+        width: right - left,
+        height: bottom - top,
       },
     };
   });
@@ -156,19 +241,216 @@ try {
     "Selection must resolve the iframe child, not the iframe element",
   );
 
+  const motionPlayer = page.locator("[data-mesurer-motion-player='true']");
+
+  await motionPlayer.waitFor({ state: "visible", timeout: 5000 });
+
+  const motionInspect = motionPlayer.locator("[data-mesurer-motion-inspect='true']");
+
+  if ((await motionInspect.getAttribute("aria-expanded")) !== "true") {
+    await motionInspect.click();
+  }
+
+  const motionDetails = motionPlayer.locator("[data-mesurer-motion-details='true']");
+
+  await motionDetails.waitFor({ state: "visible" });
+
+  assert.match(
+    (await motionDetails.textContent()) ?? "",
+    /iframe-pulse|opacity/i,
+    "Motion must inspect animation details in the iframe element's own realm",
+  );
+
+  const selectionContext = await page.evaluate(
+    () => window.__MESURER_IFRAME_TEST__?.subject.context({ scope: "selection" }),
+  );
+
+  const contextTargetRect = selectionContext?.targets?.[0]?.inspection?.rect;
+
+  assert(contextTargetRect, "Selection Context must expose the selected iframe child");
+
+  for (const [key, actual, expected] of [
+    ["left", contextTargetRect.left, geometry.expected.left],
+    ["top", contextTargetRect.top, geometry.expected.top],
+    ["width", contextTargetRect.width, geometry.expected.width],
+    ["height", contextTargetRect.height, geometry.expected.height],
+  ]) {
+    assert(
+      Math.abs(actual - expected) <= 2,
+      `Iframe Context ${key} must use top-level projected geometry. expected=${expected} actual=${actual}`,
+    );
+  }
+
+  const xray = page.locator("[data-mesurer-builtin='xray'] button");
+
+  await xray.click();
+  await page.waitForFunction(() => {
+    const frame = document.querySelector("[data-testid='same-origin-frame']");
+
+    return frame instanceof HTMLIFrameElement
+      && frame.contentDocument?.body.classList.contains("mesurer-solid-xray");
+  });
+
+  const xrayState = await page.evaluate(() => {
+    const frame = document.querySelector("[data-testid='same-origin-frame']");
+
+    if (!(frame instanceof HTMLIFrameElement)) return null;
+
+    const target = frame.contentDocument?.querySelector("[data-testid='frame-target']");
+
+    if (!(target instanceof frame.contentWindow.Element)) return null;
+
+    const style = frame.contentWindow.getComputedStyle(target);
+
+    return {
+      childBody: frame.contentDocument.body.classList.contains("mesurer-solid-xray"),
+      outlineStyle: style.outlineStyle,
+      outlineWidth: style.outlineWidth,
+    };
+  });
+
+  assert(xrayState?.childBody, "X-ray must activate inside the same-origin iframe");
+  assert.notEqual(xrayState?.outlineStyle, "none", "Iframe child must receive X-ray outline");
+  assert.notEqual(xrayState?.outlineWidth, "0px", "Iframe child X-ray outline must be visible");
+
+  await xray.click();
+  await page.waitForFunction(() => {
+    const frame = document.querySelector("[data-testid='same-origin-frame']");
+
+    return frame instanceof HTMLIFrameElement
+      && !frame.contentDocument?.body.classList.contains("mesurer-solid-xray");
+  });
+
+  const contextRoot = page.locator("[data-mesurer-context-root='true']");
+  const trigger = contextRoot.locator("[data-mesurer-annotation-trigger='true']");
+
+  await trigger.waitFor({ state: "visible", timeout: 5000 });
+
+  const triggerBox = await trigger.boundingBox();
+
+  assert(triggerBox, "Context trigger must be visible for an iframe selection");
+
+  const triggerCenter = {
+    x: triggerBox.x + triggerBox.width / 2,
+    y: triggerBox.y + triggerBox.height / 2,
+  };
+
+  const dx = triggerCenter.x < geometry.expected.left
+    ? geometry.expected.left - triggerCenter.x
+    : triggerCenter.x > geometry.expected.left + geometry.expected.width
+      ? triggerCenter.x - geometry.expected.left - geometry.expected.width
+      : 0;
+
+  const dy = triggerCenter.y < geometry.expected.top
+    ? geometry.expected.top - triggerCenter.y
+    : triggerCenter.y > geometry.expected.top + geometry.expected.height
+      ? triggerCenter.y - geometry.expected.top - geometry.expected.height
+      : 0;
+
+  const motionBox = await motionPlayer.boundingBox();
+
+  assert(motionBox, "Motion player must expose rendered geometry");
+
+  const overlapsMotion = !(
+    triggerBox.x + triggerBox.width <= motionBox.x
+    || motionBox.x + motionBox.width <= triggerBox.x
+    || triggerBox.y + triggerBox.height <= motionBox.y
+    || motionBox.y + motionBox.height <= triggerBox.y
+  );
+
+  assert.equal(
+    overlapsMotion,
+    false,
+    `Context trigger must not overlap Motion: ${JSON.stringify({ triggerBox, motionBox })}`,
+  );
+
+  assert(
+    Math.hypot(dx, dy) <= 128,
+    `Context trigger drifted too far from projected iframe target: ${JSON.stringify({ triggerBox, expected: geometry.expected })}`,
+  );
+
+  await clickDocumentUi(trigger, "iframe Context trigger");
+
+  const composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
+
+  await composer.waitFor({ state: "visible", timeout: 5000 });
+  await composer.locator("textarea").fill("Iframe context acceptance");
+  await clickDocumentUi(
+    composer.getByRole("button", { name: "Add note", exact: true }),
+    "iframe Context Add note",
+  );
+  await composer.waitFor({ state: "hidden" });
+
+  const marker = contextRoot.locator("[data-mesurer-annotation-marker='true']").first();
+  const highlight = contextRoot.locator("[data-mesurer-annotation-target-highlight='true']").first();
+
+  await marker.waitFor({ state: "visible" });
+  await highlight.waitFor({ state: "visible" });
+
+  const highlightBox = await highlight.boundingBox();
+
+  assert(highlightBox, "Iframe annotation must render its ownership highlight");
+
+  for (const [key, actual, expected] of [
+    ["left", highlightBox.x, geometry.expected.left],
+    ["top", highlightBox.y, geometry.expected.top],
+    ["width", highlightBox.width, geometry.expected.width],
+    ["height", highlightBox.height, geometry.expected.height],
+  ]) {
+    assert(
+      Math.abs(actual - expected) <= 2,
+      `Iframe annotation highlight ${key} must match projected target geometry. expected=${expected} actual=${actual}`,
+    );
+  }
+
+  const annotationId = await marker.getAttribute("data-mesurer-annotation-id");
+
+  assert(annotationId, "Iframe annotation marker must expose its annotation id");
+
+  const annotationContext = await page.evaluate(
+    async (id) => window.__MESURER_IFRAME_TEST__?.subject.context({ annotation: id }),
+    annotationId,
+  );
+
+  const annotationTargetRect = annotationContext?.targets?.[0]?.inspection?.rect;
+
+  assert(annotationTargetRect, "Annotation Context must resolve its iframe target");
+
+  for (const [key, actual, expected] of [
+    ["left", annotationTargetRect.left, geometry.expected.left],
+    ["top", annotationTargetRect.top, geometry.expected.top],
+    ["width", annotationTargetRect.width, geometry.expected.width],
+    ["height", annotationTargetRect.height, geometry.expected.height],
+  ]) {
+    assert(
+      Math.abs(actual - expected) <= 2,
+      `Iframe annotation Context ${key} must stay projected. expected=${expected} actual=${actual}`,
+    );
+  }
+
   const screenshotPath = join(output, "iframe-selection.png");
 
   await page.screenshot({ path: screenshotPath, fullPage: true });
 
   await writeFile(
     join(output, "iframe-selection.json"),
-    `${JSON.stringify({ geometry, selectedBox, errors }, null, 2)}\n`,
+    `${JSON.stringify({
+      geometry,
+      selectedBox,
+      contextTargetRect,
+      motionDetails: (await motionDetails.textContent()) ?? "",
+      xrayState,
+      triggerBox,
+      highlightBox,
+      annotationTargetRect,
+      errors,
+    }, null, 2)}\n`,
     "utf8",
   );
 
   assert.deepEqual(errors, [], `Iframe contract emitted browser errors: ${errors.join("\n")}`);
 
-  console.log("Same-origin iframe selection contract: PASS");
+  console.log("Same-origin iframe selection, X-ray, and Context contract: PASS");
 } finally {
   await browser.close();
 }

@@ -787,7 +787,7 @@ export function Toolbar(props: ToolbarProps) {
           >
             <MotionPlayer
               element={motionElement}
-              ownerWindow={props.ownerWindow}
+              ownerWindow={motionElement.ownerDocument.defaultView ?? props.ownerWindow}
             />
           </div>
         );

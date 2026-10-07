@@ -25,6 +25,7 @@ export function ContextActionsSelectOwnership(props: ContextActionsSelectOwnersh
       onCopy={props.onCopy}
       initialTriggerFallback={props.initialTriggerFallback}
       coordinateSpace={props.coordinateSpace}
+      rendererRoot={props.rendererRoot}
       onController={(value) => {
         controller = value;
         props.onController?.(value);
