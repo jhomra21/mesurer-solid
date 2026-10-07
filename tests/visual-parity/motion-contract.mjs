@@ -31,7 +31,10 @@ const selectTarget = async (selector) => {
   const box = await target.boundingBox();
 
   assert(box, `Expected rendered target geometry for ${selector}`);
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.click(
+    box.x + Math.max(8, box.width - 24),
+    box.y + box.height / 2,
+  );
   await settle();
 };
 
