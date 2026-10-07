@@ -21,6 +21,7 @@ export type ContextActionsProps = {
   onController?: (controller: ContextActionsController | null) => void;
   initialTriggerFallback?: "current" | "current-and-next";
   coordinateSpace?: "document" | "viewport";
+  rendererRoot?: HTMLElement | null;
 };
 
 type PositionedRect = { left: number; top: number; width: number; height: number };
@@ -507,6 +508,41 @@ export function ContextActions(props: ContextActionsProps) {
     setTriggerRevision((value) => value + 1);
   }
 
+  const rendererObstacleRects = () => {
+    const root = props.rendererRoot;
+
+    if (!root) return [];
+
+    return [...root.querySelectorAll<HTMLElement>("[data-mesurer-motion-surface='true']")]
+      .filter((element) => element.isConnected)
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+
+        return {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+        };
+      })
+      .filter((rect) => rect.width > 0 && rect.height > 0);
+  };
+
+  const rendererRoot = props.rendererRoot;
+
+  const rendererObstacleObserver = rendererRoot
+    ? new (rendererRoot.ownerDocument.defaultView?.MutationObserver ?? MutationObserver)(
+        () => bumpTriggerPlacement(),
+      )
+    : null;
+
+  rendererObstacleObserver?.observe(rendererRoot!, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ["style", "hidden"],
+  });
+
   let placementTarget = currentSelectionTriggerElement();
   observeTriggerGeometry(placementTarget);
 
@@ -553,6 +589,7 @@ export function ContextActions(props: ContextActionsProps) {
     triggerResizeObserver = null;
     triggerResizeWindow?.removeEventListener("resize", bumpTriggerPlacement);
     triggerResizeWindow = null;
+    rendererObstacleObserver?.disconnect();
     releaseSelectionTriggerAnchor();
 
     for (const annotationId of annotationScrollBindings.keys()) releaseAnnotationScrollBinding(annotationId);
@@ -685,7 +722,10 @@ export function ContextActions(props: ContextActionsProps) {
     const [placement] = layoutAnnotationMarkers(
       [{ id: "selection-note-trigger", rect: value }],
       { width: currentWindow.innerWidth, height: currentWindow.innerHeight },
-      { obstacles: markerObstacles, maxShiftRings: 1 },
+      {
+        obstacles: [...markerObstacles, ...rendererObstacleRects()],
+        maxShiftRings: 1,
+      },
     );
 
     const padding = 4;
