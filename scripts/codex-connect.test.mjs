@@ -7,6 +7,41 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
+const rawFetch = globalThis.fetch;
+
+const bridgeFetch = async (input, init = {}) => {
+  const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+  const headers = new Headers(init.headers ?? (input instanceof Request ? input.headers : undefined));
+  const origin = headers.get("Origin");
+
+  if (!origin || url.pathname === "/health" || init.method === "OPTIONS") {
+    return rawFetch(input, init);
+  }
+
+  let health;
+
+  try {
+    health = await rawFetch(`${url.origin}/health`, {
+      headers: { Origin: origin },
+    });
+  } catch {
+    return rawFetch(input, init);
+  }
+
+  if (!health.ok) return rawFetch(input, init);
+
+  const payload = await health.json().catch(() => null);
+  const instanceId = payload?.bridge?.instanceId;
+
+  if (payload?.access?.allowed !== true || typeof instanceId !== "string" || !instanceId) {
+    return rawFetch(input, init);
+  }
+
+  headers.set("X-Mesurer-Bridge-Instance", instanceId);
+
+  return rawFetch(input, { ...init, headers });
+};
+
 const connectScript = new URL("../packages/mesurer/codex/codex-connect.mjs", import.meta.url);
 
 const bridgeScript = new URL("../packages/mesurer/codex/codex-bridge.mjs", import.meta.url);
@@ -62,7 +97,7 @@ const waitForUnavailable = async (url, timeoutMs = 10_000) => {
 
   while (Date.now() < deadline) {
     try {
-      await fetch(`${url}/health`);
+      await bridgeFetch(`${url}/health`);
     } catch {
       return;
     }
@@ -154,7 +189,7 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
     assert.equal(second.code, 0, second.stderr);
     assert.equal(second.stdout, "", "Reusing the bridge must also stay silent.");
 
-    const health = await fetch(`${bridgeUrl}/health`);
+    const health = await bridgeFetch(`${bridgeUrl}/health`);
     assert.equal(health.status, 200);
     const healthPayload = await health.json();
     assert.equal(healthPayload.ok, true);
@@ -172,7 +207,7 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
     assert.equal(healthPayload.bridgeState?.registeredThreads, 2);
     assert.equal(healthPayload.bridgeState?.idle, false);
 
-    const send = await fetch(`${bridgeUrl}/send`, {
+    const send = await bridgeFetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -207,7 +242,7 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
     await waitForUnavailable(bridgeUrl);
   } finally {
     try {
-      await fetch(`${bridgeUrl}/send`, {
+      await bridgeFetch(`${bridgeUrl}/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: "test cleanup" }),
@@ -249,7 +284,7 @@ test("Codex SessionEnd keeps a shared bridge until its last registered thread ex
     assert.equal(firstEnd.code, 0, firstEnd.stderr);
     assert.equal(firstEnd.stdout, "");
 
-    const health = await fetch(`${bridgeUrl}/health`);
+    const health = await bridgeFetch(`${bridgeUrl}/health`);
     assert.equal(health.status, 200);
     const healthPayload = await health.json();
     assert.equal(healthPayload.thread, "thread-owner-b");
@@ -266,7 +301,7 @@ test("Codex SessionEnd keeps a shared bridge until its last registered thread ex
 
     await waitForUnavailable(bridgeUrl);
   } finally {
-    try { await fetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
+    try { await bridgeFetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
 
     await rm(root, { recursive: true, force: true });
   }
@@ -292,13 +327,13 @@ test("Codex Desktop owner loss reaps the detached bridge when SessionEnd cannot 
 
     assert.equal(start.code, 0, start.stderr);
 
-    const health = await fetch(`${bridgeUrl}/health`);
+    const health = await bridgeFetch(`${bridgeUrl}/health`);
     assert.equal(health.status, 200);
 
     await rm(ownerAnchor, { force: true });
     await waitForUnavailable(bridgeUrl);
   } finally {
-    try { await fetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
+    try { await bridgeFetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
 
     await rm(root, { recursive: true, force: true });
   }
@@ -603,7 +638,7 @@ test("Codex SessionStart replaces an incompatible idle self-identifying bridge",
     assert.equal(result.stdout, "");
     assert.equal(shutdowns, 1);
 
-    const health = await fetch(`${bridgeUrl}/health`);
+    const health = await bridgeFetch(`${bridgeUrl}/health`);
     assert.equal(health.status, 200);
     const healthPayload = await health.json();
 
@@ -619,7 +654,7 @@ test("Codex SessionStart replaces an incompatible idle self-identifying bridge",
       env: { CODEX_HOME: root },
     }).catch(() => undefined);
 
-    try { await fetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
+    try { await bridgeFetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
 
     await waitForUnavailable(bridgeUrl);
     await rm(root, { recursive: true, force: true });
