@@ -170,6 +170,7 @@ const frameMatrix = (frame: Element): FrameMatrix | null => {
     );
 
     const sx = Number.isFinite(scaleParts[0]) ? scaleParts[0] ?? 1 : 1;
+
     const sy = Number.isFinite(scaleParts[1])
       ? scaleParts[1] ?? sx
       : sx;
