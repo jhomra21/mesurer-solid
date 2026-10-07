@@ -118,6 +118,12 @@ type MesurerPointerInput = {
   stopPropagation(): void;
 };
 
+type MesurerPointerMoveInput = {
+  clientX: number;
+  clientY: number;
+  altKey: boolean;
+};
+
 
 let instanceCount = 0;
 
@@ -474,7 +480,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     trySetPointerCapture(event.currentTarget, event.pointerId);
   };
 
-  const pointerMove = (event: MesurerPointerInput) => {
+  const pointerMove = (event: MesurerPointerMoveInput) => {
     if (!model.current.enabled || model.current.settingsOpen) return;
     const point = { x: event.clientX, y: event.clientY };
 
