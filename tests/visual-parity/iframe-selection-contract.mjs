@@ -4,11 +4,13 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 
 const url = process.env.IFRAME_SELECTION_URL ?? "http://127.0.0.1:4181/iframe-selection.html";
+
 const output = process.env.IFRAME_SELECTION_OUT ?? "iframe-selection-artifacts";
 
 await mkdir(output, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
+
 const page = await browser.newPage({
   viewport: { width: 1280, height: 900 },
   deviceScaleFactor: 1,
@@ -17,6 +19,7 @@ const page = await browser.newPage({
 const errors = [];
 
 page.on("pageerror", (error) => errors.push(String(error)));
+
 page.on("console", (message) => {
   if (message.type() === "error") errors.push(message.text());
 });
