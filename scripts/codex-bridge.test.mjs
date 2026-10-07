@@ -8,8 +8,8 @@ import test from "node:test";
 const rawFetch = globalThis.fetch;
 
 const bridgeFetch = async (input, init = {}) => {
-  const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
-  const headers = new Headers(init.headers ?? (input instanceof Request ? input.headers : undefined));
+  const url = new URL(String(input));
+  const headers = new Headers(init.headers);
   const origin = headers.get("Origin");
 
   if (!origin || url.pathname === "/health" || init.method === "OPTIONS") {
@@ -29,9 +29,9 @@ const bridgeFetch = async (input, init = {}) => {
   if (!health.ok) return rawFetch(input, init);
 
   const payload = await health.json().catch(() => null);
-  const instanceId = payload?.bridge?.instanceId;
+  const instanceId = String(payload?.bridge?.instanceId ?? "").trim();
 
-  if (payload?.access?.allowed !== true || typeof instanceId !== "string" || !instanceId) {
+  if (payload?.access?.allowed !== true || !instanceId) {
     return rawFetch(input, init);
   }
 
