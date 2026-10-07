@@ -1,6 +1,5 @@
 import { For, Show, createSignal, flush, onSettled } from "solid-js";
 import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesurer-solid-core";
-import type { ObservedMotionTarget } from "../core/observed-motion";
 import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
@@ -46,9 +45,6 @@ export type ToolbarProps = {
   onPositionChange?: (position: { x: number; y: number }) => void;
   motion?: {
     element(): Element | null;
-    ready(): boolean;
-    observedProperties(): string[];
-    observedTargets(): ObservedMotionTarget[];
   };
 };
 
@@ -762,7 +758,7 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <>
-      <Show when={props.motion?.ready() && props.motion.element()}>
+      <Show when={props.motion?.element()}>
         {(motionElement) => {
           const geometry = motionPlayerGeometry();
 
@@ -782,8 +778,6 @@ export function Toolbar(props: ToolbarProps) {
               <MotionPlayer
                 element={motionElement()}
                 ownerWindow={props.ownerWindow}
-                observedProperties={props.motion?.observedProperties() ?? []}
-                observedTargets={props.motion?.observedTargets() ?? []}
               />
             </div>
           );
