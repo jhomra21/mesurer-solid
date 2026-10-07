@@ -92,10 +92,14 @@ export function installIsolatedDocumentUiPassthrough(
     else delete rendererRoot.dataset.mesurerDocumentUiPassthrough;
   };
 
-  const pointerOverDocumentUi = () => Boolean(
-    pointer
-    && cachedRects.some((rect) => containsPoint(rect, pointer.x, pointer.y)),
-  );
+  const pointerOverDocumentUi = () => {
+    const current = pointer;
+
+    return Boolean(
+      current
+      && cachedRects.some((rect) => containsPoint(rect, current.x, current.y)),
+    );
+  };
 
   const applyPointer = () => {
     if (ownedPointerId !== null) {
