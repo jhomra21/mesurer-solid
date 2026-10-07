@@ -236,6 +236,7 @@ export function createMesurerWorkspaceRuntime(options: {
   const targetResolution = new Map<string, boolean>();
   let disposed = false;
   let mutationFrame = 0;
+
   const watchedDocuments = new Map<Document, {
     load: EventListener;
     observer: MutationObserver | null;
@@ -437,6 +438,7 @@ export function createMesurerWorkspaceRuntime(options: {
       const currentRealm = currentDocument.defaultView as (Window & typeof globalThis) | null;
 
       const Observer = currentRealm?.MutationObserver;
+
       const observer = Observer && currentDocument.body
         ? new Observer(() => {
             syncDocumentWatchers();
@@ -460,7 +462,7 @@ export function createMesurerWorkspaceRuntime(options: {
       });
     }
 
-    for (const currentDocument of [...watchedDocuments.keys()]) {
+    for (const currentDocument of watchedDocuments.keys()) {
       if (!reachable.has(currentDocument)) releaseDocumentWatcher(currentDocument);
     }
   };
@@ -477,7 +479,7 @@ export function createMesurerWorkspaceRuntime(options: {
 
     watching = false;
 
-    for (const currentDocument of [...watchedDocuments.keys()]) {
+    for (const currentDocument of watchedDocuments.keys()) {
       releaseDocumentWatcher(currentDocument);
     }
 
