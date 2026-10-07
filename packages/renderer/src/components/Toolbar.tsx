@@ -122,12 +122,6 @@ export function Toolbar(props: ToolbarProps) {
   const visibleMotionElement = () =>
     recordingActive() ? null : props.motion?.element() ?? null;
 
-  const visibleMotionElements = () => {
-    const element = visibleMotionElement();
-
-    return element ? [element] : [];
-  };
-
   const commitColorPickerCapability = (supported: boolean, revision: number) => {
     colorPickerOwnerWindow().queueMicrotask(() => {
       if (revision !== colorPickerCapabilityRevision) return;
@@ -771,31 +765,33 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <>
-      <For each={visibleMotionElements()}>
-        {(motionElement) => {
-          const geometry = motionPlayerGeometry();
+      {(() => {
+        const motionElement = visibleMotionElement();
 
-          return (
-            <div
-              data-mesurer-motion-surface="true"
-              data-mesurer-inspector-ui="true"
-              class="msr:pointer-events-auto msr:absolute msr:z-[80] msr:overflow-visible"
-              style={{
-                left: `${geometry.left}px`,
-                top: geometry.top === null ? "auto" : `${geometry.top}px`,
-                bottom: geometry.bottom === null ? "auto" : `${geometry.bottom}px`,
-                width: `${geometry.width}px`,
-                "max-height": `${Math.max(0, geometry.maxHeight)}px`,
-              }}
-            >
-              <MotionPlayer
-                element={motionElement}
-                ownerWindow={props.ownerWindow}
-              />
-            </div>
-          );
-        }}
-      </For>
+        if (!motionElement) return null;
+
+        const geometry = motionPlayerGeometry();
+
+        return (
+          <div
+            data-mesurer-motion-surface="true"
+            data-mesurer-inspector-ui="true"
+            class="msr:pointer-events-auto msr:absolute msr:z-[80] msr:overflow-visible"
+            style={{
+              left: `${geometry.left}px`,
+              top: geometry.top === null ? "auto" : `${geometry.top}px`,
+              bottom: geometry.bottom === null ? "auto" : `${geometry.bottom}px`,
+              width: `${geometry.width}px`,
+              "max-height": `${Math.max(0, geometry.maxHeight)}px`,
+            }}
+          >
+            <MotionPlayer
+              element={motionElement}
+              ownerWindow={props.ownerWindow}
+            />
+          </div>
+        );
+      })()}
 
       <div
       ref={(element) => { toolbarElement = element; }}
