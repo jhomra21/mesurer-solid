@@ -514,18 +514,20 @@ export function ContextActions(props: ContextActionsProps) {
     if (!root) return [];
 
     return [...root.querySelectorAll<HTMLElement>("[data-mesurer-motion-surface='true']")]
-      .filter((element) => element.isConnected)
-      .map((element) => {
+      .flatMap((element) => {
+        if (!element.isConnected) return [];
+
         const rect = element.getBoundingClientRect();
 
-        return {
+        if (rect.width <= 0 || rect.height <= 0) return [];
+
+        return [{
           left: rect.left,
           top: rect.top,
           width: rect.width,
           height: rect.height,
-        };
-      })
-      .filter((rect) => rect.width > 0 && rect.height > 0);
+        }];
+      });
   };
 
   const rendererRoot = props.rendererRoot;
@@ -733,6 +735,8 @@ export function ContextActions(props: ContextActionsProps) {
   });
 
   const selectionTriggerPosition = () => {
+    triggerRevision();
+
     const element = selectionTriggerElement();
 
     if (!element?.isConnected) return null;
