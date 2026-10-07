@@ -298,7 +298,9 @@ try {
     const root = document.querySelector("[data-mesurer-context-root='true']");
 
     const trigger = root?.querySelector("[data-mesurer-annotation-trigger='true']");
+
     const composer = root?.querySelector("[data-mesurer-annotation-composer='true']");
+
     const selected = document.querySelector(
       "[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true']",
     );
