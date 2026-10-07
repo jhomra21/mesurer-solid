@@ -1,4 +1,5 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
+import { trySetPointerCapture } from "../core/events";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 
 type CachedUiRect = {
@@ -202,10 +203,18 @@ export function installIsolatedDocumentUiPassthrough(
 
     if (!flushStaleGeometry()) applyPointer();
 
-    if (!pointerOverDocumentUi()) return;
+    const target = event.target instanceof realm.Element
+      ? event.target.closest(DOCUMENT_UI_SELECTOR)
+      : null;
+
+    if (!target && !pointerOverDocumentUi()) return;
 
     ownedPointerId = event.pointerId;
     setPassthrough(true);
+
+    if (target instanceof realm.HTMLElement) {
+      trySetPointerCapture(target, event.pointerId);
+    }
   };
 
   const onPointerUp = (event: PointerEvent) => {
