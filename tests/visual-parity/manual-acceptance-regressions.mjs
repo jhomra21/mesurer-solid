@@ -126,6 +126,7 @@ try {
   await settingsPage.route("http://127.0.0.1:47365/**", async (route) => {
     const request = route.request();
     const requestUrl = new URL(request.url());
+
     const bridge = {
       name: "mesurer-codex",
       protocol: 2,
