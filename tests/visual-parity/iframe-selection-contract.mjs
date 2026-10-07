@@ -347,9 +347,26 @@ try {
       ? triggerCenter.y - geometry.expected.top - geometry.expected.height
       : 0;
 
+  const motionBox = await motionPlayer.boundingBox();
+
+  assert(motionBox, "Motion player must expose rendered geometry");
+
+  const overlapsMotion = !(
+    triggerBox.x + triggerBox.width <= motionBox.x
+    || motionBox.x + motionBox.width <= triggerBox.x
+    || triggerBox.y + triggerBox.height <= motionBox.y
+    || motionBox.y + motionBox.height <= triggerBox.y
+  );
+
+  assert.equal(
+    overlapsMotion,
+    false,
+    `Context trigger must not overlap Motion: ${JSON.stringify({ triggerBox, motionBox })}`,
+  );
+
   assert(
-    Math.hypot(dx, dy) <= 64,
-    `Context trigger drifted away from projected iframe target: ${JSON.stringify({ triggerBox, expected: geometry.expected })}`,
+    Math.hypot(dx, dy) <= 128,
+    `Context trigger drifted too far from projected iframe target: ${JSON.stringify({ triggerBox, expected: geometry.expected })}`,
   );
 
   await trigger.evaluate((element) => {
