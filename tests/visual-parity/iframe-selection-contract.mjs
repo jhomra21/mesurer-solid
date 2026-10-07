@@ -288,6 +288,48 @@ try {
     `Context trigger drifted away from projected iframe target: ${JSON.stringify({ triggerBox, expected: geometry.expected })}`,
   );
 
+  await trigger.evaluate((element) => {
+    const global = window;
+
+    global.__MESURER_IFRAME_CONTEXT_EVENTS__ = [];
+
+    const describe = (event, phase) => {
+      const target = event.target instanceof Element
+        ? event.target.closest("[data-mesurer-annotation-trigger='true']")?.getAttribute("data-mesurer-annotation-trigger")
+          ?? event.target.getAttribute("data-mesurer-layer")
+          ?? event.target.tagName
+        : null;
+
+      global.__MESURER_IFRAME_CONTEXT_EVENTS__.push({
+        type: event.type,
+        phase,
+        target,
+        defaultPrevented: event.defaultPrevented,
+        cancelBubble: event.cancelBubble,
+      });
+    };
+
+    for (const type of ["pointerdown", "pointerup", "click"]) {
+      document.addEventListener(type, (event) => describe(event, "document-capture"), {
+        capture: true,
+        once: true,
+      });
+
+      element.addEventListener(type, (event) => describe(event, "target-capture"), {
+        capture: true,
+        once: true,
+      });
+
+      element.addEventListener(type, (event) => describe(event, "target-bubble"), {
+        once: true,
+      });
+
+      document.addEventListener(type, (event) => describe(event, "document-bubble"), {
+        once: true,
+      });
+    }
+  });
+
   await clickDocumentUi(trigger, "iframe Context trigger");
 
   const composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
@@ -309,6 +351,7 @@ try {
       trigger: trigger?.outerHTML.slice(0, 1200) ?? null,
       composer: composer?.outerHTML.slice(0, 1200) ?? null,
       selected: selected?.outerHTML.slice(0, 1200) ?? null,
+      events: window.__MESURER_IFRAME_CONTEXT_EVENTS__ ?? [],
     };
   });
 
@@ -322,6 +365,31 @@ try {
     path: join(output, "iframe-context-click.png"),
     fullPage: true,
   });
+
+  if ((await composer.count()) === 0) {
+    const syntheticState = await trigger.evaluate((element) => {
+      element.click();
+
+      return window.__MESURER_IFRAME_CONTEXT_EVENTS__ ?? [];
+    });
+
+    await settle();
+
+    const syntheticComposer = await composer.count();
+
+    await writeFile(
+      join(output, "iframe-context-synthetic-click.json"),
+      `${JSON.stringify({
+        events: syntheticState,
+        composerCount: syntheticComposer,
+      }, null, 2)}\n`,
+      "utf8",
+    );
+
+    assert.fail(
+      `Physical iframe Context trigger click did not open the composer. ${JSON.stringify(contextClickState)}`,
+    );
+  }
 
   await composer.waitFor({ state: "visible", timeout: 5000 });
   await composer.locator("textarea").fill("Iframe context acceptance");
