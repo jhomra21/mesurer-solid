@@ -36,9 +36,11 @@ export function createMotionSnapshot(element: Element, view: Window, shadow: Sha
     }
 
     if (source.nodeType !== 1 || pairs.length >= 128) return null
+    // SAFETY: nodeType 1 is checked immediately above, so source is an Element.
     const original = source as Element
 
     if (["SCRIPT", "STYLE", "LINK", "IFRAME", "OBJECT", "EMBED", "SOURCE", "TRACK"].includes(original.tagName)) return null
+    // SAFETY: element copies stored in this map are created as style-bearing DOM elements below.
     const cached = copies.get(source) as HTMLElement | undefined
 
     if (cached) {
@@ -54,6 +56,7 @@ export function createMotionSnapshot(element: Element, view: Window, shadow: Sha
 
     const media = ["IMG", "VIDEO", "CANVAS"].includes(original.tagName)
     const tag = media ? "canvas" : original.localName.includes("-") || original.localName === "slot" ? "div" : original.localName
+    // SAFETY: media uses the HTML namespace and non-media copies are only consumed through Element/CSS inline-style APIs supported by the created namespace element.
     const copy = document.createElementNS(media ? "http://www.w3.org/1999/xhtml" : original.namespaceURI, tag) as HTMLElement
 
     // Geometry attributes matter for SVG. All other rendering comes from computed CSS.
@@ -74,17 +77,22 @@ export function createMotionSnapshot(element: Element, view: Window, shadow: Sha
     sourcePairs.set(source, ownPairs)
 
     if (media) {
+      // SAFETY: media copies are created with the canvas tag in the HTML namespace above.
       const canvas = copy as HTMLCanvasElement
       canvas.width = Math.min(1024, original.clientWidth || 1)
       canvas.height = Math.min(1024, original.clientHeight || 1)
 
       const draw = () => { try {
         const context = canvas.getContext("2d")
+        // SAFETY: this branch only handles IMG, VIDEO, and CANVAS source elements.
         const image = original as HTMLImageElement
+        // SAFETY: this branch only handles IMG, VIDEO, and CANVAS source elements.
         const width = image.naturalWidth || (original as HTMLVideoElement).videoWidth || (original as HTMLCanvasElement).width || canvas.width
+        // SAFETY: this branch only handles IMG, VIDEO, and CANVAS source elements.
         const height = image.naturalHeight || (original as HTMLVideoElement).videoHeight || (original as HTMLCanvasElement).height || canvas.height
         const scale = computed.objectFit === "cover" ? Math.max(canvas.width / width, canvas.height / height) : computed.objectFit === "contain" ? Math.min(canvas.width / width, canvas.height / height) : null
         const w = scale ? width * scale : canvas.width, h = scale ? height * scale : canvas.height
+        // SAFETY: IMG, VIDEO, and CANVAS are all valid CanvasImageSource values.
         context?.drawImage(original as CanvasImageSource, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h)
       } catch { /* Unloaded or unavailable media remains an inert placeholder. */ } }
 
@@ -116,6 +124,7 @@ export function createMotionSnapshot(element: Element, view: Window, shadow: Sha
 
   function syncChildren(original: Element, copy: HTMLElement) {
     if (["IMG", "VIDEO", "CANVAS"].includes(original.tagName)) return
+    // SAFETY: assignedNodes is only called when localName confirms this element is a slot.
     const slot = original as HTMLSlotElement
     const assigned = original.localName === "slot" ? slot.assignedNodes({ flatten: true }) : []
     const nodes = assigned.length ? assigned : [...(original.shadowRoot?.childNodes ?? original.childNodes)]
@@ -127,6 +136,7 @@ export function createMotionSnapshot(element: Element, view: Window, shadow: Sha
     while (copy.childNodes.length > children.length) copy.lastChild?.remove()
   }
 
+  // SAFETY: cloning an Element either returns its style-bearing element copy or null.
   const root = clone(element) as HTMLElement | null
 
   if (!root) return null
@@ -137,6 +147,7 @@ export function createMotionSnapshot(element: Element, view: Window, shadow: Sha
     styles.textContent = pseudoRules.map(({ css }) => css).join("\n")
     const rules = styles.sheet?.cssRules
     pseudoRules.forEach(({ pair }, index) => {
+      // SAFETY: every rule in this stylesheet was authored above as a selector declaration block.
       const rule = rules?.[index] as CSSStyleRule | undefined
 
       if (rule) { pair.style = rule.style; pairs.push(pair) }
