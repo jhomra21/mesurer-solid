@@ -86,6 +86,14 @@ const MOTION_PLAYER_GAP = 8;
 
 const MOTION_PLAYER_IDEAL_HEIGHT = 260;
 
+type MotionPlayerGeometry = {
+  left: number;
+  top: number | null;
+  bottom: number | null;
+  width: number;
+  maxHeight: number;
+};
+
 export function Toolbar(props: ToolbarProps) {
   const [position, setPosition] = createSignal(props.initialPosition ?? { x: 16, y: 16 });
   const [guideMenuOpen, setGuideMenuOpen] = createSignal(false);
@@ -236,7 +244,7 @@ export function Toolbar(props: ToolbarProps) {
     return viewportLeft - anchor.left;
   };
 
-  const motionPlayerGeometry = () => {
+  const motionPlayerGeometry = (): MotionPlayerGeometry => {
     position();
     compact();
     viewportRevision();
@@ -254,7 +262,7 @@ export function Toolbar(props: ToolbarProps) {
       return {
         left: VIEWPORT_PADDING,
         top: VIEWPORT_PADDING,
-        bottom: null as number | null,
+        bottom: null,
         width,
         maxHeight: Math.max(0, viewportHeightValue - VIEWPORT_PADDING * 2),
       };
@@ -279,7 +287,7 @@ export function Toolbar(props: ToolbarProps) {
       return {
         left,
         top: toolbar.bottom + MOTION_PLAYER_GAP,
-        bottom: null as number | null,
+        bottom: null,
         width,
         maxHeight: below,
       };
@@ -287,7 +295,7 @@ export function Toolbar(props: ToolbarProps) {
 
     return {
       left,
-      top: null as number | null,
+      top: null,
       bottom: viewportHeightValue - toolbar.top + MOTION_PLAYER_GAP,
       width,
       maxHeight: above,
