@@ -54,13 +54,22 @@ try {
 
   const player = page.locator("[data-mesurer-motion-player='true']");
   const details = player.locator("[data-mesurer-motion-details='true']");
+  const inspect = player.locator("[data-mesurer-motion-inspect='true']");
   const play = player.locator("[data-mesurer-motion-play='true']");
   const scrubber = player.locator("[data-mesurer-motion-scrubber='true']");
   const speed = player.locator("[data-mesurer-motion-speed='true']");
 
   await player.waitFor({ state: "visible" });
-  await details.waitFor({ state: "visible" });
   await scrubber.waitFor({ state: "visible" });
+
+  assert.equal(
+    await inspect.getAttribute("aria-expanded"),
+    "false",
+    "Motion details must start collapsed like upstream",
+  );
+
+  await inspect.click();
+  await details.waitFor({ state: "visible" });
 
   const cssText = (await details.textContent()) ?? "";
 
@@ -123,6 +132,12 @@ try {
   await selectTarget("[data-testid='web-motion']");
   await player.waitFor({ state: "visible" });
 
+  if ((await inspect.getAttribute("aria-expanded")) !== "true") {
+    await inspect.click();
+  }
+
+  await details.waitFor({ state: "visible" });
+
   const webText = (await details.textContent()) ?? "";
 
   assert.match(
@@ -140,11 +155,12 @@ try {
     return current?.playState === (beforeState === "running" ? "paused" : "running");
   }, webBefore?.playState ?? "running");
 
+  const screenshotPath = join(output, "motion-player.png");
+
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+
   await selectTarget("[data-testid='static-target']");
   await player.waitFor({ state: "hidden" });
-
-  const screenshotPath = join(output, "motion-player.png");
-  await page.screenshot({ path: screenshotPath, fullPage: true });
 
   const report = {
     css: {
