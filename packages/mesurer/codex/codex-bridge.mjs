@@ -22,6 +22,7 @@ const BRIDGE_CAPABILITIES = Object.freeze([
   "history-recovery-v2",
   "client-message-correlation-v1",
   "idle-safe-shutdown-v1",
+  "nonterminal-retention-v1",
 ]);
 
 const BRIDGE_SOURCE_HASH = createHash("sha256")
@@ -54,8 +55,6 @@ const MAX_DISCOVERED_THREADS = 10;
 const MAX_DELIVERIES = 100;
 
 const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
-
-const DELIVERY_TTL_MS = 2 * 60 * 60_000;
 
 const DESKTOP_LIFECYCLE_POLL_MS = 1_000;
 
@@ -597,9 +596,12 @@ const loadDeliveryState = async () => {
     if (!["queued", "working", "completed", "interrupted"].includes(status)) continue;
 
     if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) continue;
-    const terminal = status === "completed" || status === "interrupted";
 
-    if (now - updatedAt > (terminal ? TERMINAL_DELIVERY_TTL_MS : DELIVERY_TTL_MS)) continue;
+    if ((status === "completed" || status === "interrupted")
+      && now - updatedAt > TERMINAL_DELIVERY_TTL_MS) {
+      continue;
+    }
+
     deliveries.set(id, {
       id,
       thread,
@@ -1546,13 +1548,16 @@ const publicDelivery = (delivery) => ({
   updatedAt: delivery.updatedAt,
 });
 
+const deliveryIsTerminal = (delivery) =>
+  delivery.status === "completed" || delivery.status === "interrupted";
+
 const pruneDeliveries = () => {
   const now = Date.now();
 
   for (const [id, delivery] of deliveries) {
-    const terminal = delivery.status === "completed" || delivery.status === "interrupted";
+    if (!deliveryIsTerminal(delivery)) continue;
 
-    if (now - delivery.updatedAt > (terminal ? TERMINAL_DELIVERY_TTL_MS : DELIVERY_TTL_MS)) {
+    if (now - delivery.updatedAt > TERMINAL_DELIVERY_TTL_MS) {
       deliveries.delete(id);
       clearDesktopLifecycleTimer(id);
       desktopLifecycleChecks.delete(id);
@@ -1564,9 +1569,13 @@ const pruneDeliveries = () => {
   }
 
   if (deliveries.size <= MAX_DELIVERIES) return;
-  const oldest = [...deliveries.values()].sort((a, b) => a.updatedAt - b.updatedAt);
 
-  for (const delivery of oldest.slice(0, deliveries.size - MAX_DELIVERIES)) {
+  const terminal = [...deliveries.values()]
+    .filter(deliveryIsTerminal)
+    .sort((left, right) => left.updatedAt - right.updatedAt);
+
+  for (const delivery of terminal) {
+    if (deliveries.size <= MAX_DELIVERIES) break;
     deliveries.delete(delivery.id);
     clearDesktopLifecycleTimer(delivery.id);
     desktopLifecycleChecks.delete(delivery.id);
