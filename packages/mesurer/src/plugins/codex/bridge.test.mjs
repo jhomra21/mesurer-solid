@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
@@ -191,6 +192,76 @@ const writeTurns = async (path, turns) => {
   fileCache.set(path, value);
   await writeFile(path, value);
 };
+
+test("Codex Bridge retains a five-hour-old queued delivery across host restart", async () => {
+  const root = await mkdtemp(join(testTmpdir(), "mesurer-codex-old-active-"));
+  const turnsPath = join(root, "turns.json");
+  const stateDir = join(root, "mesurer");
+  const message = "native durable receipt survives a long restart";
+  const old = Date.now() - 5 * 60 * 60_000;
+
+  await writeTurns(turnsPath, []);
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(join(stateDir, "codex-deliveries.json"), JSON.stringify({
+    version: 1,
+    deliveries: [{
+      id: "native-delivery-five-hours-old",
+      thread: "thread-a",
+      message,
+      messageHash: createHash("sha256").update(message).digest("hex"),
+      status: "queued",
+      turnId: null,
+      queuedSubmissionId: "native-queue-five-hours-old",
+      clientUserMessageId: "native-client-five-hours-old",
+      transport: "shared-app-server",
+      dispatch: "persisted",
+      dispatchError: null,
+      createdAt: old,
+      updatedAt: old,
+    }],
+  }));
+
+  const appServer = await createFakeAppServer(root, turnsPath);
+  const options = {
+    codex: join(root, "must-not-run"),
+    codexHome: root,
+    clientId: "old-active-client",
+  };
+
+  try {
+    const activation = await codexBridge({ action: "activate" }, options);
+    const leaseId = activation.leaseId;
+
+    assert.ok(leaseId);
+
+    const delivery = await codexBridge({
+      action: "delivery",
+      leaseId,
+      deliveryId: "native-delivery-five-hours-old",
+    }, options);
+
+    assert.equal(delivery.status, "queued");
+    assert.equal(delivery.queuedSubmissionId, "native-queue-five-hours-old");
+    assert.equal(delivery.clientUserMessageId, "native-client-five-hours-old");
+    assert.equal(delivery.updatedAt, old);
+
+    const persisted = JSON.parse(await readFile(
+      join(stateDir, "codex-deliveries.json"),
+      "utf8",
+    ));
+
+    assert.equal(
+      persisted.deliveries.some((candidate) =>
+        candidate.id === "native-delivery-five-hours-old"),
+      true,
+    );
+
+    await codexBridge({ action: "deactivate", leaseId }, options);
+  } finally {
+    await appServer.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test("Codex Bridge uses the existing shared app-server directly", async () => {
   const root = await mkdtemp(join(testTmpdir(), "mesurer-codex-bridge-"));
