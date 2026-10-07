@@ -62,36 +62,36 @@ export const getSelectedMeasurementHit = (params: {
 
   const hitCandidate = (
     candidate: (typeof candidates)[number],
+    exact: boolean,
   ) => {
-    if (candidate.element.ownerDocument === ownerDocument) {
-      const hits = params.exact ? elements.slice(0, 1) : elements;
+    const hits = candidate.element.ownerDocument === ownerDocument
+      ? elements
+      : (() => {
+          const localPoint = projectPoint(
+            params.point,
+            ownerDocument,
+            candidate.element.ownerDocument,
+          );
 
-      return hits.some((hit) =>
-        candidate.element === hit || candidate.element.contains(hit));
-    }
+          if (localPoint.x < 0 || localPoint.y < 0) return [];
 
-    const localPoint = projectPoint(
-      params.point,
-      ownerDocument,
-      candidate.element.ownerDocument,
-    );
+          return candidate.element.ownerDocument.elementsFromPoint(
+            localPoint.x,
+            localPoint.y,
+          );
+        })();
 
-    if (localPoint.x < 0 || localPoint.y < 0) return false;
-
-    const localHits = candidate.element.ownerDocument.elementsFromPoint(
-      localPoint.x,
-      localPoint.y,
-    );
-
-    const hits = params.exact ? localHits.slice(0, 1) : localHits;
+    if (exact) return candidate.element === hits[0];
 
     return hits.some((hit) =>
       candidate.element === hit || candidate.element.contains(hit));
   };
 
-  const hit = candidates.find(hitCandidate);
+  const hit = candidates.find((candidate) =>
+    hitCandidate(candidate, params.exact ?? false));
 
   if (hit) return hit.measurement;
+  if (params.exact) return null;
 
   for (const candidate of candidates) {
     const rect = candidate.rect;
