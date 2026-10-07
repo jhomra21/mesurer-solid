@@ -27,6 +27,7 @@ const keyframesNameForRule = (rule: CSSRule) =>
 export function createMotionDependencies(document?: Document) {
   let scopes = new WeakMap<Node, MotionDependencyRule[]>();
   let opaque = new WeakSet<Node>();
+
   let cache = new WeakMap<Element, {
     names: string;
     properties: Map<string, string[]>;
