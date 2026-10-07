@@ -91,6 +91,7 @@ export const getSelectedMeasurementHit = (params: {
     hitCandidate(candidate, params.exact ?? false));
 
   if (hit) return hit.measurement;
+
   if (params.exact) return null;
 
   for (const candidate of candidates) {
