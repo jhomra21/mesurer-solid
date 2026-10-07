@@ -19,6 +19,26 @@ export type MotionPreviewWakeRef = {
   current: (() => void) | null;
 };
 
+const isKeyframeEffect = (effect: AnimationEffect | null): effect is KeyframeEffect =>
+  Boolean(effect && "getKeyframes" in effect && "target" in effect);
+
+const inlineStyleFor = (element: Element) => {
+  if (!("style" in element)) return null;
+
+  // SAFETY: checking for the style property narrows to DOM elements exposing CSSStyleDeclaration.
+  return element.style as CSSStyleDeclaration;
+};
+
+const shadowHost = (element: Element) => {
+  const root = element.getRootNode();
+
+  if (!("host" in root)) return null;
+
+  const host = root.host;
+
+  return host instanceof Element ? host : null;
+};
+
 export function MotionPreview(props: {
   element: Element;
   ownerWindow: Window;
@@ -52,6 +72,7 @@ export function MotionPreview(props: {
 
     const childrenOf = (source: Element) => {
       if (source.localName === "slot") {
+        // SAFETY: localName confirms this element is an HTML slot before assignedNodes is used.
         const assigned = (source as HTMLSlotElement).assignedNodes({ flatten: true });
 
         if (assigned.length) return assigned;
@@ -275,9 +296,9 @@ export function MotionPreview(props: {
 
       for (const animation of animations) {
         try {
-          const effect = animation.effect as KeyframeEffect | null;
+          const effect = animation.effect;
 
-          if (!effect?.target) continue;
+          if (!isKeyframeEffect(effect) || !effect.target) continue;
 
           const frames = effect.getKeyframes();
           const signature = JSON.stringify(frames);
@@ -311,10 +332,12 @@ export function MotionPreview(props: {
             frames,
           });
         } catch {
-          const effect = animation.effect as KeyframeEffect | null;
+          const effect = animation.effect;
+
+          if (!isKeyframeEffect(effect)) continue;
 
           for (const pair of pairs) {
-            if (pair.source !== effect?.target || pair.pseudo !== (effect?.pseudoElement ?? null)) continue;
+            if (pair.source !== effect.target || pair.pseudo !== (effect.pseudoElement ?? null)) continue;
 
             for (const property of OBSERVED_MOTION_PROPERTIES) pair.properties.add(property);
           }
@@ -447,6 +470,7 @@ export function MotionPreview(props: {
     needsSize = effects.length > 0 && !observedTargets.length;
     lastSize = ownerWindow.performance.now();
 
+    // SAFETY: ownerWindow owns the DOM constructor globals used by this preview.
     const Resize = (ownerWindow as Window & typeof globalThis).ResizeObserver;
 
     const resize = Resize ? new Resize(() => {
@@ -457,25 +481,30 @@ export function MotionPreview(props: {
     resize?.observe(host);
     resize?.observe(element);
 
+    // SAFETY: ownerWindow owns the DOM constructor globals used by this preview.
     const Mutation = (ownerWindow as Window & typeof globalThis).MutationObserver;
 
     mutations = Mutation ? new Mutation((records) => {
       if (records.some((record) => record.type === "childList")) structureDirty = true;
 
       for (const record of records) {
-        if (record.type !== "attributes") continue;
+        if (record.type !== "attributes" || !(record.target instanceof Element)) continue;
 
-        const source = record.target as HTMLElement;
+        const source = record.target;
 
         if (record.attributeName === "class") dependencies.invalidate();
 
         if (record.attributeName === "style") {
+          const sourceStyle = inlineStyleFor(source);
+
+          if (!sourceStyle) continue;
+
           oldStyle.cssText = record.oldValue ?? "";
 
-          const variables = [...new Set([...source.style, ...oldStyle])]
+          const variables = [...new Set([...sourceStyle, ...oldStyle])]
             .filter((property) =>
               property.startsWith("--")
-              && source.style.getPropertyValue(property) !== oldStyle.getPropertyValue(property));
+              && sourceStyle.getPropertyValue(property) !== oldStyle.getPropertyValue(property));
 
           for (const pair of pairs) {
             const author = variables.length ? dependencies.forElement(pair.source, "") : null;
@@ -487,7 +516,7 @@ export function MotionPreview(props: {
             for (const property of OBSERVED_MOTION_PROPERTIES) {
               const inline = pair.pseudo
                 ? ""
-                : (pair.source as HTMLElement).style?.getPropertyValue(property) ?? "";
+                : inlineStyleFor(pair.source)?.getPropertyValue(property) ?? "";
 
               const dependsOnVariable = variables.some((variable) =>
                 [...cssVariables(inline), ...(author?.get(property) ?? [])].includes(variable));
@@ -534,9 +563,7 @@ export function MotionPreview(props: {
       if (source.shadowRoot) mutations?.observe(source.shadowRoot, mutationOptions);
     }
 
-    let ancestor = element.parentElement
-      ?? (element.getRootNode() as ShadowRoot).host
-      ?? null;
+    let ancestor = element.parentElement ?? shadowHost(element);
 
     while (ancestor) {
       mutations?.observe(ancestor, {
@@ -545,9 +572,7 @@ export function MotionPreview(props: {
         attributeFilter: ["style", "class"],
       });
 
-      ancestor = ancestor.parentElement
-        ?? (ancestor.getRootNode() as ShadowRoot).host
-        ?? null;
+      ancestor = ancestor.parentElement ?? shadowHost(ancestor);
     }
 
     const stylesObserver = Mutation ? new Mutation(() => {
