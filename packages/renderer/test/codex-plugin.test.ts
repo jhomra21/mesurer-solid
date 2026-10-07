@@ -224,8 +224,10 @@ const COMPATIBLE_BROWSER_BRIDGE = {
     "client-message-correlation-v1",
     "idle-safe-shutdown-v1",
     "nonterminal-retention-v1",
+    "instance-binding-v1",
   ],
   sourceHash: "test-source",
+  instanceId: "test-bridge-instance",
   pid: 1,
   canShutdown: true,
 };
@@ -372,7 +374,7 @@ describe("codex", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(host.tools().find((tool) => tool.id === "codex.send")?.label)
-      .toBe("Update Codex Bridge");
+      .toBe("Bridge version mismatch");
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     host.dispose();
@@ -413,7 +415,7 @@ describe("codex", () => {
 
     const tool = host.tools().find((candidate) => candidate.id === "codex.send");
 
-    expect(tool?.label).toBe("Authorize Codex origin");
+    expect(tool?.label).toBe("Browser origin not allowed");
     expect(tool?.menu?.items[0]?.label).toBe("Allow this browser origin");
     expect(tool?.disabled?.()).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -482,7 +484,7 @@ describe("codex", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(host.tools().find((tool) => tool.id === "codex.send")?.label)
-      .toBe("Codex bridge not running");
+      .toBe("Bridge not running");
 
     available = true;
     await vi.advanceTimersByTimeAsync(5_000);
