@@ -82,6 +82,8 @@ export function installIsolatedDocumentUiPassthrough(
   let geometryStale = false;
   let cachedRects: CachedUiRect[] = [];
   let pointer: { x: number; y: number } | null = null;
+  let ownedPointerId: number | null = null;
+  let pointerReleaseTimer = 0;
   let windowScrollX = ownerWindow.scrollX;
   let windowScrollY = ownerWindow.scrollY;
 
@@ -90,14 +92,19 @@ export function installIsolatedDocumentUiPassthrough(
     else delete rendererRoot.dataset.mesurerDocumentUiPassthrough;
   };
 
+  const pointerOverDocumentUi = () => Boolean(
+    pointer
+    && cachedRects.some((rect) => containsPoint(rect, pointer.x, pointer.y)),
+  );
+
   const applyPointer = () => {
-    if (!pointer) {
-      setPassthrough(false);
+    if (ownedPointerId !== null) {
+      setPassthrough(true);
 
       return;
     }
 
-    setPassthrough(cachedRects.some((rect) => containsPoint(rect, pointer!.x, pointer!.y)));
+    setPassthrough(pointerOverDocumentUi());
   };
 
   const capture = () => {
@@ -176,8 +183,63 @@ export function installIsolatedDocumentUiPassthrough(
     if (!flushStaleGeometry()) applyPointer();
   };
 
+  const releaseOwnedPointer = () => {
+    if (pointerReleaseTimer) {
+      ownerWindow.clearTimeout(pointerReleaseTimer);
+      pointerReleaseTimer = 0;
+    }
+
+    ownedPointerId = null;
+    applyPointer();
+  };
+
+  const onPointerDown = (event: PointerEvent) => {
+    pointer = { x: event.clientX, y: event.clientY };
+
+    if (!flushStaleGeometry()) applyPointer();
+
+    if (!pointerOverDocumentUi()) return;
+
+    ownedPointerId = event.pointerId;
+    setPassthrough(true);
+  };
+
+  const onPointerUp = (event: PointerEvent) => {
+    if (ownedPointerId !== event.pointerId) return;
+
+    if (pointerReleaseTimer) ownerWindow.clearTimeout(pointerReleaseTimer);
+
+    // Keep the protected plane transparent through the browser's subsequent
+    // click dispatch. Releasing during pointerup can retarget that click to the
+    // overlay even though the same Mesurer control owned pointerdown/up.
+    pointerReleaseTimer = ownerWindow.setTimeout(() => {
+      pointerReleaseTimer = 0;
+      ownedPointerId = null;
+      applyPointer();
+    }, 0);
+  };
+
+  const onPointerCancel = (event: PointerEvent) => {
+    if (ownedPointerId !== event.pointerId) return;
+
+    releaseOwnedPointer();
+  };
+
+  const onClick = () => {
+    if (ownedPointerId === null) return;
+
+    releaseOwnedPointer();
+  };
+
   const onPointerLeave = () => {
     pointer = null;
+    ownedPointerId = null;
+
+    if (pointerReleaseTimer) {
+      ownerWindow.clearTimeout(pointerReleaseTimer);
+      pointerReleaseTimer = 0;
+    }
+
     setPassthrough(false);
   };
 
@@ -219,6 +281,10 @@ export function installIsolatedDocumentUiPassthrough(
   // synthetic redispatch.
   ownerWindow.addEventListener("pointermove", applyPointerEvent, true);
   ownerWindow.addEventListener("pointerover", applyPointerEvent, true);
+  ownerWindow.addEventListener("pointerdown", onPointerDown, true);
+  ownerWindow.addEventListener("pointerup", onPointerUp, true);
+  ownerWindow.addEventListener("pointercancel", onPointerCancel, true);
+  ownerWindow.addEventListener("click", onClick, true);
   ownerWindow.addEventListener("blur", onPointerLeave, true);
   ownerWindow.addEventListener("resize", onResize, true);
   ownerWindow.addEventListener("scroll", onScroll, true);
@@ -231,8 +297,15 @@ export function installIsolatedDocumentUiPassthrough(
     if (captureFrame) ownerWindow.cancelAnimationFrame(captureFrame);
 
     if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
+
+    if (pointerReleaseTimer) ownerWindow.clearTimeout(pointerReleaseTimer);
+
     ownerWindow.removeEventListener("pointermove", applyPointerEvent, true);
     ownerWindow.removeEventListener("pointerover", applyPointerEvent, true);
+    ownerWindow.removeEventListener("pointerdown", onPointerDown, true);
+    ownerWindow.removeEventListener("pointerup", onPointerUp, true);
+    ownerWindow.removeEventListener("pointercancel", onPointerCancel, true);
+    ownerWindow.removeEventListener("click", onClick, true);
     ownerWindow.removeEventListener("blur", onPointerLeave, true);
     ownerWindow.removeEventListener("resize", onResize, true);
     ownerWindow.removeEventListener("scroll", onScroll, true);
@@ -241,5 +314,7 @@ export function installIsolatedDocumentUiPassthrough(
     geometryStale = false;
     cachedRects = [];
     pointer = null;
+    ownedPointerId = null;
+    pointerReleaseTimer = 0;
   });
 }
