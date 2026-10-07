@@ -8,9 +8,9 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
 | Previous upstream audit | `ca432288b8d803a2c134dba51da971f54931db8f` (`main`, verified 2026-10-01) |
-| Current upstream audit | `26110edbbd8cd9c22c32a82b1b91073912fbdfc2` (`v0.2.3`, verified 2026-10-03) |
+| Current upstream audit | `7f3f0a49ca538fea3d4bdeb8dc0d830a51678270` (`v0.2.4`, verified 2026-10-07) |
 
-The stable-readiness audit advances from upstream `ca432288b8d803a2c134dba51da971f54931db8f` to `26110edbbd8cd9c22c32a82b1b91073912fbdfc2` (`v0.2.3`). The eight-commit delta adds GIF and capability-gated MP4 export, further recording-preview/iframe hardening, default-on shortcut persistence, toolbar-menu stacking above the recording card, and floating-menu shadow polish. Mesurer Solid adopts the product outcomes that belong to its architecture, keeps MediaBunny as the only encoded-video pipeline, and does not copy upstream's iframe or MediaRecorder-specific implementation.
+The current audit advances from upstream `26110edbbd8cd9c22c32a82b1b91073912fbdfc2` (`v0.2.3`) to `7f3f0a49ca538fea3d4bdeb8dc0d830a51678270` (`v0.2.4`). The meaningful runtime delta adds Motion inspection/playback, same-origin iframe-aware selection/geometry/X-ray/comment targeting, and smaller control, keyboard, floating-surface, and extension hardening. Mesurer Solid adopts the Motion and same-origin frame capabilities through its Solid/plugin architecture, keeps its Context note model instead of upstream threaded comments, and does not copy React-only or extension-specific implementation shapes when equivalent behavior already exists.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
@@ -26,6 +26,19 @@ Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and 
 Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
+
+### 2026-10-07 upstream 0.2.4 audit
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Motion discovery, preview, playback, scrubbing, speed controls, keyframe inspection, and observed JavaScript motion | **Adopted** | Mesurer Solid ports the framework-neutral motion engine and a Solid-owned Motion surface. A real Chromium contract covers CSS animations, Web Animations API targets, pause/play, scrubbing, playback rate, keyframes, target switching, static-target hiding, and clean Solid 1/2 host behavior. Motion stays out of active Recording so the capture interaction retains host-page pointer ownership. |
+| Same-origin iframe selection and frame geometry projection | **Adopted** | Select now listens across accessible same-origin document trees, projects pointer coordinates and measurement rectangles through scaled/transformed frame ancestry, keeps selection chrome in the top Mesurer overlay, and fails closed for inaccessible/cross-origin frames. Chromium physically clicks an iframe child and verifies projected selection geometry. |
+| Iframe-aware X-ray and annotation/comment targeting | **Adopted with Context mapping** | Mesurer Solid maps upstream comment targeting to its own Context annotations. X-ray propagates through accessible same-origin documents, Context rebinding/watchers include frame documents, and Context evidence/markers/highlights use top-level projected geometry. The iframe contract covers X-ray plus selection/annotation Context rather than importing upstream threaded comments. |
+| Native color input live updates | **Already adopted** | Mesurer Solid's native color control already handles the browser `input` event, so drag/live picker updates do not require another port. |
+| Keyboard event propagation/ownership hardening | **Already equivalent or stricter** | Mesurer Solid resolves editable/Mesurer ownership before shortcut dispatch and already stops or preserves propagation at the appropriate boundary. The upstream patch does not add a missing product behavior. |
+| Floating-surface viewport placement refinements | **Already equivalent in owned surfaces** | Toolbar menus, Settings, Color Picker, Context, Typography, and Motion use viewport-aware placement/clamping under Mesurer Solid's one-toolbar ownership model. Focused contracts protect their occlusion and anchor behavior. |
+| Extension recording/content-script fallback changes | **Not applicable as a direct port** | Upstream's fallback belongs to its React extension mount/player-url architecture. Mesurer Solid uses its private capture adapter and MediaBunny recording pipeline with browser/native/extension capability selection and existing fallback coverage. |
+| Upstream release metadata for v0.2.4 | **Not applicable** | Versioning and publication metadata are repository-specific. |
 
 ### 2026-10-03 upstream 0.2.3 stable-readiness audit
 
@@ -160,7 +173,7 @@ These decisions remain the current product boundary. The threaded-comment work i
 | Upstream delta | Decision | Reason |
 | --- | --- | --- |
 | DOM-attached comment threads, replies, all-comments panel, persistence, and agent copy/export | **Intentional divergence** | Mesurer Solid ships the separately designed Context annotation model: target- or region-bound review notes with machine-readable baselines and agent APIs. The public package does not claim upstream threaded-comment parity. |
-| Iframe-aware selection, X-ray, and comment targeting | **Intentional divergence** | Mesurer Solid does not claim cross-frame inspection parity. Adopting upstream's shared document-tree targeting requires a separate host-isolation and browser-contract change. |
+| Iframe-aware selection, X-ray, and comment targeting | **Adopted in the 2026-10-07 0.2.4 audit** | The earlier divergence is closed for accessible same-origin frames. Mesurer Solid maps upstream comment targeting to Context annotations and keeps cross-origin frames fail-closed. |
 | Configurable Inspect info card, copyable values, and upstream Typography presentation changes | **Intentional divergence** | Mesurer Solid has its own Typography/direct-edit UI and inspection presentation. The public package does not claim the upstream card UI. |
 | Guide context menus, multi-guide removal, guide-linked measurements, and the refined `Option+S` pin workflow | **Intentional divergence** | Mesurer Solid retains its Guides/Distance workflow and does not claim `Option+S` pinning. These interactions should be adopted together, with their own browser contracts, rather than as partial behavior. |
 | Configurable upstream feature flags and unified initial workspace/menu state | **Not applicable as a direct port** | Mesurer Solid exposes tools through its plugin runtime, mount options, and persisted workspace/settings contracts instead of upstream's React component feature-flag API. Equivalent product needs should be evaluated through those public APIs. |
@@ -196,7 +209,7 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | Compact toolbar | Adopt presentation: one stable toolbar, full-height separators, active-tool retention, 150ms motion, reduced-motion support |
 | Option-distance pinning (`Option+S`) | Intentionally not adopted; Mesurer Solid retains its existing held-distance workflow |
 | DOM-attached threaded comments | Intentionally not adopted; Mesurer Solid uses Context annotations instead |
-| Iframe selection/comment targeting | Intentionally not adopted |
+| Same-origin iframe selection/Context targeting | **Adopted** with projected geometry, document-tree pointer ownership, X-ray propagation, and Context mapping; cross-origin frames remain intentionally inaccessible |
 | Inspect/Annotate group switching | **Presentation adopted with different semantics.** Mesurer Solid uses the upstream grouped switch structure, icons, and width-changing motion for Select/Edit, but does not adopt upstream threaded Annotate behavior. |
 | Select/Edit mode semantics | **Mesurer Solid extension.** Select owns selection-first inspection/capture tools; Edit owns movement and direct text/style changes. Rulers, ordinary Guides, and Layout Guides remain usable in both modes, while Context and Codex remain pinned across both. Existing Arrange ids and agent contracts stay as compatibility surfaces. |
 | Arrow, pen, and freeform drawing annotations | Intentionally not adopted |
