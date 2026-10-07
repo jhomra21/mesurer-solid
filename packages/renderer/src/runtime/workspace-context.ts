@@ -17,7 +17,6 @@ import {
   getElementSelector,
   isElementFingerprintCompatible,
   isElementFingerprintRebindable,
-  isElementWithinDomTarget,
 } from "@jhomra21/mesurer-solid-dom";
 import { GUIDE_SNAP_DISTANCE } from "../core/constants";
 import {
