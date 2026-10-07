@@ -18,6 +18,7 @@ const REQUIRED_BRIDGE_CAPABILITIES = [
   "history-recovery-v2",
   "client-message-correlation-v1",
   "idle-safe-shutdown-v1",
+  "nonterminal-retention-v1",
 ];
 
 const IDLE_SAFE_SHUTDOWN_CAPABILITY = "idle-safe-shutdown-v1";
