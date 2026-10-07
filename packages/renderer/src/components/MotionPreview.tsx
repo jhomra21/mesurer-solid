@@ -49,14 +49,17 @@ export function MotionPreview(props: {
   let framingElement: Element | null = null;
   let framingBounds: PreviewBounds | null = null;
 
-  createEffect(() => {
-    const host = hostElement;
-    const element = props.element;
-    const ownerWindow = props.ownerWindow;
-    const observedTargets = props.observedTargets;
-    const wakeRef = props.wakeRef;
+  createEffect(
+    () => [
+      props.element,
+      props.ownerWindow,
+      props.observedTargets,
+      props.wakeRef,
+    ] as const,
+    ([element, ownerWindow, observedTargets, wakeRef]) => {
+      const host = hostElement;
 
-    if (!host) return;
+      if (!host) return;
 
     const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
 
@@ -603,7 +606,8 @@ export function MotionPreview(props: {
       snapshot.dispose();
       shadow.replaceChildren();
     });
-  });
+    },
+  );
 
   return (
     <div
