@@ -433,39 +433,39 @@ export function MotionPlayer(props: {
 
       const ownerWindow = speedAnchorElement?.ownerDocument.defaultView;
 
-    if (!ownerWindow) return;
+      if (!ownerWindow) return;
 
-    ownerWindow.queueMicrotask(() => {
-      if (!speedOpen()) return;
-      customSpeedInput?.focus({ preventScroll: true });
-      customSpeedInput?.select();
-    });
+      ownerWindow.queueMicrotask(() => {
+        if (!speedOpen()) return;
+        customSpeedInput?.focus({ preventScroll: true });
+        customSpeedInput?.select();
+      });
 
-    const dismiss = (event: Event) => {
-      if (event.type === "keydown") {
-        // SAFETY: this listener handles only keydown and pointerdown; the type guard selects a keyboard event.
-        const keyboard = event as KeyboardEvent;
+      const dismiss = (event: Event) => {
+        if (event.type === "keydown") {
+          // SAFETY: this listener handles only keydown and pointerdown; the type guard selects a keyboard event.
+          const keyboard = event as KeyboardEvent;
 
-        if (keyboard.key !== "Escape") return;
-        keyboard.preventDefault();
-        keyboard.stopPropagation();
+          if (keyboard.key !== "Escape") return;
+          keyboard.preventDefault();
+          keyboard.stopPropagation();
+          setSpeedOpen(false);
+          speedSelectElement?.focus({ preventScroll: true });
+
+          return;
+        }
+
+        if (speedAnchorElement && event.composedPath().includes(speedAnchorElement)) return;
         setSpeedOpen(false);
-        speedSelectElement?.focus({ preventScroll: true });
+      };
 
-        return;
-      }
+      ownerWindow.addEventListener("pointerdown", dismiss, true);
+      ownerWindow.addEventListener("keydown", dismiss, true);
 
-      if (speedAnchorElement && event.composedPath().includes(speedAnchorElement)) return;
-      setSpeedOpen(false);
-    };
-
-    ownerWindow.addEventListener("pointerdown", dismiss, true);
-    ownerWindow.addEventListener("keydown", dismiss, true);
-
-    onCleanup(() => {
-      ownerWindow.removeEventListener("pointerdown", dismiss, true);
-      ownerWindow.removeEventListener("keydown", dismiss, true);
-    });
+      onCleanup(() => {
+        ownerWindow.removeEventListener("pointerdown", dismiss, true);
+        ownerWindow.removeEventListener("keydown", dismiss, true);
+      });
     },
   );
 
