@@ -776,13 +776,17 @@ export function Toolbar(props: ToolbarProps) {
           <div
             data-mesurer-motion-surface="true"
             data-mesurer-inspector-ui="true"
-            class="msr:pointer-events-auto msr:absolute msr:z-[80] msr:overflow-visible"
+            class="msr:pointer-events-auto msr:absolute msr:overflow-visible"
             style={{
               left: `${geometry.left}px`,
               top: geometry.top === null ? "auto" : `${geometry.top}px`,
               bottom: geometry.bottom === null ? "auto" : `${geometry.bottom}px`,
               width: `${geometry.width}px`,
               "max-height": `${Math.max(0, geometry.maxHeight)}px`,
+              // Selected MeasurementBox chrome is document-backed and intentionally
+              // uses a high paint layer. Keep this global inspector surface above
+              // that evidence even when both share the ordinary document stack.
+              "z-index": "2147482801",
             }}
           >
             <MotionPlayer

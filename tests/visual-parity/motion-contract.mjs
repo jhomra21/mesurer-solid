@@ -44,6 +44,17 @@ const readAnimation = (selector) => page.evaluate(
 );
 
 try {
+  // Exercise the hardened fixed-host fallback as well as the modern Popover
+  // top layer. Document-backed selected chrome can carry a very high z-index,
+  // so the Motion surface must be higher inside the protected host even when
+  // the browser cannot promote that host to the top layer.
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLElement.prototype, "showPopover", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_MOTION_TEST__));
 
@@ -99,6 +110,48 @@ try {
 
   await player.waitFor({ state: "visible", timeout: 5000 });
   await scrubber.waitFor({ state: "visible" });
+
+  const selectionPaintOrder = await page.evaluate(() => {
+    const playerSurface = document.querySelector("[data-mesurer-motion-surface='true']");
+    const selectionChrome = document.querySelector("[data-mesurer-measurement-chrome='true']");
+    const playerRect = playerSurface?.getBoundingClientRect();
+    const selectionRect = selectionChrome?.getBoundingClientRect();
+
+    if (!playerSurface || !selectionChrome || !playerRect || !selectionRect) {
+      return { overlapArea: 0, playerZ: null, selectionZ: null };
+    }
+
+    const overlapWidth = Math.max(0, Math.min(playerRect.right, selectionRect.right) - Math.max(playerRect.left, selectionRect.left));
+    const overlapHeight = Math.max(0, Math.min(playerRect.bottom, selectionRect.bottom) - Math.max(playerRect.top, selectionRect.top));
+
+    const overlapPoint = {
+      x: Math.max(playerRect.left, selectionRect.left) + 4,
+      y: Math.max(playerRect.top, selectionRect.top) + 4,
+    };
+
+    const hit = document.elementFromPoint(overlapPoint.x, overlapPoint.y);
+    const shadowHit = hit?.shadowRoot?.elementFromPoint(overlapPoint.x, overlapPoint.y);
+
+    return {
+      overlapArea: overlapWidth * overlapHeight,
+      playerZ: Number(getComputedStyle(playerSurface).zIndex),
+      selectionZ: Number(getComputedStyle(selectionChrome).zIndex),
+      overlapHit: Boolean(
+        hit?.closest("[data-mesurer-motion-player='true']")
+        || shadowHit?.closest("[data-mesurer-motion-player='true']"),
+      ),
+    };
+  });
+
+  assert(selectionPaintOrder.overlapArea > 0, "The selected target must overlap the Motion UI in this fixture");
+  assert(
+    selectionPaintOrder.playerZ > selectionPaintOrder.selectionZ,
+    `Motion UI must paint above selected-element chrome: ${JSON.stringify(selectionPaintOrder)}`,
+  );
+  assert(
+    selectionPaintOrder.overlapHit,
+    `Selected chrome must not intercept paint/hit testing over Motion UI: ${JSON.stringify(selectionPaintOrder)}`,
+  );
 
   assert.equal(
     await inspect.getAttribute("aria-expanded"),
@@ -315,6 +368,7 @@ try {
       scrubbed,
       slowed,
     },
+    selectionPaintOrder,
     web: webBefore,
     player: {
       width: playerBox.width,
