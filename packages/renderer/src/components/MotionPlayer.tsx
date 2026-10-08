@@ -54,8 +54,8 @@ function PauseIcon() {
 
 function InspectIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-      <path d="M4 2.25 1.25 6 4 9.75M8 2.25 10.75 6 8 9.75M6.75 1.75 5.25 10.25" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+      <path d="M3.25 2.5.75 5l2.5 2.5m3.5-5L9.25 5l-2.5 2.5M5.75 1.5l-1.5 7" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
   );
 }
@@ -525,7 +525,7 @@ export function MotionPlayer(props: {
         <div class="msr:relative msr:p-2">
           <button
             type="button"
-            class="msr:relative msr:block msr:w-full msr:overflow-hidden msr:rounded-[8px] msr:border-0 msr:bg-ink-50 msr:p-0 msr:text-left"
+            class="msr:relative msr:block msr:w-full msr:overflow-hidden msr:rounded-control msr:border-0 msr:bg-ink-100 msr:p-0 msr:text-left"
             disabled={!controllable()}
             aria-label="Motion preview"
             onClick={togglePlay}
@@ -556,7 +556,7 @@ export function MotionPlayer(props: {
                 aria-label={playing() ? "Pause motion" : "Play motion"}
                 aria-pressed={playing() ? "true" : "false"}
                 disabled={!controllable()}
-                class="msr:flex msr:size-5 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-[6px] msr:border-0 msr:bg-transparent msr:p-0 msr:text-ink-900 msr:hover:bg-black/4 msr:disabled:opacity-40"
+                class="msr:flex msr:size-5 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-control msr:border msr:border-transparent msr:bg-transparent msr:p-0 msr:leading-none msr:text-ink-900 msr:hover:bg-black/4 msr:focus-visible:outline-none msr:disabled:opacity-40"
                 onClick={togglePlay}
               >
                 {playing() ? <PauseIcon /> : <PlayIcon />}
@@ -635,7 +635,7 @@ export function MotionPlayer(props: {
                   disabled={!controllable()}
                   value={String(speed())}
                   style={{ width: `${Math.max(6, `${speed()}x`.length + 1)}ch` }}
-                  class="mesurer-settings-button-ghost msr:h-5 msr:appearance-none msr:rounded-[6px] msr:border msr:border-transparent msr:bg-transparent msr:p-0 msr:text-center msr:font-mono msr:text-[10px] msr:tabular-nums msr:text-ink-500 msr:hover:bg-black/4 msr:focus-visible:bg-black/4 msr:focus-visible:outline-none"
+                  class="mesurer-settings-button-ghost msr:h-5 msr:appearance-none msr:rounded-control msr:border msr:border-transparent msr:bg-transparent msr:p-0 msr:text-center msr:font-mono msr:text-[10px] msr:tabular-nums msr:text-ink-500 msr:hover:bg-black/4 msr:focus-visible:bg-black/4 msr:focus-visible:outline-none"
                   onChange={(event) => {
                     if (event.currentTarget.value === "custom") {
                       setSpeedOpen(true);
@@ -808,7 +808,7 @@ export function MotionPlayer(props: {
               data-mesurer-motion-inspect="true"
               aria-label={inspectOpen() ? "Hide motion details" : "Show motion details"}
               aria-expanded={inspectOpen() ? "true" : "false"}
-              class="msr:flex msr:size-5 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-[6px] msr:border-0 msr:bg-transparent msr:p-0 msr:text-ink-900 msr:hover:bg-black/4"
+              class="msr:flex msr:size-5 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-control msr:border msr:border-transparent msr:bg-transparent msr:p-0 msr:leading-none msr:text-ink-900 msr:hover:bg-black/4 msr:focus-visible:outline-none"
               onClick={() => setInspectOpen((open) => !open)}
             >
               <InspectIcon />
