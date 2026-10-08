@@ -378,6 +378,7 @@ try {
   assert.equal(await markers.count(), 1, "first saved annotation marker missing");
   const marker = markers.first();
   assert.equal(await marker.getAttribute("data-mesurer-annotation-number"), "1", "first marker must be numbered 1");
+
   const markerAppearance = await marker.evaluate((element) => {
     const bounds = element.getBoundingClientRect();
 
