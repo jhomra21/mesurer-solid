@@ -133,6 +133,28 @@ try {
     Math.abs(playerBox.width - 352) <= 2,
     `Motion player must use the upstream 22rem width, got ${playerBox.width}px`,
   );
+  const controlMetrics = await player.evaluate((element) => {
+    const card = getComputedStyle(element);
+    const controls = element.querySelector("[data-mesurer-motion-play]")?.parentElement;
+    const preview = element.querySelector("[data-mesurer-motion-preview]");
+    const play = element.querySelector("[data-mesurer-motion-play]");
+    const rail = element.querySelector(".mesurer-recording-track-rail");
+
+    return {
+      radius: card.borderRadius,
+      previewHeight: preview?.getBoundingClientRect().height,
+      controlsHeight: controls?.getBoundingClientRect().height,
+      playSize: play?.getBoundingClientRect().height,
+      railHeight: rail?.getBoundingClientRect().height,
+    };
+  });
+
+  assert.equal(controlMetrics.radius, "12px", `Motion card radius must match upstream: ${JSON.stringify(controlMetrics)}`);
+  assert.equal(controlMetrics.previewHeight, 144);
+  assert.equal(controlMetrics.controlsHeight, 20);
+  assert.equal(controlMetrics.playSize, 20);
+  assert.equal(controlMetrics.railHeight, 3);
+
 
   await play.click();
   await page.waitForFunction(() =>
@@ -201,6 +223,29 @@ try {
   const customSpeed = player.getByRole("dialog", { name: "Custom playback speed" });
 
   await customSpeed.waitFor({ state: "visible" });
+  const customMetrics = await customSpeed.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const shell = element.querySelector(".mesurer-control-shell");
+    const thumb = element.querySelector(".mesurer-control-thumb");
+
+    return {
+      x: rect.x,
+      y: rect.y,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      shellHeight: shell?.getBoundingClientRect().height,
+      thumbSize: thumb?.getBoundingClientRect().width,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  assert.equal(customMetrics.width, 208, `Custom speed popup must match upstream width: ${JSON.stringify(customMetrics)}`);
+  assert.equal(customMetrics.shellHeight, 24);
+  assert.equal(customMetrics.thumbSize, 12);
+  assert(customMetrics.x >= 8 && customMetrics.right <= customMetrics.viewportWidth - 8);
+  assert(customMetrics.y >= 0 && customMetrics.bottom <= customMetrics.viewportHeight);
   const customValue = customSpeed.getByRole("textbox", { name: "Custom playback speed value" });
 
   await customValue.fill("1.75");
