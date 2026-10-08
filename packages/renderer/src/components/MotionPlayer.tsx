@@ -520,7 +520,8 @@ export function MotionPlayer(props: {
         data-mesurer-motion-player="true"
         data-mesurer-inspector-ui="true"
         aria-label="Motion playback"
-        class="mesurer-menu-surface msr:relative msr:box-border msr:pointer-events-auto msr:w-full msr:overflow-visible msr:rounded-[12px] msr:bg-white msr:text-ink-900 msr:outline-none"
+        class="mesurer-menu-surface msr:relative msr:box-border msr:pointer-events-auto msr:w-full msr:overflow-visible msr:rounded-wide-card msr:bg-white msr:text-ink-900 msr:outline-none"
+        style={{ "border-radius": "var(--radius-wide-card, 13px)" }}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
       >
