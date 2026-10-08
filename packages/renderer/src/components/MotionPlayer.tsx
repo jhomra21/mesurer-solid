@@ -413,14 +413,14 @@ export function MotionPlayer(props: {
         data-mesurer-motion-player="true"
         data-mesurer-inspector-ui="true"
         aria-label="Motion playback"
-        class="mesurer-menu-surface msr:pointer-events-auto msr:w-full msr:overflow-hidden msr:rounded-[12px] msr:border msr:border-ink-200 msr:bg-white msr:text-ink-900"
+        class="mesurer-menu-surface msr:relative msr:box-border msr:pointer-events-auto msr:w-full msr:overflow-visible msr:rounded-[12px] msr:bg-white msr:text-ink-900 msr:outline-none"
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
       >
-        <div class="msr:p-2">
+        <div class="msr:relative msr:p-2">
           <button
             type="button"
-            class="msr:block msr:w-full msr:overflow-hidden msr:rounded-[8px] msr:border-0 msr:bg-ink-50 msr:p-0 msr:text-left"
+            class="msr:relative msr:block msr:w-full msr:overflow-hidden msr:rounded-[8px] msr:border-0 msr:bg-ink-50 msr:p-0 msr:text-left"
             disabled={!controllable()}
             aria-label="Motion preview"
             onClick={togglePlay}
@@ -433,13 +433,13 @@ export function MotionPlayer(props: {
             />
           </button>
 
-          <div class="msr:mt-2 msr:flex msr:h-7 msr:items-center msr:gap-1">
+          <div class="msr:mt-2 msr:flex msr:h-5 msr:items-center msr:gap-1.5">
             <Show
               when={!observedOnly() && playbackReady()}
               fallback={
                 <div
                   role="status"
-                  class="msr:min-w-0 msr:flex-1 msr:truncate msr:font-mono msr:text-[10px] msr:text-ink-500"
+                  class="msr:min-w-0 msr:flex-1 msr:truncate msr:font-mono msr:text-[10px] msr:leading-none msr:text-ink-500"
                 >
                   {observedOnly() ? "JavaScript animation. Controls unavailable." : "Preparing motion…"}
                 </div>
@@ -451,67 +451,144 @@ export function MotionPlayer(props: {
                 aria-label={playing() ? "Pause motion" : "Play motion"}
                 aria-pressed={playing() ? "true" : "false"}
                 disabled={!controllable()}
-                class="msr:flex msr:size-7 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-[7px] msr:bg-transparent msr:text-ink-900 msr:hover:bg-black/4 msr:disabled:opacity-40"
+                class="msr:flex msr:size-5 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-[6px] msr:border-0 msr:bg-transparent msr:p-0 msr:text-ink-900 msr:hover:bg-black/4 msr:disabled:opacity-40"
                 onClick={togglePlay}
               >
                 {playing() ? <PauseIcon /> : <PlayIcon />}
               </button>
 
-              <span class="msr:w-8 msr:shrink-0 msr:font-mono msr:text-[10px] msr:tabular-nums msr:text-ink-500">
+              <span class="msr:flex msr:h-5 msr:w-8 msr:shrink-0 msr:items-center msr:font-mono msr:text-[10px] msr:leading-none msr:tabular-nums msr:text-ink-500">
                 {controllable() ? timestamp(progress() * duration()) : "—"}
               </span>
 
-              <input
-                type="range"
+              <div
+                ref={scrubTrack}
+                role="slider"
+                tabIndex={controllable() ? 0 : -1}
                 data-mesurer-motion-scrubber="true"
                 aria-label="Scrub motion timeline"
-                disabled={!controllable()}
-                min="0"
-                max="1"
-                step="0.001"
-                value={progress()}
-                class="msr:min-w-0 msr:flex-1 msr:accent-ink-900"
-                onInput={(event) => seek(Number(event.currentTarget.value))}
-                onChange={(event) => seek(Number(event.currentTarget.value))}
-                onKeyDown={(event) => event.stopPropagation()}
-              />
+                aria-disabled={!controllable() ? "true" : "false"}
+                aria-valuemin={0}
+                aria-valuemax={duration()}
+                aria-valuenow={progress() * duration()}
+                aria-valuetext={controllable() ? `${Math.round(progress() * 100)}%` : "Playback unavailable"}
+                class="mesurer-recording-timeline msr:relative msr:h-5 msr:min-w-0 msr:flex-1 msr:cursor-pointer msr:select-none"
+                onPointerDown={(event) => {
+                  if (!controllable()) return;
+                  scrubBounds = event.currentTarget.getBoundingClientRect();
+                  scrubPointer = event.pointerId;
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  scrubAt(event.clientX);
+                }}
+                onPointerMove={(event) => {
+                  if (event.pointerId === scrubPointer) scrubAt(event.clientX);
+                }}
+                onPointerUp={(event) => {
+                  if (event.pointerId !== scrubPointer) return;
+                  scrubAt(event.clientX);
+                  stopScrubbing(event.pointerId);
+                }}
+                onPointerCancel={(event) => stopScrubbing(event.pointerId)}
+                onLostPointerCapture={(event) => stopScrubbing(event.pointerId)}
+                onKeyDown={(event) => {
+                  if (!controllable()) return;
+                  if (event.key === "Home" || event.key === "End") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    seek(event.key === "Home" ? 0 : 1);
 
-              <span class="msr:w-8 msr:shrink-0 msr:text-right msr:font-mono msr:text-[10px] msr:tabular-nums msr:text-ink-500">
+                    return;
+                  }
+
+                  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  seek(progress() + (event.key === "ArrowRight" ? 0.02 : -0.02));
+                }}
+              >
+                <div class="mesurer-recording-track-rail msr:pointer-events-none msr:absolute msr:inset-x-0 msr:top-1/2 msr:h-[3px] msr:-translate-y-1/2 msr:rounded-full msr:bg-ink-200" />
+                <div
+                  class="msr:pointer-events-none msr:absolute msr:top-1/2 msr:z-[2] msr:h-2 msr:-translate-y-1/2"
+                  style={{ left: `${progress() * 100}%` }}
+                >
+                  <div class="mesurer-recording-playhead msr:h-full msr:w-0.5 msr:rounded-full msr:bg-ink-900" />
+                </div>
+              </div>
+
+              <span class="msr:flex msr:h-5 msr:w-8 msr:shrink-0 msr:items-center msr:justify-end msr:font-mono msr:text-[10px] msr:leading-none msr:tabular-nums msr:text-ink-500">
                 {controllable() ? timestamp(duration()) : "—"}
               </span>
 
-              <div class="msr:relative msr:flex msr:shrink-0">
-                <button
-                  type="button"
+              <div ref={speedAnchorElement} class="msr:relative msr:flex msr:h-5 msr:shrink-0 msr:items-center">
+                <select
+                  ref={speedSelectElement}
                   data-mesurer-motion-speed="true"
                   aria-label="Playback speed"
-                  aria-expanded={speedOpen() ? "true" : "false"}
+                  aria-controls={speedOpen() ? customSpeedId : undefined}
                   disabled={!controllable()}
-                  class="msr:h-7 msr:min-w-10 msr:rounded-[7px] msr:bg-transparent msr:px-1.5 msr:font-mono msr:text-[10px] msr:text-ink-500 msr:hover:bg-black/4 msr:disabled:opacity-40"
-                  onClick={() => setSpeedOpen((open) => !open)}
+                  value={String(speed())}
+                  style={{ width: `${Math.max(6, `${speed()}x`.length + 1)}ch` }}
+                  class="mesurer-settings-button-ghost msr:h-5 msr:appearance-none msr:rounded-[6px] msr:border msr:border-transparent msr:bg-transparent msr:p-0 msr:text-center msr:font-mono msr:text-[10px] msr:tabular-nums msr:text-ink-500 msr:hover:bg-black/4 msr:focus-visible:bg-black/4 msr:focus-visible:outline-none"
+                  onChange={(event) => {
+                    if (event.currentTarget.value === "custom") {
+                      setSpeedOpen(true);
+
+                      return;
+                    }
+
+                    setSpeedOpen(false);
+                    changeSpeed(Number(event.currentTarget.value));
+                  }}
                 >
-                  {speed()}x
-                </button>
+                  <For each={SPEED_PRESETS}>{(value) => (
+                    <option value={String(value)}>{value}x</option>
+                  )}</For>
+                  <Show when={!SPEED_PRESETS.some((value) => value === speed())}>
+                    <option value={String(speed())}>{speed()}x</option>
+                  </Show>
+                  <option value="custom">Custom</option>
+                </select>
 
                 <Show when={speedOpen() && controllable()}>
                   <div
-                    data-mesurer-motion-speed-menu="true"
-                    role="menu"
-                    aria-label="Playback speed options"
-                    class="mesurer-menu-surface msr:absolute msr:bottom-full msr:right-0 msr:z-[120] msr:mb-1 msr:flex msr:min-w-24 msr:flex-col msr:rounded-[8px] msr:border msr:border-ink-200 msr:bg-white msr:p-1"
+                    id={customSpeedId}
+                    role="dialog"
+                    data-mesurer-motion-custom-speed="true"
+                    aria-label="Custom playback speed"
+                    class="mesurer-menu-surface msr:absolute msr:right-0 msr:top-full msr:z-[120] msr:mt-1 msr:flex msr:w-[208px] msr:max-w-[calc(100vw-16px)] msr:items-center msr:gap-1 msr:rounded-[9px] msr:border msr:border-ink-200 msr:bg-white msr:p-1"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
                   >
-                    <For each={SPEED_PRESETS}>{(value) => (
-                      <button
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={speed() === value ? "true" : "false"}
-                        data-mesurer-motion-speed-option={String(value)}
-                        class="msr:rounded-[5px] msr:bg-transparent msr:px-2 msr:py-1 msr:text-left msr:font-mono msr:text-[10px] msr:text-ink-700 msr:hover:bg-black/4"
-                        onClick={() => changeSpeed(value)}
-                      >
-                        {value}x
-                      </button>
-                    )}</For>
+                    <input
+                      type="range"
+                      aria-label="Custom playback speed slider"
+                      min="0.1"
+                      max="4"
+                      step="0.05"
+                      value={speed()}
+                      class="msr:min-w-0 msr:flex-1 msr:accent-ink-900"
+                      onInput={(event) => changeSpeed(Number(event.currentTarget.value))}
+                    />
+                    <input
+                      ref={customSpeedInput}
+                      type="number"
+                      aria-label="Custom playback speed value"
+                      min="0.1"
+                      max="4"
+                      step="0.05"
+                      value={speed()}
+                      class="msr:h-6 msr:w-[54px] msr:rounded-[6px] msr:border msr:border-ink-200 msr:bg-transparent msr:px-1 msr:text-right msr:font-mono msr:text-[10px] msr:text-ink-900 msr:outline-none msr:focus-visible:border-[#0d99ff]"
+                      onChange={(event) => changeSpeed(Number(event.currentTarget.value))}
+                    />
+                    <button
+                      type="button"
+                      aria-label="Close custom speed"
+                      class="msr:flex msr:size-5 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-[6px] msr:bg-transparent msr:text-ink-700 msr:hover:bg-black/4"
+                      onClick={() => {
+                        setSpeedOpen(false);
+                        speedSelectElement?.focus({ preventScroll: true });
+                      }}
+                    ><span aria-hidden="true">×</span></button>
                   </div>
                 </Show>
               </div>
@@ -522,7 +599,7 @@ export function MotionPlayer(props: {
               data-mesurer-motion-inspect="true"
               aria-label={inspectOpen() ? "Hide motion details" : "Show motion details"}
               aria-expanded={inspectOpen() ? "true" : "false"}
-              class="msr:flex msr:size-7 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-[7px] msr:bg-transparent msr:text-ink-900 msr:hover:bg-black/4"
+              class="msr:flex msr:size-5 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-[6px] msr:border-0 msr:bg-transparent msr:p-0 msr:text-ink-900 msr:hover:bg-black/4"
               onClick={() => setInspectOpen((open) => !open)}
             >
               <InspectIcon />
@@ -530,16 +607,16 @@ export function MotionPlayer(props: {
           </div>
         </div>
 
-        <Show when={inspectOpen()}>
-          <div class="mesurer-thin-scrollbar msr:max-h-[50vh] msr:overflow-y-auto">
+        <div data-mesurer-motion-details="true" hidden={!inspectOpen()} class="mesurer-thin-scrollbar msr:max-h-[50vh] msr:overflow-y-auto">
+          <Show when={inspectOpen()}>
             <MotionValues
               motions={motions()}
               ownerWindow={props.ownerWindow}
               element={props.element}
               observedProperties={observedProperties()}
             />
-          </div>
-        </Show>
+          </Show>
+        </div>
       </div>
     </Show>
   );
