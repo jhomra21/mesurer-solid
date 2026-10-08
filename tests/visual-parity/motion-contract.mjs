@@ -114,6 +114,17 @@ try {
   assert.match(cssText, /mesurer-contract-pulse/i, "Motion details must name the selected CSS animation");
   assert.match(cssText, /2(?:\.0)?s|2000ms/i, "Motion details must show the CSS animation duration");
   assert.match(cssText, /opacity/i, "Motion details must include animated properties");
+  const keyframeToggle = player.locator("[data-mesurer-motion-keyframes-toggle='true']");
+
+  await keyframeToggle.waitFor({ state: "visible" });
+  assert.equal(await keyframeToggle.getAttribute("aria-expanded"), "false");
+  assert.match((await details.textContent()) ?? "", /keyframes/i);
+  await keyframeToggle.click();
+  assert.equal(await keyframeToggle.getAttribute("aria-expanded"), "true");
+  assert.match((await details.textContent()) ?? "", /0%|100%/);
+  await keyframeToggle.click();
+  assert.equal(await keyframeToggle.getAttribute("aria-expanded"), "false");
+
 
   const playerBox = await player.boundingBox();
 
@@ -122,6 +133,29 @@ try {
     Math.abs(playerBox.width - 352) <= 2,
     `Motion player must use the upstream 22rem width, got ${playerBox.width}px`,
   );
+
+  const controlMetrics = await player.evaluate((element) => {
+    const card = getComputedStyle(element);
+    const controls = element.querySelector("[data-mesurer-motion-play]")?.parentElement;
+    const preview = element.querySelector("[data-mesurer-motion-preview]");
+    const play = element.querySelector("[data-mesurer-motion-play]");
+    const rail = element.querySelector(".mesurer-recording-track-rail");
+
+    return {
+      radius: card.borderRadius,
+      previewHeight: preview?.getBoundingClientRect().height,
+      controlsHeight: controls?.getBoundingClientRect().height,
+      playSize: play?.getBoundingClientRect().height,
+      railHeight: rail?.getBoundingClientRect().height,
+    };
+  });
+
+  assert.equal(controlMetrics.radius, "13px", `Motion card radius must match upstream: ${JSON.stringify(controlMetrics)}`);
+  assert.equal(controlMetrics.previewHeight, 144);
+  assert.equal(controlMetrics.controlsHeight, 20);
+  assert.equal(controlMetrics.playSize, 20);
+  assert.equal(controlMetrics.railHeight, 3);
+
 
   await play.click();
   await page.waitForFunction(() =>
@@ -132,14 +166,42 @@ try {
 
   assert.equal(paused?.playState, "paused", "Pause must control the selected CSS animation");
 
-  await scrubber.evaluate((element) => {
-    const input = element;
+  const scrubberBox = await scrubber.boundingBox();
 
-    input.value = "0.75";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  assert(scrubberBox, "Motion scrubber must have rendered geometry");
+  const scrubY = scrubberBox.y + scrubberBox.height / 2;
+  const scrubX = scrubberBox.x + scrubberBox.width * 0.75;
 
+  await page.mouse.move(scrubX, scrubY);
+  await page.mouse.down();
+  await page.mouse.up();
+  await settle();
+
+  const scrubSemantics = await scrubber.evaluate((element) => ({
+    role: element.getAttribute("role"),
+    value: Number(element.getAttribute("aria-valuenow")),
+    max: Number(element.getAttribute("aria-valuemax")),
+    playhead: element.querySelector(".mesurer-recording-playhead")?.getBoundingClientRect().width ?? 0,
+  }));
+
+  assert.equal(scrubSemantics.role, "slider");
+  assert(Math.abs(scrubSemantics.value - 1500) <= 100, `Scrub semantics wrong: ${JSON.stringify(scrubSemantics)}`);
+  assert(scrubSemantics.playhead > 0, "Motion timeline playhead must paint");
+
+  await scrubber.focus();
+  await page.keyboard.press("Home");
+  await settle();
+
+  const home = await readAnimation("[data-testid='css-motion']");
+
+  assert(home?.currentTime !== null && home.currentTime <= 50, `Home should seek to start: ${JSON.stringify(home)}`);
+  await page.keyboard.press("End");
+  await settle();
+
+  const end = await readAnimation("[data-testid='css-motion']");
+
+  assert(end?.currentTime !== null && end.currentTime >= 1950, `End should seek to finish: ${JSON.stringify(end)}`);
+  await page.mouse.click(scrubX, scrubY);
   await settle();
 
   const scrubbed = await readAnimation("[data-testid='css-motion']");
@@ -151,16 +213,63 @@ try {
   );
   assert.equal(scrubbed.playState, "paused", "Scrubbing must leave motion paused");
 
-  await speed.click();
-  const speedMenu = player.locator("[data-mesurer-motion-speed-menu='true']");
-
-  await speedMenu.waitFor({ state: "visible" });
-  await speedMenu.locator("[data-mesurer-motion-speed-option='0.5']").click();
+  await speed.selectOption("0.5");
   await settle();
 
   const slowed = await readAnimation("[data-testid='css-motion']");
 
-  assert.equal(slowed?.playbackRate, 0.5, "Motion speed control must set playbackRate to 0.5");
+  assert.equal(slowed?.playbackRate, 0.5, "Motion preset must set playbackRate to 0.5");
+
+  await speed.selectOption("custom");
+  const customSpeed = player.getByRole("dialog", { name: "Custom playback speed" });
+
+  await customSpeed.waitFor({ state: "visible" });
+
+  const customMetrics = await customSpeed.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const shell = element.querySelector(".mesurer-control-shell");
+    const thumb = element.querySelector(".mesurer-control-thumb");
+
+    return {
+      x: rect.x,
+      y: rect.y,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      shellHeight: shell?.getBoundingClientRect().height,
+      thumbSize: thumb?.getBoundingClientRect().width,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  assert.equal(customMetrics.width, 208, `Custom speed popup must match upstream width: ${JSON.stringify(customMetrics)}`);
+  assert.equal(customMetrics.shellHeight, 24);
+  assert.equal(customMetrics.thumbSize, 12);
+  assert(customMetrics.x >= 8 && customMetrics.right <= customMetrics.viewportWidth - 8);
+  assert(customMetrics.y >= 0 && customMetrics.bottom <= customMetrics.viewportHeight);
+  const customValue = customSpeed.getByRole("textbox", { name: "Custom playback speed value" });
+
+  await customValue.fill("1.75");
+  await customValue.press("Tab");
+  await settle();
+
+  const customPlayback = await readAnimation("[data-testid='css-motion']");
+
+  assert.equal(customPlayback?.playbackRate, 1.75, "Motion custom speed must control playbackRate");
+
+  const speedSlider = customSpeed.getByRole("slider", { name: "Custom playback speed slider" });
+
+  await speedSlider.focus();
+  await page.keyboard.press("ArrowUp");
+  await settle();
+
+  const nudged = await readAnimation("[data-testid='css-motion']");
+
+  assert.equal(nudged?.playbackRate, 1.8, "Custom speed slider must support keyboard steps");
+  await page.keyboard.press("Escape");
+  await customSpeed.waitFor({ state: "hidden" });
+  assert.equal(await speed.evaluate((element) => document.activeElement === element), true, "Escape must restore speed select focus");
 
   await play.click();
   await page.waitForFunction(() =>

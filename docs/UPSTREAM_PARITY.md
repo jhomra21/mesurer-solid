@@ -27,6 +27,12 @@ Current React Settings is a separate migration. Upstream now uses a sectioned Se
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
 
+### 2026-10-08 adopted-surface reconciliation
+
+The first Motion port provided the behavior but differed visibly from the current upstream player: a native browser range input replaced its thin scrub rail and playhead, its controls were 28px instead of 20px, and speed was limited to a preset menu. The follow-up restores the upstream-sized control row, pointer/keyboard scrub surface, native preset select, and custom 0.1–4× speed editor built with the shared current `ControlShell`. Inspect values now include the upstream's additional motion properties, collapsed keyframe summary, expanded grouped keyframe rows, and copying. The focused Chromium contract exercises the actual animation and measures card/control/slider/popup geometry and focus behavior. It records a screenshot, but this does **not** replace a current-upstream screenshot pixel comparison; do not cite the historical React v0.0.11 visual suite as proof of the 0.2.4 Motion visuals.
+
+Context intentionally keeps the Mesurer Solid note/composer interaction rather than upstream threaded comments. Its annotation trigger, marker and composer render in the inspected document to preserve natural scroll ownership, so unlike the main Shadow DOM toolbar they can be affected by the page's CSS. Their button size, icon fill/display, note controls and theme colors are now guarded against hostile host styles. The macOS browser contract injects broad button/SVG/textarea resets and verifies actual dimensions, icon paint and the physical save/open note lifecycle. Iframe projection/pointer-owner tests remain the adopted behavior gate; upstream's comment list and thread actions are still an explicit product divergence.
+
 ### 2026-10-07 upstream 0.2.4 audit
 
 | Upstream delta | Decision | Reason |
