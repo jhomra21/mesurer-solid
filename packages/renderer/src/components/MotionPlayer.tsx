@@ -97,14 +97,19 @@ function MotionValues(props: {
     };
 
     const style = props.ownerWindow.getComputedStyle(props.element);
+
     const extras = [
       "animation-composition", "animation-timeline", "animation-range-start",
       "animation-range-end", "transition-behavior",
       ...(properties.includes("transform") ? ["transform-origin"] : []),
       ...(style.perspective !== "none" ? ["perspective", "perspective-origin"] : []),
-    ]
-      .map((label) => [label, style.getPropertyValue(label).trim()] as const)
-      .filter(([, value]) => value && !/^(auto|normal|replace)(,\s*\1)*$/.test(value));
+    ].flatMap((label) => {
+      const value = style.getPropertyValue(label).trim();
+
+      return value && !/^(auto|normal|replace)(,\s*\1)*$/.test(value)
+        ? [[label, value] as const]
+        : [];
+    });
 
     return [
       ...shorthand("animation", animations),
@@ -517,7 +522,7 @@ export function MotionPlayer(props: {
               <div
                 ref={scrubTrack}
                 role="slider"
-                tabIndex={controllable() ? 0 : -1}
+                tabindex={controllable() ? 0 : -1}
                 data-mesurer-motion-scrubber="true"
                 aria-label="Scrub motion timeline"
                 aria-disabled={!controllable() ? "true" : "false"}
