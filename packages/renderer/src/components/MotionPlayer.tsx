@@ -96,6 +96,16 @@ function MotionValues(props: {
       return value ? [[label, value] as const] : [];
     };
 
+    const style = props.ownerWindow.getComputedStyle(props.element);
+    const extras = [
+      "animation-composition", "animation-timeline", "animation-range-start",
+      "animation-range-end", "transition-behavior",
+      ...(properties.includes("transform") ? ["transform-origin"] : []),
+      ...(style.perspective !== "none" ? ["perspective", "perspective-origin"] : []),
+    ]
+      .map((label) => [label, style.getPropertyValue(label).trim()] as const)
+      .filter(([, value]) => value && !/^(auto|normal|replace)(,\s*\1)*$/.test(value));
+
     return [
       ...shorthand("animation", animations),
       ...shorthand("transition", transitions),
@@ -107,6 +117,7 @@ function MotionValues(props: {
             ["playback", "Observed motion is read-only"] as const,
           ]
         : []),
+      ...extras,
     ];
   });
 
@@ -118,14 +129,29 @@ function MotionValues(props: {
     }))
     .filter(({ frames }) => frames.length > 0));
 
+  const keyframeBlocks = createMemo(() => keyframes().map(({ name, frames }) =>
+    `@keyframes ${name} {\n${frames.map(({ offset, value }) => `  ${offset} { ${value} }`).join("\n")}\n}`));
+
+  const groupedKeyframes = createMemo(() => keyframes().map(({ name, frames }) => {
+    const groups = new Map<string, { offsets: string[]; displayValue: string }>();
+
+    for (const { offset, value, displayValue } of frames) {
+      const match = groups.get(value);
+
+      if (match) match.offsets.push(offset);
+      else groups.set(value, { offsets: [offset], displayValue });
+    }
+
+    return { name, frames: [...groups].map(([value, group]) => ({ value, ...group })) };
+  }));
+
   const copy = (value: string) => {
     void props.ownerWindow.navigator.clipboard?.writeText(value).catch(() => undefined);
   };
 
   return (
     <div
-      data-mesurer-motion-details="true"
-      class="msr:w-full msr:border-t msr:border-ink-200 msr:px-2 msr:pb-2 msr:pt-2 msr:text-[10px] msr:text-ink-900"
+      class="msr:w-full msr:px-2 msr:pb-2 msr:pt-2 msr:text-[10px] msr:text-ink-900"
     >
       <div class="msr:flex msr:flex-col msr:gap-1">
         <For each={grouped()}>{([label, value]) => (
@@ -142,30 +168,56 @@ function MotionValues(props: {
         )}</For>
 
         <Show when={keyframes().length > 0}>
+          <Show when={!keyframesExpanded()}>
+            <For each={keyframes()}>{(group, index) => (
+              <div class="msr:grid msr:grid-cols-[3.5rem_minmax(0,1fr)] msr:items-baseline msr:gap-2">
+                <span class="msr:text-ink-500">{index() === 0 ? "keyframes" : ""}</span>
+                <button
+                  type="button"
+                  aria-label={`Copy keyframes ${group.name}`}
+                  class="msr:min-w-0 msr:whitespace-pre-wrap msr:break-words msr:bg-transparent msr:p-0 msr:text-right msr:font-mono msr:text-[10px] msr:text-ink-900 msr:hover:underline"
+                  onClick={() => copy(keyframeBlocks().join("\n\n"))}
+                >
+                  {group.name}: {group.frames.map((frame) => frame.offset).join(", ")}
+                </button>
+              </div>
+            )}</For>
+          </Show>
+
+          <Show when={keyframesExpanded()}>
+            <For each={groupedKeyframes()}>{(group, groupIndex) => (
+              <div class="msr:mt-1 msr:flex msr:flex-col msr:gap-1">
+                <div class="msr:grid msr:grid-cols-[auto_minmax(0,1fr)] msr:items-baseline msr:gap-2">
+                  <span class="msr:text-ink-500">{groupIndex() === 0 ? "keyframes" : ""}</span>
+                  <button
+                    type="button"
+                    class="msr:min-w-0 msr:truncate msr:bg-transparent msr:p-0 msr:text-right msr:font-mono msr:text-[10px] msr:text-ink-900 msr:hover:underline"
+                    onClick={() => copy(keyframeBlocks()[groupIndex()] ?? "")}
+                  >{group.name}</button>
+                </div>
+                <For each={group.frames}>{(frame) => (
+                  <div class="msr:grid msr:grid-cols-[3.5rem_minmax(0,1fr)] msr:items-baseline msr:gap-2">
+                    <span class="msr:font-mono msr:tabular-nums msr:text-ink-500">{frame.offsets.join(", ")}</span>
+                    <button
+                      type="button"
+                      class="msr:min-w-0 msr:whitespace-pre-wrap msr:break-words msr:bg-transparent msr:p-0 msr:text-right msr:font-mono msr:text-[10px] msr:text-ink-900 msr:hover:underline"
+                      onClick={() => copy(`${frame.offsets.join(", ")} { ${frame.value} }`)}
+                    >{frame.displayValue || "underlying style"}</button>
+                  </div>
+                )}</For>
+              </div>
+            )}</For>
+          </Show>
+
           <button
             type="button"
+            data-mesurer-motion-keyframes-toggle="true"
             class="msr:ml-auto msr:bg-transparent msr:p-0 msr:text-[10px] msr:text-ink-500 msr:underline msr:underline-offset-2"
             aria-expanded={keyframesExpanded() ? "true" : "false"}
             onClick={() => setKeyframesExpanded((value) => !value)}
           >
             {keyframesExpanded() ? "Hide keyframes" : "Show keyframes"}
           </button>
-
-          <Show when={keyframesExpanded()}>
-            <div class="msr:flex msr:flex-col msr:gap-2 msr:pt-1">
-              <For each={keyframes()}>{(group) => (
-                <div>
-                  <div class="msr:mb-1 msr:font-mono msr:text-[10px] msr:font-medium">{group.name}</div>
-                  <For each={group.frames}>{(frame) => (
-                    <div class="msr:grid msr:grid-cols-[3.5rem_minmax(0,1fr)] msr:gap-2 msr:font-mono msr:text-[9px]">
-                      <span class="msr:text-ink-500">{frame.offset}</span>
-                      <span class="msr:whitespace-pre-wrap msr:break-words">{frame.displayValue || "underlying style"}</span>
-                    </div>
-                  )}</For>
-                </div>
-              )}</For>
-            </div>
-          </Show>
         </Show>
       </div>
     </div>
