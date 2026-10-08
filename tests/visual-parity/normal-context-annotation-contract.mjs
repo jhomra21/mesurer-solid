@@ -327,7 +327,7 @@ try {
   assert.equal(triggerAppearance.height, 24, `Context trigger height leaked host CSS: ${JSON.stringify(triggerAppearance)}`);
   assert.equal(triggerAppearance.radius, "7px");
   assert.equal(triggerAppearance.background, "rgb(255, 255, 255)");
-  assert.equal(triggerAppearance.color, "rgb(0, 0, 0)");
+  assert.equal(triggerAppearance.color, "rgb(24, 24, 27)");
   assert.equal(triggerAppearance.svgWidth, 14);
   assert.equal(triggerAppearance.svgDisplay, "block");
   assert.equal(triggerAppearance.svgVisibility, "visible");
