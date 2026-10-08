@@ -343,6 +343,28 @@ try {
   const composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
   await assertDocumentSurface(composer, "Add Note composer");
+  const composerAppearance = await composer.evaluate((element) => {
+    const textarea = element.querySelector("textarea");
+    const submit = [...element.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Add note");
+    const close = element.querySelector('button[aria-label="Close note composer"]');
+    const icon = close?.querySelector("svg");
+    const box = element.getBoundingClientRect();
+
+    return {
+      width: box.width,
+      textareaFont: textarea ? getComputedStyle(textarea).fontSize : null,
+      textareaHeight: textarea?.getBoundingClientRect().height ?? 0,
+      submitColor: submit ? getComputedStyle(submit).color : null,
+      submitBackground: submit ? getComputedStyle(submit).backgroundColor : null,
+      closeIconDisplay: icon ? getComputedStyle(icon).display : null,
+    };
+  });
+  assert.equal(composerAppearance.width, 272, `composer width leaked host CSS: ${JSON.stringify(composerAppearance)}`);
+  assert.equal(composerAppearance.textareaFont, "12px");
+  assert.equal(composerAppearance.textareaHeight, 80);
+  assert.equal(composerAppearance.submitColor, "rgb(255, 255, 255)");
+  assert.equal(composerAppearance.submitBackground, "rgb(13, 153, 255)");
+  assert.equal(composerAppearance.closeIconDisplay, "block");
   const composerFrames = await captureFrameSeries(4, 6);
   assertFrameAttachment(composerFrames, ["composer"]);
   await saveNote(composer, "Normal playground annotation acceptance");
@@ -352,6 +374,17 @@ try {
   assert.equal(await markers.count(), 1, "first saved annotation marker missing");
   const marker = markers.first();
   assert.equal(await marker.getAttribute("data-mesurer-annotation-number"), "1", "first marker must be numbered 1");
+  const markerAppearance = await marker.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    return {
+      width: bounds.width,
+      height: bounds.height,
+      badge: element.querySelector("[data-mesurer-annotation-badge]")?.textContent?.trim(),
+    };
+  });
+  assert.equal(markerAppearance.width, 24);
+  assert.equal(markerAppearance.height, 24);
+  assert.equal(markerAppearance.badge, "1");
   await assertDocumentSurface(marker, "saved annotation marker");
 
   const panel = contextRoot.locator("[data-mesurer-annotation-panel='true']");
