@@ -133,6 +133,7 @@ try {
     Math.abs(playerBox.width - 352) <= 2,
     `Motion player must use the upstream 22rem width, got ${playerBox.width}px`,
   );
+
   const controlMetrics = await player.evaluate((element) => {
     const card = getComputedStyle(element);
     const controls = element.querySelector("[data-mesurer-motion-play]")?.parentElement;
@@ -223,6 +224,7 @@ try {
   const customSpeed = player.getByRole("dialog", { name: "Custom playback speed" });
 
   await customSpeed.waitFor({ state: "visible" });
+
   const customMetrics = await customSpeed.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     const shell = element.querySelector(".mesurer-control-shell");
