@@ -383,6 +383,7 @@ export function MotionPlayer(props: {
 
     const dismiss = (event: Event) => {
       if (event.type === "keydown") {
+        // SAFETY: this listener handles only keydown and pointerdown; the type guard selects a keyboard event.
         const keyboard = event as KeyboardEvent;
 
         if (keyboard.key !== "Escape") return;
@@ -475,6 +476,7 @@ export function MotionPlayer(props: {
                 class="mesurer-recording-timeline msr:relative msr:h-5 msr:min-w-0 msr:flex-1 msr:cursor-pointer msr:select-none"
                 onPointerDown={(event) => {
                   if (!controllable()) return;
+
                   scrubBounds = event.currentTarget.getBoundingClientRect();
                   scrubPointer = event.pointerId;
                   event.currentTarget.setPointerCapture(event.pointerId);
@@ -492,6 +494,7 @@ export function MotionPlayer(props: {
                 onLostPointerCapture={(event) => stopScrubbing(event.pointerId)}
                 onKeyDown={(event) => {
                   if (!controllable()) return;
+
                   if (event.key === "Home" || event.key === "End") {
                     event.preventDefault();
                     event.stopPropagation();
