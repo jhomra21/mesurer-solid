@@ -332,7 +332,7 @@ try {
   assert.equal(triggerAppearance.svgDisplay, "block");
   assert.equal(triggerAppearance.svgVisibility, "visible");
   assert.equal(triggerAppearance.svgOpacity, "1");
-  assert.equal(triggerAppearance.pathFill, "rgb(0, 0, 0)");
+  assert.equal(triggerAppearance.pathFill, triggerAppearance.color);
   assert(triggerAppearance.pathBounds > 0, "annotation glyph path has no painted geometry");
   assert.equal(await trigger.count(), 1, "expected one Add Note trigger");
   await assertDocumentSurface(trigger, "Add Note trigger");
