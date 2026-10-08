@@ -18,6 +18,7 @@ import {
   type MotionDetails,
 } from "../core/motion";
 import { observeMotion, readObservedMotion } from "../core/observed-motion";
+import { ControlShell } from "./ControlField";
 import { MotionPreview, type MotionPreviewWakeRef } from "./MotionPreview";
 
 const SPEED_PRESETS = [0.25, 0.5, 1] as const;
@@ -244,6 +245,9 @@ export function MotionPlayer(props: {
   let speedAnchorElement: HTMLDivElement | undefined;
   let speedSelectElement: HTMLSelectElement | undefined;
   let customSpeedInput: HTMLInputElement | undefined;
+  let customSpeedTrack: HTMLDivElement | undefined;
+  const [speedDraft, setSpeedDraft] = createSignal("");
+  const [speedEditing, setSpeedEditing] = createSignal(false);
   let scrubTrack: HTMLDivElement | undefined;
   let scrubBounds: DOMRect | null = null;
   let scrubPointer: number | null = null;
@@ -407,6 +411,17 @@ export function MotionPlayer(props: {
 
     setSpeed(clamped);
     controlMotion(props.element, playing() ? "play" : "pause", clamped);
+  };
+
+  const changeSpeedFromPointer = (clientX: number) => {
+    const rect = customSpeedTrack?.getBoundingClientRect();
+
+    if (!rect) return;
+    const usable = Math.max(1, rect.width - 16);
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left - 8) / usable));
+    const stepped = Math.round((0.1 + ratio * 3.9 - 0.1) / 0.05) * 0.05 + 0.1;
+
+    changeSpeed(stepped);
   };
 
   const scrubAt = (clientX: number) => {
@@ -623,27 +638,122 @@ export function MotionPlayer(props: {
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={(event) => event.stopPropagation()}
                   >
-                    <input
-                      type="range"
-                      aria-label="Custom playback speed slider"
-                      min="0.1"
-                      max="4"
-                      step="0.05"
-                      value={speed()}
-                      class="msr:min-w-0 msr:flex-1 msr:accent-ink-900"
-                      onInput={(event) => changeSpeed(Number(event.currentTarget.value))}
-                    />
-                    <input
-                      ref={customSpeedInput}
-                      type="number"
-                      aria-label="Custom playback speed value"
-                      min="0.1"
-                      max="4"
-                      step="0.05"
-                      value={speed()}
-                      class="msr:h-6 msr:w-[54px] msr:rounded-[6px] msr:border msr:border-ink-200 msr:bg-transparent msr:px-1 msr:text-right msr:font-mono msr:text-[10px] msr:text-ink-900 msr:outline-none msr:focus-visible:border-[#0d99ff]"
-                      onChange={(event) => changeSpeed(Number(event.currentTarget.value))}
-                    />
+                    <div class="msr:min-w-0 msr:flex-1">
+                      <div class="msr:grid msr:h-8 msr:w-full msr:grid-cols-[minmax(0,1fr)] msr:items-center">
+                        <ControlShell
+                          left={
+                            <div
+                              ref={customSpeedTrack}
+                              class="msr:relative msr:min-w-0 msr:flex-1 msr:touch-none msr:select-none msr:px-2"
+                              style={{ height: "20px" }}
+                              data-slider-container="true"
+                              onPointerDown={(event) => {
+                                event.stopPropagation();
+                                event.currentTarget.setPointerCapture(event.pointerId);
+                                changeSpeedFromPointer(event.clientX);
+                              }}
+                              onPointerMove={(event) => {
+                                if (event.currentTarget.hasPointerCapture(event.pointerId)) changeSpeedFromPointer(event.clientX);
+                              }}
+                              onPointerUp={(event) => {
+                                event.stopPropagation();
+
+                                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                                  event.currentTarget.releasePointerCapture(event.pointerId);
+                                }
+                              }}
+                              onPointerCancel={(event) => {
+                                event.stopPropagation();
+
+                                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                                  event.currentTarget.releasePointerCapture(event.pointerId);
+                                }
+                              }}
+                            >
+                              <div
+                                class="msr:absolute msr:left-[8px] msr:right-[8px] msr:rounded-full"
+                                style={{ top: "8px", height: "4px", "background-color": "var(--msr-slider-track)" }}
+                                aria-hidden="true"
+                              />
+                              <div
+                                class="msr:absolute msr:left-[8px] msr:rounded-full"
+                                style={{
+                                  top: "8px",
+                                  height: "4px",
+                                  width: `calc(${((speed() - 0.1) / 3.9) * 100}% - ${((speed() - 0.1) / 3.9) * 16}px)`,
+                                  "background-color": "var(--msr-accent)",
+                                }}
+                                aria-hidden="true"
+                              />
+                              <div
+                                role="slider"
+                                tabindex={0}
+                                aria-label="Custom playback speed slider"
+                                aria-valuemin={0.1}
+                                aria-valuemax={4}
+                                aria-valuenow={speed()}
+                                aria-valuetext={`${speed()}x`}
+                                class="mesurer-control-thumb msr:absolute msr:rounded-[5px] msr:bg-white msr:shadow-sm msr:outline-none msr:focus-visible:ring-1 msr:focus-visible:ring-[var(--msr-accent)]/25"
+                                style={{
+                                  left: `calc(8px + (100% - 16px) * ${(speed() - 0.1) / 3.9})`,
+                                  top: "4px",
+                                  width: "12px",
+                                  height: "12px",
+                                  transform: "translateX(-50%)",
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Home") changeSpeed(0.1);
+                                  else if (event.key === "End") changeSpeed(4);
+                                  else if (event.key === "ArrowRight" || event.key === "ArrowUp") changeSpeed(speed() + 0.05);
+                                  else if (event.key === "ArrowLeft" || event.key === "ArrowDown") changeSpeed(speed() - 0.05);
+                                  else return;
+
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                }}
+                              />
+                            </div>
+                          }
+                          right={
+                            <input
+                              ref={customSpeedInput}
+                              type="text"
+                              aria-label="Custom playback speed value"
+                              value={speedEditing() ? speedDraft() : `${speed()}x`}
+                              class="msr:h-full msr:w-full msr:border-0 msr:bg-transparent msr:px-1 msr:text-left msr:font-mono msr:text-[12px] msr:font-medium msr:tabular-nums msr:text-ink-700 msr:outline-none"
+                              onFocus={() => {
+                                setSpeedDraft(`${speed()}x`);
+                                setSpeedEditing(true);
+                              }}
+                              onInput={(event) => {
+                                const value = event.currentTarget.value;
+
+                                setSpeedDraft(value);
+                                const parsed = Number.parseFloat(value);
+
+                                if (Number.isFinite(parsed)) changeSpeed(parsed);
+                              }}
+                              onBlur={() => setSpeedEditing(false)}
+                              onPointerDown={(event) => event.stopPropagation()}
+                              onKeyDown={(event) => {
+                                if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  changeSpeed(speed() + (event.key === "ArrowUp" ? 0.05 : -0.05));
+
+                                  return;
+                                }
+
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  event.currentTarget.blur();
+                                }
+                              }}
+                            />
+                          }
+                        />
+                      </div>
+                    </div>
                     <button
                       type="button"
                       aria-label="Close custom speed"
