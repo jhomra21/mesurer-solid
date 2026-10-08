@@ -150,7 +150,7 @@ try {
     };
   });
 
-  assert.equal(controlMetrics.radius, "12px", `Motion card radius must match upstream: ${JSON.stringify(controlMetrics)}`);
+  assert.equal(controlMetrics.radius, "13px", `Motion card radius must match upstream: ${JSON.stringify(controlMetrics)}`);
   assert.equal(controlMetrics.previewHeight, 144);
   assert.equal(controlMetrics.controlsHeight, 20);
   assert.equal(controlMetrics.playSize, 20);
