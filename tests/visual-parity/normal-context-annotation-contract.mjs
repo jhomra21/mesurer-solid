@@ -281,6 +281,58 @@ try {
 
   const trigger = contextRoot.locator("[data-mesurer-annotation-trigger='true']");
   await trigger.waitFor({ state: "visible", timeout: 3000 });
+  // A document-backed Context mount shares the inspected page's CSS cascade.
+  // Reproduce app-wide button/SVG/form rules that once turned Add Note into a
+  // large, empty square. Other Mesurer UI remains Shadow DOM isolated.
+  await page.addStyleTag({ content: `
+    body button {
+      box-sizing: content-box;
+      min-width: 42px;
+      min-height: 42px;
+      padding: 12px;
+      border: 3px solid hotpink;
+      border-radius: 22px;
+      background: #ffddee;
+      color: transparent;
+      font-size: 28px;
+    }
+    body button svg { display: none !important; opacity: 0 !important; }
+    body button svg path { fill: none !important; }
+    body textarea { padding: 28px; min-height: 160px; font-size: 28px; }
+  ` });
+
+  const triggerAppearance = await trigger.evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    const svg = button.querySelector("svg");
+    const path = svg?.querySelector("path");
+    const style = getComputedStyle(button);
+
+    return {
+      width: rect.width,
+      height: rect.height,
+      border: style.borderTopWidth,
+      radius: style.borderRadius,
+      background: style.backgroundColor,
+      color: style.color,
+      svgWidth: svg?.getBoundingClientRect().width,
+      svgDisplay: svg ? getComputedStyle(svg).display : null,
+      svgVisibility: svg ? getComputedStyle(svg).visibility : null,
+      svgOpacity: svg ? getComputedStyle(svg).opacity : null,
+      pathFill: path ? getComputedStyle(path).fill : null,
+      pathBounds: path ? path.getBoundingClientRect().width : 0,
+    };
+  });
+  assert.equal(triggerAppearance.width, 24, `Context trigger width leaked host CSS: ${JSON.stringify(triggerAppearance)}`);
+  assert.equal(triggerAppearance.height, 24, `Context trigger height leaked host CSS: ${JSON.stringify(triggerAppearance)}`);
+  assert.equal(triggerAppearance.radius, "7px");
+  assert.equal(triggerAppearance.background, "rgb(255, 255, 255)");
+  assert.equal(triggerAppearance.color, "rgb(0, 0, 0)");
+  assert.equal(triggerAppearance.svgWidth, 14);
+  assert.equal(triggerAppearance.svgDisplay, "block");
+  assert.equal(triggerAppearance.svgVisibility, "visible");
+  assert.equal(triggerAppearance.svgOpacity, "1");
+  assert.equal(triggerAppearance.pathFill, "rgb(0, 0, 0)");
+  assert(triggerAppearance.pathBounds > 0, "annotation glyph path has no painted geometry");
   assert.equal(await trigger.count(), 1, "expected one Add Note trigger");
   await assertDocumentSurface(trigger, "Add Note trigger");
 
