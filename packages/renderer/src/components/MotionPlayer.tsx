@@ -426,9 +426,12 @@ export function MotionPlayer(props: {
     if (scrubTrack?.hasPointerCapture(pointerId)) scrubTrack.releasePointerCapture(pointerId);
   };
 
-  createEffect(() => {
-    if (!speedOpen()) return;
-    const ownerWindow = speedAnchorElement?.ownerDocument.defaultView;
+  createEffect(
+    () => speedOpen(),
+    (open) => {
+      if (!open) return;
+
+      const ownerWindow = speedAnchorElement?.ownerDocument.defaultView;
 
     if (!ownerWindow) return;
 
@@ -463,7 +466,8 @@ export function MotionPlayer(props: {
       ownerWindow.removeEventListener("pointerdown", dismiss, true);
       ownerWindow.removeEventListener("keydown", dismiss, true);
     });
-  });
+    },
+  );
 
   return (
     <Show when={ready() || observedProperties().length > 0}>
