@@ -114,6 +114,17 @@ try {
   assert.match(cssText, /mesurer-contract-pulse/i, "Motion details must name the selected CSS animation");
   assert.match(cssText, /2(?:\.0)?s|2000ms/i, "Motion details must show the CSS animation duration");
   assert.match(cssText, /opacity/i, "Motion details must include animated properties");
+  const keyframeToggle = player.locator("[data-mesurer-motion-keyframes-toggle='true']");
+
+  await keyframeToggle.waitFor({ state: "visible" });
+  assert.equal(await keyframeToggle.getAttribute("aria-expanded"), "false");
+  assert.match((await details.textContent()) ?? "", /keyframes/i);
+  await keyframeToggle.click();
+  assert.equal(await keyframeToggle.getAttribute("aria-expanded"), "true");
+  assert.match((await details.textContent()) ?? "", /0%|100%/);
+  await keyframeToggle.click();
+  assert.equal(await keyframeToggle.getAttribute("aria-expanded"), "false");
+
 
   const playerBox = await player.boundingBox();
 
