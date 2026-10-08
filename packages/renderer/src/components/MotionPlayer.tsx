@@ -457,7 +457,9 @@ export function MotionPlayer(props: {
         const rect = speedAnchorElement?.getBoundingClientRect();
 
         if (!rect) return;
+
         const width = Math.min(208, ownerWindow.innerWidth - 16);
+
         const left = Math.max(
           8 - rect.left,
           Math.min(rect.width - width, ownerWindow.innerWidth - width - 8 - rect.left),
