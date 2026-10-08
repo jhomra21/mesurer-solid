@@ -201,7 +201,7 @@ try {
   const customSpeed = player.getByRole("dialog", { name: "Custom playback speed" });
 
   await customSpeed.waitFor({ state: "visible" });
-  const customValue = customSpeed.getByRole("spinbutton", { name: "Custom playback speed value" });
+  const customValue = customSpeed.getByRole("textbox", { name: "Custom playback speed value" });
 
   await customValue.fill("1.75");
   await customValue.press("Tab");
@@ -210,6 +210,16 @@ try {
   const customPlayback = await readAnimation("[data-testid='css-motion']");
 
   assert.equal(customPlayback?.playbackRate, 1.75, "Motion custom speed must control playbackRate");
+
+  const speedSlider = customSpeed.getByRole("slider", { name: "Custom playback speed slider" });
+
+  await speedSlider.focus();
+  await page.keyboard.press("ArrowUp");
+  await settle();
+
+  const nudged = await readAnimation("[data-testid='css-motion']");
+
+  assert.equal(nudged?.playbackRate, 1.8, "Custom speed slider must support keyboard steps");
   await page.keyboard.press("Escape");
   await customSpeed.waitFor({ state: "hidden" });
   assert.equal(await speed.evaluate((element) => document.activeElement === element), true, "Escape must restore speed select focus");
