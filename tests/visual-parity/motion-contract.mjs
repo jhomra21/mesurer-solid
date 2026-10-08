@@ -132,14 +132,42 @@ try {
 
   assert.equal(paused?.playState, "paused", "Pause must control the selected CSS animation");
 
-  await scrubber.evaluate((element) => {
-    const input = element;
+  const scrubberBox = await scrubber.boundingBox();
 
-    input.value = "0.75";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  assert(scrubberBox, "Motion scrubber must have rendered geometry");
+  const scrubY = scrubberBox.y + scrubberBox.height / 2;
+  const scrubX = scrubberBox.x + scrubberBox.width * 0.75;
 
+  await page.mouse.move(scrubX, scrubY);
+  await page.mouse.down();
+  await page.mouse.up();
+  await settle();
+
+  const scrubSemantics = await scrubber.evaluate((element) => ({
+    role: element.getAttribute("role"),
+    value: Number(element.getAttribute("aria-valuenow")),
+    max: Number(element.getAttribute("aria-valuemax")),
+    playhead: element.querySelector(".mesurer-recording-playhead")?.getBoundingClientRect().width ?? 0,
+  }));
+
+  assert.equal(scrubSemantics.role, "slider");
+  assert(Math.abs(scrubSemantics.value - 1500) <= 100, `Scrub semantics wrong: ${JSON.stringify(scrubSemantics)}`);
+  assert(scrubSemantics.playhead > 0, "Motion timeline playhead must paint");
+
+  await scrubber.focus();
+  await page.keyboard.press("Home");
+  await settle();
+
+  const home = await readAnimation("[data-testid='css-motion']");
+
+  assert(home?.currentTime !== null && home.currentTime <= 50, `Home should seek to start: ${JSON.stringify(home)}`);
+  await page.keyboard.press("End");
+  await settle();
+
+  const end = await readAnimation("[data-testid='css-motion']");
+
+  assert(end?.currentTime !== null && end.currentTime >= 1950, `End should seek to finish: ${JSON.stringify(end)}`);
+  await page.mouse.click(scrubX, scrubY);
   await settle();
 
   const scrubbed = await readAnimation("[data-testid='css-motion']");
@@ -151,16 +179,29 @@ try {
   );
   assert.equal(scrubbed.playState, "paused", "Scrubbing must leave motion paused");
 
-  await speed.click();
-  const speedMenu = player.locator("[data-mesurer-motion-speed-menu='true']");
-
-  await speedMenu.waitFor({ state: "visible" });
-  await speedMenu.locator("[data-mesurer-motion-speed-option='0.5']").click();
+  await speed.selectOption("0.5");
   await settle();
 
   const slowed = await readAnimation("[data-testid='css-motion']");
 
-  assert.equal(slowed?.playbackRate, 0.5, "Motion speed control must set playbackRate to 0.5");
+  assert.equal(slowed?.playbackRate, 0.5, "Motion preset must set playbackRate to 0.5");
+
+  await speed.selectOption("custom");
+  const customSpeed = player.getByRole("dialog", { name: "Custom playback speed" });
+
+  await customSpeed.waitFor({ state: "visible" });
+  const customValue = customSpeed.getByRole("spinbutton", { name: "Custom playback speed value" });
+
+  await customValue.fill("1.75");
+  await customValue.press("Tab");
+  await settle();
+
+  const customPlayback = await readAnimation("[data-testid='css-motion']");
+
+  assert.equal(customPlayback?.playbackRate, 1.75, "Motion custom speed must control playbackRate");
+  await page.keyboard.press("Escape");
+  await customSpeed.waitFor({ state: "hidden" });
+  assert.equal(await speed.evaluate((element) => document.activeElement === element), true, "Escape must restore speed select focus");
 
   await play.click();
   await page.waitForFunction(() =>
