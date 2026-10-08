@@ -20,7 +20,7 @@ import {
 import { observeMotion, readObservedMotion } from "../core/observed-motion";
 import { MotionPreview, type MotionPreviewWakeRef } from "./MotionPreview";
 
-const SPEED_PRESETS = [0.25, 0.5, 1, 2] as const;
+const SPEED_PRESETS = [0.25, 0.5, 1] as const;
 
 const timestamp = (milliseconds: number) => {
   const seconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -184,6 +184,14 @@ export function MotionPlayer(props: {
   const [motions, setMotions] = createSignal<MotionDetails[]>([]);
   const [inspectOpen, setInspectOpen] = createSignal(false);
   const [speedOpen, setSpeedOpen] = createSignal(false);
+  let speedAnchorElement: HTMLDivElement | undefined;
+  let speedSelectElement: HTMLSelectElement | undefined;
+  let customSpeedInput: HTMLInputElement | undefined;
+  let scrubTrack: HTMLDivElement | undefined;
+  let scrubBounds: DOMRect | null = null;
+  let scrubPointer: number | null = null;
+  const customSpeedId = "mesurer-motion-custom-speed";
+
   const [playbackElement, setPlaybackElement] = createSignal<Element | null>(null);
   const [observedTargets, setObservedTargets] = createSignal(readObservedMotion(props.element));
 
@@ -336,12 +344,68 @@ export function MotionPlayer(props: {
   };
 
   const changeSpeed = (next: number) => {
+    if (!controllable() || !Number.isFinite(next)) return;
+
+    const clamped = Math.min(4, Math.max(0.1, Math.round(next * 100) / 100));
+
+    setSpeed(clamped);
+    controlMotion(props.element, playing() ? "play" : "pause", clamped);
+  };
+
+  const scrubAt = (clientX: number) => {
     if (!controllable()) return;
 
-    setSpeed(next);
-    controlMotion(props.element, playing() ? "play" : "pause", next);
-    setSpeedOpen(false);
+    const rect = scrubBounds ?? scrubTrack?.getBoundingClientRect();
+
+    if (!rect?.width) return;
+    seek((clientX - rect.left) / rect.width);
   };
+
+  const stopScrubbing = (pointerId: number) => {
+    if (scrubPointer !== pointerId) return;
+    scrubPointer = null;
+    scrubBounds = null;
+
+    if (scrubTrack?.hasPointerCapture(pointerId)) scrubTrack.releasePointerCapture(pointerId);
+  };
+
+  createEffect(() => {
+    if (!speedOpen()) return;
+    const ownerWindow = speedAnchorElement?.ownerDocument.defaultView;
+
+    if (!ownerWindow) return;
+
+    ownerWindow.queueMicrotask(() => {
+      if (!speedOpen()) return;
+      customSpeedInput?.focus({ preventScroll: true });
+      customSpeedInput?.select();
+    });
+
+    const dismiss = (event: Event) => {
+      if (event.type === "keydown") {
+        const keyboard = event as KeyboardEvent;
+
+        if (keyboard.key !== "Escape") return;
+        keyboard.preventDefault();
+        keyboard.stopPropagation();
+        setSpeedOpen(false);
+        speedSelectElement?.focus({ preventScroll: true });
+
+        return;
+      }
+
+      if (speedAnchorElement && event.composedPath().includes(speedAnchorElement)) return;
+      setSpeedOpen(false);
+    };
+
+    ownerWindow.addEventListener("pointerdown", dismiss, true);
+    ownerWindow.addEventListener("keydown", dismiss, true);
+
+    onCleanup(() => {
+      ownerWindow.removeEventListener("pointerdown", dismiss, true);
+      ownerWindow.removeEventListener("keydown", dismiss, true);
+    });
+  });
 
   return (
     <Show when={ready() || observedProperties().length > 0}>
