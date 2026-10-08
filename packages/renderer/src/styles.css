@@ -68,6 +68,92 @@
   }
 }
 
+/* Context deliberately renders page-attached annotation UI in the host document.
+   Page-level button, SVG and form resets must not restyle those controls. Revert
+   unlayered host rules to the generated Mesurer utility/base layers, while
+   preserving the inline document-space geometry and later owned surface rules. */
+[data-mesurer-context-root="true"] :where(*) {
+  all: revert-layer;
+}
+
+/* Keep the selection action a 24px icon button even when the inspected app
+   enforces large buttons or hides SVGs (including with !important). */
+[data-mesurer-context-root="true"] [data-mesurer-annotation-trigger="true"] {
+  appearance: none !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  max-width: 24px !important;
+  max-height: 24px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 7px !important;
+  background: #fff !important;
+  color: #000 !important;
+  opacity: 1 !important;
+}
+
+[data-mesurer-context-root="true"] [data-mesurer-annotation-trigger="true"]:hover {
+  background: #f8fafc !important;
+}
+
+[data-mesurer-context-root="true"] [data-mesurer-annotation-trigger="true"]:focus-visible {
+  border-color: #0d99ff !important;
+}
+
+[data-mesurer-context-root="true"] [data-mesurer-annotation-marker="true"] {
+  appearance: none !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  max-width: 24px !important;
+  max-height: 24px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+/* All Context action glyphs are filled icons. The host may have a broad
+   `button svg` / `svg path` rule that otherwise hides the annotation action. */
+[data-mesurer-context-root="true"] :is(
+  [data-mesurer-annotation-trigger="true"],
+  [data-mesurer-annotation-composer="true"],
+  [data-mesurer-annotation-panel="true"]
+) svg {
+  display: block !important;
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px !important;
+  min-height: 14px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  fill: currentColor !important;
+  color: inherit !important;
+  flex-shrink: 0 !important;
+}
+
+[data-mesurer-context-root="true"] :is(
+  [data-mesurer-annotation-trigger="true"],
+  [data-mesurer-annotation-composer="true"],
+  [data-mesurer-annotation-panel="true"]
+) svg path {
+  fill: currentColor !important;
+  stroke: none !important;
+}
+
 .mesurer-toolbar-surface {
   box-shadow:
     0 0 0.5px rgba(0, 0, 0, 0.18),
