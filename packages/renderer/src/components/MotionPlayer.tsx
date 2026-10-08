@@ -23,6 +23,8 @@ import { MotionPreview, type MotionPreviewWakeRef } from "./MotionPreview";
 
 const SPEED_PRESETS = [0.25, 0.5, 1] as const;
 
+let nextMotionSpeedId = 0;
+
 const timestamp = (milliseconds: number) => {
   const seconds = Math.max(0, Math.floor(milliseconds / 1000));
 
@@ -251,7 +253,8 @@ export function MotionPlayer(props: {
   let scrubTrack: HTMLDivElement | undefined;
   let scrubBounds: DOMRect | null = null;
   let scrubPointer: number | null = null;
-  const customSpeedId = "mesurer-motion-custom-speed";
+  const customSpeedId = `mesurer-motion-custom-speed-${++nextMotionSpeedId}`;
+  const [customSpeedPosition, setCustomSpeedPosition] = createSignal({ left: 0, above: false });
 
   const [playbackElement, setPlaybackElement] = createSignal<Element | null>(null);
   const [observedTargets, setObservedTargets] = createSignal(readObservedMotion(props.element));
@@ -450,6 +453,31 @@ export function MotionPlayer(props: {
 
       if (!ownerWindow) return;
 
+      const positionPopup = () => {
+        const rect = speedAnchorElement?.getBoundingClientRect();
+
+        if (!rect) return;
+        const width = Math.min(208, ownerWindow.innerWidth - 16);
+        const left = Math.max(
+          8 - rect.left,
+          Math.min(rect.width - width, ownerWindow.innerWidth - width - 8 - rect.left),
+        );
+
+        setCustomSpeedPosition({
+          left,
+          above: ownerWindow.innerHeight - rect.bottom < 46 && rect.top >= 46,
+        });
+      };
+
+      positionPopup();
+      ownerWindow.addEventListener("resize", positionPopup);
+      ownerWindow.addEventListener("scroll", positionPopup, true);
+
+      onCleanup(() => {
+        ownerWindow.removeEventListener("resize", positionPopup);
+        ownerWindow.removeEventListener("scroll", positionPopup, true);
+      });
+
       ownerWindow.queueMicrotask(() => {
         if (!speedOpen()) return;
         customSpeedInput?.focus({ preventScroll: true });
@@ -634,7 +662,14 @@ export function MotionPlayer(props: {
                     role="dialog"
                     data-mesurer-motion-custom-speed="true"
                     aria-label="Custom playback speed"
-                    class="mesurer-menu-surface msr:absolute msr:right-0 msr:top-full msr:z-[120] msr:mt-1 msr:flex msr:w-[208px] msr:max-w-[calc(100vw-16px)] msr:items-center msr:gap-1 msr:rounded-[9px] msr:border msr:border-ink-200 msr:bg-white msr:p-1"
+                    class="mesurer-menu-surface msr:absolute msr:z-[120] msr:flex msr:w-[208px] msr:max-w-[calc(100vw-16px)] msr:items-center msr:gap-1 msr:rounded-[9px] msr:border msr:border-ink-200 msr:bg-white msr:p-1"
+                    style={{
+                      left: `${customSpeedPosition().left}px`,
+                      top: customSpeedPosition().above ? "auto" : "100%",
+                      bottom: customSpeedPosition().above ? "100%" : "auto",
+                      "margin-top": customSpeedPosition().above ? "0px" : "4px",
+                      "margin-bottom": customSpeedPosition().above ? "4px" : "0px",
+                    }}
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={(event) => event.stopPropagation()}
                   >
