@@ -435,11 +435,15 @@ if (!electronTextDoubleClicks) {
   throw new Error(`Electron never dispatched a native dblclick to the text target: ${JSON.stringify(electronInputTrace)}`);
 }
 
-// Leave Edit through the real keyboard shortcut. This also avoids Electron's
-// Linux xvfb hit-test mismatch for top-edge native window controls.
+const selectModeButton = await waitFor(() =>
+  shadow.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="select"]'),
+);
+
+// A native click must actually transition Edit back to Select. Linux's
+// disposable fixture uses a frameless BrowserWindow to avoid titlebar hits.
 acceptanceStage = "return to Select from Edit";
 
-await window.electronMesurer.pressKey("1");
+await window.electronMesurer.clickAt(centerOf(selectModeButton));
 
 await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
 
