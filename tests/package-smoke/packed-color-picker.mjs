@@ -109,7 +109,7 @@ try {
   await clickPicker();
   await panel.waitFor({ state: "visible" });
   await supported.waitForFunction(() =>
-    document.querySelector(".mesurer-color-picker")?.textContent?.includes("#5eead4") === true,
+    (document.querySelector("[data-mesurer-island='true']")?.shadowRoot ?? document).querySelector(".mesurer-color-picker")?.textContent?.includes("#5eead4") === true,
   );
 
   assert.equal(await panel.getAttribute("data-mesurer-color-picker-mode"), "native");
@@ -131,19 +131,20 @@ try {
   stage = "reopen native Color Picker";
   await clickPicker();
   await supported.waitForFunction(() =>
-    document.querySelector(".mesurer-color-picker")?.textContent?.includes("#818cf8") === true,
+    (document.querySelector("[data-mesurer-island='true']")?.shadowRoot ?? document).querySelector(".mesurer-color-picker")?.textContent?.includes("#818cf8") === true,
   );
 
   stage = "restart EyeDropper with P shortcut";
   await supported.keyboard.press("p");
   await supported.waitForFunction(() =>
-    document.querySelector(".mesurer-color-picker")?.textContent?.includes("#fb7185") === true,
+    (document.querySelector("[data-mesurer-island='true']")?.shadowRoot ?? document).querySelector(".mesurer-color-picker")?.textContent?.includes("#fb7185") === true,
   );
 
   const results = await supported.evaluate(() => ({
     opens: window.__packedColorPickerOpens,
     clipboardWrites: window.__packedClipboardWrites,
-    mode: document.querySelector(".mesurer-color-picker")?.getAttribute("data-mesurer-color-picker-mode"),
+    mode: (document.querySelector("[data-mesurer-island='true']")?.shadowRoot ?? document)
+      .querySelector(".mesurer-color-picker")?.getAttribute("data-mesurer-color-picker-mode"),
     version: window.__MESURER__?.version ?? null,
   }));
 
@@ -169,8 +170,10 @@ try {
     ready: Boolean(window.__HOST_READY__),
     eyeDropperAvailable: Boolean(window.EyeDropper),
     island: Boolean(document.querySelector("[data-mesurer-island='true']")),
-    picker: document.querySelector("button[aria-label='Color picker (P)']")?.outerHTML.slice(0, 700) ?? null,
-    panel: document.querySelector(".mesurer-color-picker")?.outerHTML.slice(0, 1000) ?? null,
+    picker: (document.querySelector("[data-mesurer-island='true']")?.shadowRoot ?? document)
+      .querySelector("button[aria-label='Color picker (P)']")?.outerHTML.slice(0, 700) ?? null,
+    panel: (document.querySelector("[data-mesurer-island='true']")?.shadowRoot ?? document)
+      .querySelector(".mesurer-color-picker")?.outerHTML.slice(0, 1000) ?? null,
     opens: window.__packedColorPickerOpens,
     writes: window.__packedClipboardWrites,
   })).catch(() => null);
