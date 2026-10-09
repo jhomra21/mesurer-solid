@@ -147,7 +147,7 @@ ipcMain.handle("mesurer:press-key", async (event, value) => {
     throw new Error("Electron keyboard input requested without a live BrowserWindow.");
   }
 
-  if (!["1", "Enter", "Escape"].includes(value)) {
+  if (!["Enter", "Escape"].includes(value)) {
     throw new Error("Electron contract received an unsupported key.");
   }
 
