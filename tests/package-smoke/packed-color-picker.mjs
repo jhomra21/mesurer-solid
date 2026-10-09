@@ -182,7 +182,7 @@ try {
     message: String(error),
   }, null, 2)}\n`, "utf8");
 
-  throw new Error(`Packed browser Color Picker failed at ${stage}: ${String(error)}`, { cause: error });
+  throw new Error(`Packed browser Color Picker failed at ${stage}: ${String(error)} | ${JSON.stringify(snapshot)}`, { cause: error });
 } finally {
   await browser.close();
 }
