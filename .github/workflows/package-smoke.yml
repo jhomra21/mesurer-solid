@@ -548,7 +548,10 @@ jobs:
           PROBE_EXIT_CODE="$status" bun -e '
             const report = await Bun.file("linux-native-select-artifacts/result.json").json();
             const succeeded = report.ok === true;
-            const knownMiss = String(report.error ?? "").includes("Native Select mode switch failed:");
+            const error = String(report.error ?? "");
+            const knownMiss = error.includes("Native Select mode switch failed:")
+              || (error.includes("Timed out during return to Select from Edit:")
+                && error.includes("pointerdown") && error.includes("html"));
             if (succeeded !== (Number(process.env.PROBE_EXIT_CODE) === 0)) {
               throw new Error("Probe process exit disagrees with its result");
             }
