@@ -6,6 +6,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.2.2-beta.2 - 2026-10-09
+
+- No user-facing changes.
+
 ## 0.2.2-beta.1 - 2026-10-08
 
 - Prevent the inspected page's styles from hiding or enlarging Context's Add Note action. Annotation icons, saved markers, and note controls keep their own geometry, colors, and pointer behavior even under aggressive host CSS.
