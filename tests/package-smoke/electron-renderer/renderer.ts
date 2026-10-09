@@ -166,6 +166,7 @@ for (const type of ["pointerdown", "click", "dblclick", "keydown"]) {
       target,
       detail: event instanceof MouseEvent ? event.detail : 0,
     });
+
     if (electronInputTrace.length > 40) electronInputTrace.shift();
   }, true);
 }
@@ -287,6 +288,7 @@ colorButton.click();
 const editButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="arrange"]'),
 );
+
 const centerOf = (element: Element) => {
   const rect = element.getBoundingClientRect();
 
@@ -297,6 +299,7 @@ const centerOf = (element: Element) => {
 };
 
 await window.electronMesurer.clickAt(centerOf(editButton));
+
 await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "edit" ? true : null);
 
 const textTarget = document.querySelector<HTMLElement>('[data-testid="electron-edit-copy"]');
@@ -308,7 +311,9 @@ if (!textTarget || textTarget.childNodes.length !== 1) {
 const textPoint = centerOf(textTarget);
 
 await window.electronMesurer.clickAt(textPoint);
+
 await waitFor(() => document.querySelector("[data-mesurer-arrange-box='true']"));
+
 await window.electronMesurer.doubleClickAt(textPoint);
 
 let editor: HTMLTextAreaElement;
@@ -337,8 +342,11 @@ if (document.activeElement !== editor) {
 }
 
 await window.electronMesurer.typeText("Edited in Electron");
+
 await waitFor(() => editor.value === "Edited in Electron" ? true : null);
+
 await window.electronMesurer.pressKey("Enter");
+
 await waitFor(() => document.querySelector("[data-mesurer-text-editor='true']") === null ? true : null);
 
 const textEdits = await (async () => {
@@ -351,7 +359,9 @@ const textEdits = await (async () => {
 
   throw new Error(`Electron text edit did not persist its Desired intent: ${JSON.stringify(electronInputTrace)}`);
 })();
+
 const electronTextEditIntent = textEdits.find((item) => item.desiredText === "Edited in Electron")?.desiredText ?? "";
+
 const electronTextDoubleClicks = electronInputTrace.filter((event) =>
   event.type === "dblclick" && event.target === "electron-edit-copy").length;
 
@@ -364,6 +374,7 @@ const selectModeButton = await waitFor(() =>
 );
 
 await window.electronMesurer.clickAt(centerOf(selectModeButton));
+
 await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
 
 const animatedTarget = document.querySelector<HTMLElement>('[data-testid="electron-motion-target"]');
@@ -373,14 +384,17 @@ if (!animatedTarget || !animatedTarget.getAnimations().length) {
 }
 
 await window.electronMesurer.clickAt(centerOf(animatedTarget));
+
 const motionPlayer = await waitFor(() =>
   shadow.querySelector<HTMLElement>('[data-mesurer-motion-player="true"]'),
 );
+
 const motionPlay = await waitFor(() =>
   motionPlayer.querySelector<HTMLButtonElement>('[data-mesurer-motion-play="true"]'),
 );
 
 await window.electronMesurer.clickAt(centerOf(motionPlay));
+
 await waitFor(() =>
   animatedTarget.getAnimations()[0]?.playState === "paused" ? true : null,
 );
@@ -390,10 +404,12 @@ const inspectButton = await waitFor(() =>
 );
 
 await window.electronMesurer.clickAt(centerOf(inspectButton));
+
 const electronMotionDetails = Boolean(await waitFor(() =>
   motionPlayer.querySelector<HTMLElement>('[data-mesurer-motion-details="true"]')
     ?.textContent?.includes("mesurer-electron-motion") ? true : null,
 ));
+
 const electronMotionPaused = animatedTarget.getAnimations()[0]?.playState === "paused";
 
 const selection = await mesurer.select('[data-testid="electron-target"]');
