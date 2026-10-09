@@ -440,6 +440,7 @@ const selectModeButton = await waitFor(() =>
 );
 
 const modeButtonPoint = centerOf(selectModeButton);
+
 const modeButtonRect = selectModeButton.getBoundingClientRect();
 
 acceptanceHitStack = {
