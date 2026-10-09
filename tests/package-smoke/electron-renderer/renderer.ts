@@ -1,6 +1,7 @@
 import { mountMesurer } from "mesurer-solid";
 import {
   context,
+  edit,
   MESURER_RECORDING_SERVICE_ID,
   recording,
   screenshot,
@@ -19,6 +20,10 @@ type ElectronTestSummary = {
   colorPickerValue: string;
   nativeEyeDropperOpens: number;
   colorPickerOverlayRemoved: boolean;
+  electronTextEditIntent: string;
+  electronTextDoubleClicks: number;
+  electronMotionPaused: boolean;
+  electronMotionDetails: boolean;
   codexBridgeOk: boolean;
   codexRuntimeSource: string;
   codexRuntimeTransport: string;
@@ -71,6 +76,9 @@ declare global {
         end: { x: number; y: number };
       }): Promise<void>;
       clickAt(payload: { x: number; y: number }): Promise<void>;
+      doubleClickAt(payload: { x: number; y: number }): Promise<void>;
+      pressKey(key: "Enter" | "Escape"): Promise<void>;
+      typeText(value: string): Promise<void>;
     };
   }
 }
@@ -107,6 +115,21 @@ style.textContent = `
     border-radius: 16px;
     background: #20242c;
   }
+  [data-testid="electron-edit-copy"] {
+    margin-top: 12px;
+    font-size: 16px;
+  }
+  [data-testid="electron-motion-target"] {
+    margin-top: 14px;
+    width: 100px;
+    height: 32px;
+    background: #5eead4;
+    animation: mesurer-electron-motion 2s linear infinite alternate;
+  }
+  @keyframes mesurer-electron-motion {
+    from { opacity: 0.5; transform: translateX(0); }
+    to { opacity: 1; transform: translateX(5px); }
+  }
   [data-testid="electron-recording-action"] {
     display: block;
     margin-top: 18px;
@@ -129,6 +152,23 @@ style.textContent = `
 `;
 
 document.head.append(style);
+
+const electronInputTrace: Array<{ type: string; target: string; detail: number }> = [];
+
+for (const type of ["pointerdown", "click", "dblclick", "keydown"]) {
+  window.addEventListener(type, (event) => {
+    const target = event.target instanceof Element
+      ? event.target.getAttribute("data-testid") ?? event.target.tagName.toLowerCase()
+      : "unknown";
+
+    electronInputTrace.push({
+      type,
+      target,
+      detail: event instanceof MouseEvent ? event.detail : 0,
+    });
+    if (electronInputTrace.length > 40) electronInputTrace.shift();
+  }, true);
+}
 
 let nativeEyeDropperOpens = 0;
 
@@ -172,6 +212,7 @@ const mesurer = mountMesurer({
   agent: true,
   plugins: [
     context(),
+    edit(),
     screenshot({
       copy: false,
       download: false,
@@ -238,6 +279,117 @@ if (colorPickerMode !== "host" || !colorPickerValue.includes("#123456")) {
 if (nativeEyeDropperOpens !== 0) {
   throw new Error(`Electron host Color Picker invoked native EyeDropper ${nativeEyeDropperOpens} time(s).`);
 }
+
+// Use the exact installed npm artifact and real Electron input. A DOM-dispatched
+// dblclick is insufficient because it bypasses Chromium's pointer ownership.
+colorButton.click();
+
+const editButton = await waitFor(() =>
+  shadow.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="arrange"]'),
+);
+const centerOf = (element: Element) => {
+  const rect = element.getBoundingClientRect();
+
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+  };
+};
+
+await window.electronMesurer.clickAt(centerOf(editButton));
+await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "edit" ? true : null);
+
+const textTarget = document.querySelector<HTMLElement>('[data-testid="electron-edit-copy"]');
+
+if (!textTarget || textTarget.childNodes.length !== 1) {
+  throw new Error("Electron text fixture must contain exactly one direct text run.");
+}
+
+const textPoint = centerOf(textTarget);
+
+await window.electronMesurer.clickAt(textPoint);
+await waitFor(() => document.querySelector("[data-mesurer-arrange-box='true']"));
+await window.electronMesurer.doubleClickAt(textPoint);
+
+let editor: HTMLTextAreaElement;
+
+try {
+  editor = await waitFor(() =>
+    document.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']"),
+    4000,
+  );
+} catch (error) {
+  throw new Error(`Native Electron Edit double-click did not open the editor: ${JSON.stringify({
+    toolbarMode: toolbar.getAttribute("data-mesurer-toolbar-mode"),
+    textPoint,
+    hits: document.elementsFromPoint(textPoint.x, textPoint.y)
+      .slice(0, 7).map((element) => ({
+        tag: element.tagName,
+        name: element.getAttribute("data-testid"),
+        inspector: element.getAttribute("data-mesurer-inspector-ui"),
+      })),
+    inputTrace: electronInputTrace,
+  })}`, { cause: error });
+}
+
+if (document.activeElement !== editor) {
+  throw new Error(`Electron editor opened without keyboard focus: ${JSON.stringify(electronInputTrace)}`);
+}
+
+await window.electronMesurer.typeText("Edited in Electron");
+await waitFor(() => editor.value === "Edited in Electron" ? true : null);
+await window.electronMesurer.pressKey("Enter");
+await waitFor(() => document.querySelector("[data-mesurer-text-editor='true']") === null ? true : null);
+
+const textEdits = await waitFor(async () => {
+  const edits = await mesurer.textEdits();
+
+  return edits.some((item) => item.desiredText === "Edited in Electron") ? edits : null;
+});
+const electronTextEditIntent = textEdits.find((item) => item.desiredText === "Edited in Electron")?.desiredText ?? "";
+const electronTextDoubleClicks = electronInputTrace.filter((event) =>
+  event.type === "dblclick" && event.target === "electron-edit-copy").length;
+
+if (!electronTextDoubleClicks) {
+  throw new Error(`Electron never dispatched a native dblclick to the text target: ${JSON.stringify(electronInputTrace)}`);
+}
+
+const selectModeButton = await waitFor(() =>
+  shadow.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="select"]'),
+);
+
+await window.electronMesurer.clickAt(centerOf(selectModeButton));
+await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
+
+const animatedTarget = document.querySelector<HTMLElement>('[data-testid="electron-motion-target"]');
+
+if (!animatedTarget || !animatedTarget.getAnimations().length) {
+  throw new Error("Electron Motion fixture must have a real running CSS animation.");
+}
+
+await window.electronMesurer.clickAt(centerOf(animatedTarget));
+const motionPlayer = await waitFor(() =>
+  shadow.querySelector<HTMLElement>('[data-mesurer-motion-player="true"]'),
+);
+const motionPlay = await waitFor(() =>
+  motionPlayer.querySelector<HTMLButtonElement>('[data-mesurer-motion-play="true"]'),
+);
+
+await window.electronMesurer.clickAt(centerOf(motionPlay));
+await waitFor(() =>
+  animatedTarget.getAnimations()[0]?.playState === "paused" ? true : null,
+);
+
+const inspectButton = await waitFor(() =>
+  motionPlayer.querySelector<HTMLButtonElement>('[data-mesurer-motion-inspect="true"]'),
+);
+
+await window.electronMesurer.clickAt(centerOf(inspectButton));
+const electronMotionDetails = Boolean(await waitFor(() =>
+  motionPlayer.querySelector<HTMLElement>('[data-mesurer-motion-details="true"]')
+    ?.textContent?.includes("mesurer-electron-motion") ? true : null,
+));
+const electronMotionPaused = animatedTarget.getAnimations()[0]?.playState === "paused";
 
 const selection = await mesurer.select('[data-testid="electron-target"]');
 
@@ -468,6 +620,10 @@ await window.electronMesurer.complete({
     colorPickerValue,
     nativeEyeDropperOpens,
     colorPickerOverlayRemoved: shadow.querySelector("[data-mesurer-color-picker-target='true']") === null,
+    electronTextEditIntent,
+    electronTextDoubleClicks,
+    electronMotionPaused,
+    electronMotionDetails,
     codexBridgeOk: true,
     codexRuntimeSource: codexRuntime.runtime.source,
     codexRuntimeTransport: codexRuntime.runtime.transport,
