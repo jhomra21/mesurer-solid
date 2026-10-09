@@ -445,6 +445,7 @@ const selectModeButton = await waitFor(() =>
 acceptanceStage = "return to Select from Edit";
 
 const linuxWindow = /Linux/i.test(navigator.platform);
+
 const originalToolbarTransform = toolbar.style.transform;
 
 if (linuxWindow) toolbar.style.transform = "translate(96px, 96px)";
