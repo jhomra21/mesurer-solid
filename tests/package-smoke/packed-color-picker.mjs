@@ -4,11 +4,13 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 
 const url = process.env.SOLID2_PACKAGE_URL ?? "http://127.0.0.1:4192";
+
 const output = process.env.PACKED_COLOR_PICKER_OUT ?? "packed-color-picker-artifacts";
 
 await mkdir(output, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
+
 const errors = [];
 
 const createPage = async (supported) => {
