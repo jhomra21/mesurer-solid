@@ -341,11 +341,16 @@ await waitFor(() => editor.value === "Edited in Electron" ? true : null);
 await window.electronMesurer.pressKey("Enter");
 await waitFor(() => document.querySelector("[data-mesurer-text-editor='true']") === null ? true : null);
 
-const textEdits = await waitFor(async () => {
-  const edits = await mesurer.textEdits();
+const textEdits = await (async () => {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const edits = await mesurer.textEdits();
 
-  return edits.some((item) => item.desiredText === "Edited in Electron") ? edits : null;
-});
+    if (edits.some((item) => item.desiredText === "Edited in Electron")) return edits;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  }
+
+  throw new Error(`Electron text edit did not persist its Desired intent: ${JSON.stringify(electronInputTrace)}`);
+})();
 const electronTextEditIntent = textEdits.find((item) => item.desiredText === "Edited in Electron")?.desiredText ?? "";
 const electronTextDoubleClicks = electronInputTrace.filter((event) =>
   event.type === "dblclick" && event.target === "electron-edit-copy").length;
