@@ -11,6 +11,7 @@ import {
 
 type ElectronTestSummary = {
   targetCount: number;
+  totalSelectedTargets: number;
   selector: string;
   islandCount: number;
   mime: string;
@@ -499,9 +500,14 @@ acceptanceStage = "existing screenshot and Recording smoke";
 
 const selection = await mesurer.select('[data-testid="electron-target"]');
 
-const target = selection.targets[0];
+const matchingTargets = selection.targets.filter((item) =>
+  item.inspection.selector === '[data-testid="electron-target"]');
 
-if (!target) throw new Error("Mesurer did not select the Electron renderer target.");
+if (matchingTargets.length !== 1) {
+  throw new Error(`Mesurer did not resolve the one requested Electron target: ${JSON.stringify(selection.targets.map((item) => item.inspection.selector))}`);
+}
+
+const target = matchingTargets[0];
 
 const service = await mesurer.service<MesurerScreenshotService>("screenshot");
 
@@ -716,7 +722,8 @@ await window.electronMesurer.complete({
   png,
   recording: recordingBytes,
   summary: {
-    targetCount: selection.targets.length,
+    targetCount: matchingTargets.length,
+    totalSelectedTargets: selection.targets.length,
     selector: target.inspection.selector,
     islandCount: document.querySelectorAll("[data-mesurer-island='true']").length,
     mime: capture.blob.type,
