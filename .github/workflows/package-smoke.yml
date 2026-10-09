@@ -537,7 +537,7 @@ jobs:
           )
           status=$?
           set -e
-          printf '%s\\n' "$status" > linux-native-select-artifacts/exit-code.txt
+          printf '%s\n' "$status" > linux-native-select-artifacts/exit-code.txt
           if [ ! -f /tmp/mesurer-electron/native-select-probe/result.json ]; then
             echo "Native Select probe did not produce a result."
             exit 1
