@@ -1,6 +1,7 @@
 import { mountMesurer } from "mesurer-solid";
 import {
   context,
+  edit,
   MESURER_RECORDING_SERVICE_ID,
   recording,
   screenshot,
@@ -10,6 +11,7 @@ import {
 
 type ElectronTestSummary = {
   targetCount: number;
+  totalSelectedTargets: number;
   selector: string;
   islandCount: number;
   mime: string;
@@ -19,6 +21,10 @@ type ElectronTestSummary = {
   colorPickerValue: string;
   nativeEyeDropperOpens: number;
   colorPickerOverlayRemoved: boolean;
+  electronTextEditIntent: string;
+  electronTextDoubleClicks: number;
+  electronMotionPaused: boolean;
+  electronMotionDetails: boolean;
   codexBridgeOk: boolean;
   codexRuntimeSource: string;
   codexRuntimeTransport: string;
@@ -71,6 +77,9 @@ declare global {
         end: { x: number; y: number };
       }): Promise<void>;
       clickAt(payload: { x: number; y: number }): Promise<void>;
+      doubleClickAt(payload: { x: number; y: number }): Promise<void>;
+      pressKey(key: "1" | "Enter" | "Escape"): Promise<void>;
+      typeText(value: string): Promise<void>;
     };
   }
 }
@@ -107,6 +116,21 @@ style.textContent = `
     border-radius: 16px;
     background: #20242c;
   }
+  [data-testid="electron-edit-copy"] {
+    margin-top: 12px;
+    font-size: 16px;
+  }
+  [data-testid="electron-motion-target"] {
+    margin-top: 14px;
+    width: 100px;
+    height: 32px;
+    background: #5eead4;
+    animation: mesurer-electron-motion 2s linear infinite alternate;
+  }
+  @keyframes mesurer-electron-motion {
+    from { opacity: 0.5; transform: translateX(0); }
+    to { opacity: 1; transform: translateX(5px); }
+  }
   [data-testid="electron-recording-action"] {
     display: block;
     margin-top: 18px;
@@ -129,6 +153,44 @@ style.textContent = `
 `;
 
 document.head.append(style);
+
+const electronInputTrace: Array<{ type: string; target: string; detail: number }> = [];
+
+let acceptanceStage = "initialization";
+
+type HitStackRect = { x: number; y: number; width: number; height: number };
+
+type ElectronHitStack = {
+  textPoint: { x: number; y: number };
+  textBounds: HitStackRect;
+  toolbarBounds: HitStackRect;
+  hits: Array<{
+    tag: string;
+    role: string | null;
+    testId: string | null;
+    inspector: string | null;
+    className: string | undefined;
+    pointerEvents: string;
+  }>;
+};
+
+let acceptanceHitStack: ElectronHitStack | null = null;
+
+for (const type of ["pointerdown", "click", "dblclick", "keydown"]) {
+  window.addEventListener(type, (event) => {
+    const target = event.target instanceof Element
+      ? event.target.getAttribute("data-testid") ?? event.target.tagName.toLowerCase()
+      : "unknown";
+
+    electronInputTrace.push({
+      type,
+      target,
+      detail: event instanceof MouseEvent ? event.detail : 0,
+    });
+
+    if (electronInputTrace.length > 40) electronInputTrace.shift();
+  }, true);
+}
 
 let nativeEyeDropperOpens = 0;
 
@@ -153,7 +215,10 @@ const waitFor = async <T>(read: () => T | null, timeoutMs = 5000): Promise<T> =>
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   }
 
-  throw new Error("Timed out waiting for the Electron Mesurer contract.");
+  throw new Error(`Timed out during ${acceptanceStage}: ${JSON.stringify({
+    hitStack: acceptanceHitStack,
+    inputTrace: electronInputTrace,
+  })}`);
 };
 
 const codexBridge = window.__MESURER_HOST__?.codexBridge;
@@ -172,6 +237,7 @@ const mesurer = mountMesurer({
   agent: true,
   plugins: [
     context(),
+    edit(),
     screenshot({
       copy: false,
       download: false,
@@ -239,11 +305,249 @@ if (nativeEyeDropperOpens !== 0) {
   throw new Error(`Electron host Color Picker invoked native EyeDropper ${nativeEyeDropperOpens} time(s).`);
 }
 
+// Use the exact installed npm artifact and real Electron input. A DOM-dispatched
+// dblclick is insufficient because it bypasses Chromium's pointer ownership.
+colorButton.click();
+
+const editButton = await waitFor(() =>
+  shadow.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="arrange"]'),
+);
+
+const centerOf = (element: Element) => {
+  const rect = element.getBoundingClientRect();
+
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+  };
+};
+
+acceptanceStage = "activate native Edit mode";
+
+await window.electronMesurer.clickAt(centerOf(editButton));
+
+await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "edit" ? true : null);
+
+const textTarget = document.querySelector<HTMLElement>('[data-testid="electron-edit-copy"]');
+
+if (!textTarget || textTarget.childNodes.length !== 1) {
+  throw new Error("Electron text fixture must contain exactly one direct text run.");
+}
+
+const textPoint = centerOf(textTarget);
+
+const textBounds = textTarget.getBoundingClientRect();
+
+acceptanceHitStack = {
+  textPoint,
+  textBounds: {
+    x: textBounds.x, y: textBounds.y, width: textBounds.width, height: textBounds.height,
+  },
+  toolbarBounds: {
+    x: toolbar.getBoundingClientRect().x,
+    y: toolbar.getBoundingClientRect().y,
+    width: toolbar.getBoundingClientRect().width,
+    height: toolbar.getBoundingClientRect().height,
+  },
+  hits: document.elementsFromPoint(textPoint.x, textPoint.y).slice(0, 10).map((element) => ({
+    tag: element.tagName,
+    role: element.getAttribute("role"),
+    testId: element.getAttribute("data-testid"),
+    inspector: element.getAttribute("data-mesurer-inspector-ui"),
+    className: element.getAttribute("class")?.slice(0, 180),
+    pointerEvents: getComputedStyle(element).pointerEvents,
+  })),
+};
+
+acceptanceStage = "select editable text with native click";
+
+await window.electronMesurer.clickAt(textPoint);
+
+await waitFor(() =>
+  shadow.querySelector("[data-mesurer-arrange-box='true']")
+    ?? document.querySelector("[data-mesurer-arrange-box='true']"),
+);
+
+acceptanceStage = "open direct editor with native double-click";
+
+await window.electronMesurer.doubleClickAt(textPoint);
+
+let editor: HTMLTextAreaElement;
+
+try {
+  editor = await waitFor(() =>
+    document.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']")
+      ?? shadow.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']"),
+    4000,
+  );
+} catch (error) {
+  throw new Error(`Native Electron Edit double-click did not open the editor: ${JSON.stringify({
+    toolbarMode: toolbar.getAttribute("data-mesurer-toolbar-mode"),
+    textPoint,
+    hits: document.elementsFromPoint(textPoint.x, textPoint.y)
+      .slice(0, 7).map((element) => ({
+        tag: element.tagName,
+        name: element.getAttribute("data-testid"),
+        inspector: element.getAttribute("data-mesurer-inspector-ui"),
+      })),
+    inputTrace: electronInputTrace,
+  })}`, { cause: error });
+}
+
+const editorRoot = editor.getRootNode();
+
+const editorFocus = editorRoot instanceof ShadowRoot
+  ? editorRoot.activeElement
+  : document.activeElement;
+
+if (editorFocus !== editor) {
+  throw new Error(`Electron editor opened without keyboard focus: ${JSON.stringify(electronInputTrace)}`);
+}
+
+acceptanceStage = "type through native focused Electron textarea";
+
+await window.electronMesurer.typeText("Edited in Electron");
+
+await waitFor(() => editor.value === "Edited in Electron" ? true : null);
+
+await window.electronMesurer.pressKey("Enter");
+
+await waitFor(() => !document.querySelector("[data-mesurer-text-editor='true']")
+  && !shadow.querySelector("[data-mesurer-text-editor='true']") ? true : null);
+
+const textEdits = await (async () => {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const edits = await mesurer.textEdits();
+
+    if (edits.some((item) => item.desired === "Edited in Electron")) return edits;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  }
+
+  throw new Error(`Electron text edit did not persist its Desired intent: ${JSON.stringify(electronInputTrace)}`);
+})();
+
+const electronTextEditIntent = textEdits.find((item) => item.desired === "Edited in Electron")?.desired ?? "";
+
+const electronTextDoubleClicks = electronInputTrace.filter((event) =>
+  event.type === "dblclick" && event.detail === 2).length;
+
+if (!electronTextDoubleClicks) {
+  throw new Error(`Electron never dispatched a native dblclick to the text target: ${JSON.stringify(electronInputTrace)}`);
+}
+
+const selectModeButton = await waitFor(() =>
+  shadow.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="select"]'),
+);
+
+// macOS physically checks Select mode. In Linux xvfb after native text editing,
+// Chromium reports the toolbar button at these coordinates but routes the
+// native click to html. Use the public command only for this setup transition;
+// the Edit entry, text editor and Motion controls remain physical E2E.
+acceptanceStage = "return to Select from Edit";
+
+const linuxWindow = /Linux/i.test(navigator.platform);
+
+const modeTarget = linuxWindow ? editButton : selectModeButton;
+
+const modePoint = centerOf(modeTarget);
+
+const modeBounds = modeTarget.getBoundingClientRect();
+
+acceptanceHitStack = {
+  textPoint: modePoint,
+  textBounds: {
+    x: modeBounds.x,
+    y: modeBounds.y,
+    width: modeBounds.width,
+    height: modeBounds.height,
+  },
+  toolbarBounds: {
+    x: toolbar.getBoundingClientRect().x,
+    y: toolbar.getBoundingClientRect().y,
+    width: toolbar.getBoundingClientRect().width,
+    height: toolbar.getBoundingClientRect().height,
+  },
+  hits: [
+    ...document.elementsFromPoint(modePoint.x, modePoint.y),
+    ...[shadow.elementFromPoint(modePoint.x, modePoint.y)].filter((element): element is Element => Boolean(element)),
+  ].slice(0, 10).map((element) => ({
+    tag: element.tagName,
+    role: element.getAttribute("role"),
+    testId: element.getAttribute("data-testid"),
+    inspector: element.getAttribute("data-mesurer-inspector-ui"),
+    className: element.getAttribute("class")?.slice(0, 180),
+    pointerEvents: getComputedStyle(element).pointerEvents,
+  })),
+};
+
+if (linuxWindow) await mesurer.agent.command("arrange.toggle");
+else await window.electronMesurer.clickAt(modePoint);
+
+await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
+
+const selectForMotionButton = await waitFor(() =>
+  shadow.querySelector<HTMLButtonElement>("[data-mesurer-builtin='select'] button"),
+);
+
+if (selectForMotionButton.getAttribute("aria-pressed") !== "true") {
+  await window.electronMesurer.clickAt(centerOf(selectForMotionButton));
+}
+
+await waitFor(() => selectForMotionButton.getAttribute("aria-pressed") === "true" ? true : null);
+
+const animatedTarget = document.querySelector<HTMLElement>('[data-testid="electron-motion-target"]');
+
+if (!animatedTarget || !animatedTarget.getAnimations().length) {
+  throw new Error("Electron Motion fixture must have a real running CSS animation.");
+}
+
+acceptanceStage = "select a real CSS animation";
+
+await window.electronMesurer.clickAt(centerOf(animatedTarget));
+
+const motionPlayer = await waitFor(() =>
+  shadow.querySelector<HTMLElement>('[data-mesurer-motion-player="true"]'),
+);
+
+const motionPlay = await waitFor(() =>
+  motionPlayer.querySelector<HTMLButtonElement>('[data-mesurer-motion-play="true"]'),
+);
+
+acceptanceStage = "pause CSS motion through built-in inspector";
+
+await window.electronMesurer.clickAt(centerOf(motionPlay));
+
+await waitFor(() =>
+  animatedTarget.getAnimations()[0]?.playState === "paused" ? true : null,
+);
+
+const inspectButton = await waitFor(() =>
+  motionPlayer.querySelector<HTMLButtonElement>('[data-mesurer-motion-inspect="true"]'),
+);
+
+acceptanceStage = "inspect CSS keyframes through Motion details";
+
+await window.electronMesurer.clickAt(centerOf(inspectButton));
+
+const electronMotionDetails = Boolean(await waitFor(() =>
+  motionPlayer.querySelector<HTMLElement>('[data-mesurer-motion-details="true"]')
+    ?.textContent?.includes("mesurer-electron-motion") ? true : null,
+));
+
+const electronMotionPaused = animatedTarget.getAnimations()[0]?.playState === "paused";
+
+acceptanceStage = "existing screenshot and Recording smoke";
+
 const selection = await mesurer.select('[data-testid="electron-target"]');
 
-const target = selection.targets[0];
+const matchingTargets = selection.targets.filter((item) =>
+  item.inspection.selector === '[data-testid="electron-target"]');
 
-if (!target) throw new Error("Mesurer did not select the Electron renderer target.");
+if (matchingTargets.length !== 1) {
+  throw new Error(`Mesurer did not resolve the one requested Electron target: ${JSON.stringify(selection.targets.map((item) => item.inspection.selector))}`);
+}
+
+const target = matchingTargets[0];
 
 const service = await mesurer.service<MesurerScreenshotService>("screenshot");
 
@@ -458,7 +762,8 @@ await window.electronMesurer.complete({
   png,
   recording: recordingBytes,
   summary: {
-    targetCount: selection.targets.length,
+    targetCount: matchingTargets.length,
+    totalSelectedTargets: selection.targets.length,
     selector: target.inspection.selector,
     islandCount: document.querySelectorAll("[data-mesurer-island='true']").length,
     mime: capture.blob.type,
@@ -468,6 +773,10 @@ await window.electronMesurer.complete({
     colorPickerValue,
     nativeEyeDropperOpens,
     colorPickerOverlayRemoved: shadow.querySelector("[data-mesurer-color-picker-target='true']") === null,
+    electronTextEditIntent,
+    electronTextDoubleClicks,
+    electronMotionPaused,
+    electronMotionDetails,
     codexBridgeOk: true,
     codexRuntimeSource: codexRuntime.runtime.source,
     codexRuntimeTransport: codexRuntime.runtime.transport,
