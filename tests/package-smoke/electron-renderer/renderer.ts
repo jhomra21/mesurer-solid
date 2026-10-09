@@ -346,7 +346,10 @@ acceptanceStage = "select editable text with native click";
 
 await window.electronMesurer.clickAt(textPoint);
 
-await waitFor(() => document.querySelector("[data-mesurer-arrange-box='true']"));
+await waitFor(() =>
+  shadow.querySelector("[data-mesurer-arrange-box='true']")
+    ?? document.querySelector("[data-mesurer-arrange-box='true']"),
+);
 
 acceptanceStage = "open direct editor with native double-click";
 
@@ -356,7 +359,8 @@ let editor: HTMLTextAreaElement;
 
 try {
   editor = await waitFor(() =>
-    document.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']"),
+    document.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']")
+      ?? shadow.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']"),
     4000,
   );
 } catch (error) {
@@ -373,7 +377,12 @@ try {
   })}`, { cause: error });
 }
 
-if (document.activeElement !== editor) {
+const editorRoot = editor.getRootNode();
+const editorFocus = editorRoot instanceof ShadowRoot
+  ? editorRoot.activeElement
+  : document.activeElement;
+
+if (editorFocus !== editor) {
   throw new Error(`Electron editor opened without keyboard focus: ${JSON.stringify(electronInputTrace)}`);
 }
 
@@ -385,7 +394,8 @@ await waitFor(() => editor.value === "Edited in Electron" ? true : null);
 
 await window.electronMesurer.pressKey("Enter");
 
-await waitFor(() => document.querySelector("[data-mesurer-text-editor='true']") === null ? true : null);
+await waitFor(() => !document.querySelector("[data-mesurer-text-editor='true']")
+  && !shadow.querySelector("[data-mesurer-text-editor='true']") ? true : null);
 
 const textEdits = await (async () => {
   for (let attempt = 0; attempt < 120; attempt += 1) {
