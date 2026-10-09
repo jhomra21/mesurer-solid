@@ -64,6 +64,7 @@ jobs:
       - name: Exercise persisted Context annotation flow
         env:
           NORMAL_CONTEXT_URL: http://127.0.0.1:4174/
+          NORMAL_CONTEXT_BROWSER: chrome
         run: bun tests/visual-parity/normal-context-annotation-contract.mjs
 
       - name: Stop playground
