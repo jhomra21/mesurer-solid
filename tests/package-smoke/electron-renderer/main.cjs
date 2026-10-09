@@ -270,6 +270,9 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || summary.colorPickerOverlayRemoved !== true
     || summary.electronTextEditIntent !== "Edited in Electron"
     || summary.electronTextDoubleClicks < 1
+    || !summary.nativeSelectModeSwitch
+    || typeof summary.nativeSelectModeSwitch.nativeReachedSelect !== "boolean"
+    || typeof summary.nativeSelectModeSwitch.usedCommandFallback !== "boolean"
     || summary.electronMotionPaused !== true
     || summary.electronMotionDetails !== true
     || summary.codexBridgeOk !== true
@@ -292,6 +295,13 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     throw new Error(`Unexpected Mesurer Electron result: ${JSON.stringify(summary)}`);
   }
 
+  if (
+    process.env.MESURER_ELECTRON_REQUIRE_NATIVE_SELECT === "1"
+    && !summary.nativeSelectModeSwitch.nativeReachedSelect
+  ) {
+    throw new Error(`Native Select mode click did not reach the button: ${JSON.stringify(summary.nativeSelectModeSwitch)}`);
+  }
+
   finished = true;
 
   mkdirSync(artifactDir, { recursive: true });
@@ -309,6 +319,7 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
   console.log(
     `Mesurer Electron renderer contract: PASS (${size.width}x${size.height}, ${png.byteLength} bytes)`,
   );
+  console.log(`Native Select probe: ${JSON.stringify(summary.nativeSelectModeSwitch)}`);
 
   if (timeoutId) clearTimeout(timeoutId);
   setTimeout(() => app.quit(), 0);
