@@ -158,11 +158,11 @@ ipcMain.handle("mesurer:press-key", async (event, value) => {
 ipcMain.handle("mesurer:type-text", async (event, value) => {
   const window = BrowserWindow.fromWebContents(event.sender);
 
-  if (!window || window.isDestroyed() || typeof value !== "string") {
-    throw new Error("Electron text input requires a live window and string.");
+  if (!window || window.isDestroyed()) {
+    throw new Error("Electron text input requires a live window.");
   }
 
-  window.webContents.insertText(value);
+  window.webContents.insertText(String(value ?? ""));
 });
 
 ipcMain.handle("mesurer:drag-toolbar", async (event, payload) => {
