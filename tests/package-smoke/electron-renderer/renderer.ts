@@ -485,15 +485,19 @@ acceptanceHitStack = {
   })),
 };
 
+const readLiveToolbarMode = () =>
+  shadow.querySelector<HTMLElement>("[data-mesurer-toolbar='true']")
+    ?.getAttribute("data-mesurer-toolbar-mode");
+
 const modeTraceStart = electronInputTrace.length;
 
 await window.electronMesurer.clickAt(modePoint);
 
-for (let attempt = 0; attempt < 15 && toolbar.getAttribute("data-mesurer-toolbar-mode") !== "select"; attempt += 1) {
+for (let attempt = 0; attempt < 15 && readLiveToolbarMode() !== "select"; attempt += 1) {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
 
-const nativeReachedSelect = toolbar.getAttribute("data-mesurer-toolbar-mode") === "select";
+const nativeReachedSelect = readLiveToolbarMode() === "select";
 
 const nativeSelectModeSwitch = {
   platform: navigator.platform,
@@ -513,7 +517,7 @@ if (!nativeReachedSelect) {
   await mesurer.agent.command("arrange.toggle");
 }
 
-await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
+await waitFor(() => readLiveToolbarMode() === "select" ? true : null);
 
 const selectForMotionButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>("[data-mesurer-builtin='select'] button"),
