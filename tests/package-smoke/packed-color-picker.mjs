@@ -167,7 +167,7 @@ try {
   const snapshot = await activePage?.evaluate(() => ({
     location: location.href,
     ready: Boolean(window.__HOST_READY__),
-    eyeDropper: typeof window.EyeDropper,
+    eyeDropperAvailable: Boolean(window.EyeDropper),
     island: Boolean(document.querySelector("[data-mesurer-island='true']")),
     picker: document.querySelector("button[aria-label='Color picker (P)']")?.outerHTML.slice(0, 700) ?? null,
     panel: document.querySelector(".mesurer-color-picker")?.outerHTML.slice(0, 1000) ?? null,
