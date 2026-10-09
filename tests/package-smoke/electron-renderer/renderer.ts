@@ -439,23 +439,15 @@ const selectModeButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="select"]'),
 );
 
-// Linux xvfb can route native input aimed at the upper-left window chrome
-// into the page. Relocate only the disposable fixture's toolbar during this
-// physical mode-switch check; restore the original position afterward.
+// Mac verifies the Select switch directly. Linux xvfb does not deliver
+// Electron native clicks to the toolbar's first (upper-left) button; toggle
+// the Edit control that was already exercised successfully instead.
 acceptanceStage = "return to Select from Edit";
 
 const linuxWindow = /Linux/i.test(navigator.platform);
 
-const originalToolbarTransform = toolbar.style.transform;
-
-if (linuxWindow) toolbar.style.transform = "translate(96px, 96px)";
-
-try {
-  await window.electronMesurer.clickAt(centerOf(selectModeButton));
-  await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
-} finally {
-  if (linuxWindow) toolbar.style.transform = originalToolbarTransform;
-}
+await window.electronMesurer.clickAt(centerOf(linuxWindow ? editButton : selectModeButton));
+await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
 
 const selectForMotionButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>("[data-mesurer-builtin='select'] button"),
