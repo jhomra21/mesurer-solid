@@ -439,13 +439,22 @@ const selectModeButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="select"]'),
 );
 
-// A native click must actually transition Edit back to Select. Linux's
-// disposable fixture uses a frameless BrowserWindow to avoid titlebar hits.
+// Linux xvfb can route native input aimed at the upper-left window chrome
+// into the page. Relocate only the disposable fixture's toolbar during this
+// physical mode-switch check; restore the original position afterward.
 acceptanceStage = "return to Select from Edit";
 
-await window.electronMesurer.clickAt(centerOf(selectModeButton));
+const linuxWindow = /Linux/i.test(navigator.platform);
+const originalToolbarTransform = toolbar.style.transform;
 
-await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
+if (linuxWindow) toolbar.style.transform = "translate(96px, 96px)";
+
+try {
+  await window.electronMesurer.clickAt(centerOf(selectModeButton));
+  await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
+} finally {
+  if (linuxWindow) toolbar.style.transform = originalToolbarTransform;
+}
 
 const selectForMotionButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>("[data-mesurer-builtin='select'] button"),
