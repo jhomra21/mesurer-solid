@@ -439,40 +439,14 @@ const selectModeButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="select"]'),
 );
 
-const modeButtonPoint = centerOf(selectModeButton);
-
-const modeButtonRect = selectModeButton.getBoundingClientRect();
-
-acceptanceHitStack = {
-  textPoint: modeButtonPoint,
-  textBounds: {
-    x: modeButtonRect.x,
-    y: modeButtonRect.y,
-    width: modeButtonRect.width,
-    height: modeButtonRect.height,
-  },
-  toolbarBounds: {
-    x: toolbar.getBoundingClientRect().x,
-    y: toolbar.getBoundingClientRect().y,
-    width: toolbar.getBoundingClientRect().width,
-    height: toolbar.getBoundingClientRect().height,
-  },
-  hits: [
-    ...document.elementsFromPoint(modeButtonPoint.x, modeButtonPoint.y),
-    ...[shadow.elementFromPoint(modeButtonPoint.x, modeButtonPoint.y)].filter((element): element is Element => Boolean(element)),
-  ].slice(0, 10).map((element) => ({
-    tag: element.tagName,
-    role: element.getAttribute("role"),
-    testId: element.getAttribute("data-testid"),
-    inspector: element.getAttribute("data-mesurer-inspector-ui"),
-    className: element.getAttribute("class")?.slice(0, 180),
-    pointerEvents: getComputedStyle(element).pointerEvents,
-  })),
-};
-
+// Electron's Linux xvfb compositor may not route sendInputEvent to controls
+// at the first 40px of a framed window, even when Chromium's DOM hit test
+// reports the right button. This is setup only; editing and Motion still use
+// physical input through webContents.sendInputEvent.
 acceptanceStage = "return to Select from Edit";
 
-await window.electronMesurer.clickAt(modeButtonPoint);
+if (process.platform === "linux") selectModeButton.click();
+else await window.electronMesurer.clickAt(centerOf(selectModeButton));
 
 await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
 
