@@ -78,7 +78,7 @@ declare global {
       }): Promise<void>;
       clickAt(payload: { x: number; y: number }): Promise<void>;
       doubleClickAt(payload: { x: number; y: number }): Promise<void>;
-      pressKey(key: "Enter" | "Escape"): Promise<void>;
+      pressKey(key: "1" | "Enter" | "Escape"): Promise<void>;
       typeText(value: string): Promise<void>;
     };
   }
@@ -435,19 +435,11 @@ if (!electronTextDoubleClicks) {
   throw new Error(`Electron never dispatched a native dblclick to the text target: ${JSON.stringify(electronInputTrace)}`);
 }
 
-const selectModeButton = await waitFor(() =>
-  shadow.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="select"]'),
-);
-
-// Electron's Linux xvfb compositor may not route sendInputEvent to controls
-// at the first 40px of a framed window, even when Chromium's DOM hit test
-// reports the right button. This is setup only; editing and Motion still use
-// physical input through webContents.sendInputEvent.
+// Leave Edit through the real keyboard shortcut. This also avoids Electron's
+// Linux xvfb hit-test mismatch for top-edge native window controls.
 acceptanceStage = "return to Select from Edit";
 
-if (/Linux/i.test(navigator.platform)) selectModeButton.click();
-else await window.electronMesurer.clickAt(centerOf(selectModeButton));
-
+await window.electronMesurer.pressKey("1");
 await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
 
 const selectForMotionButton = await waitFor(() =>
