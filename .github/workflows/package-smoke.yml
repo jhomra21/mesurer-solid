@@ -559,9 +559,19 @@ jobs:
           REACT_INJECT_SCRIPT_PATH: ${{ env.REACT_INJECT_SCRIPT_PATH }}
         run: |
           bun tests/package-smoke/consumer-smoke.mjs
+          bun tests/package-smoke/packed-color-picker.mjs
           bun tests/package-smoke/typography-hover-occlusion.mjs
           bun tests/package-smoke/annotation-draft-handoff.mjs
           bun tests/package-smoke/annotation-adjacent-handoff.mjs
+
+      - name: Upload packed browser Color Picker evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: packed-browser-color-picker
+          path: packed-color-picker-artifacts
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload publish candidate
         if: success()
