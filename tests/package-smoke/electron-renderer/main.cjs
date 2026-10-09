@@ -335,9 +335,6 @@ app.whenReady().then(async () => {
     show: true,
     width: 900,
     height: 700,
-    // Linux xvfb's framed titlebar intercepts native clicks at the toolbar's
-    // initial y=16 position. Test the renderer's input, not the window chrome.
-    frame: process.platform !== "linux",
     webPreferences: {
       preload: path.join(__dirname, "preload-bundled.cjs"),
       contextIsolation: true,
