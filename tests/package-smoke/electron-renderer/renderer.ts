@@ -446,7 +446,38 @@ acceptanceStage = "return to Select from Edit";
 
 const linuxWindow = /Linux/i.test(navigator.platform);
 
-await window.electronMesurer.clickAt(centerOf(linuxWindow ? editButton : selectModeButton));
+const modeTarget = linuxWindow ? editButton : selectModeButton;
+const modePoint = centerOf(modeTarget);
+const modeBounds = modeTarget.getBoundingClientRect();
+
+acceptanceHitStack = {
+  textPoint: modePoint,
+  textBounds: {
+    x: modeBounds.x,
+    y: modeBounds.y,
+    width: modeBounds.width,
+    height: modeBounds.height,
+  },
+  toolbarBounds: {
+    x: toolbar.getBoundingClientRect().x,
+    y: toolbar.getBoundingClientRect().y,
+    width: toolbar.getBoundingClientRect().width,
+    height: toolbar.getBoundingClientRect().height,
+  },
+  hits: [
+    ...document.elementsFromPoint(modePoint.x, modePoint.y),
+    ...[shadow.elementFromPoint(modePoint.x, modePoint.y)].filter((element): element is Element => Boolean(element)),
+  ].slice(0, 10).map((element) => ({
+    tag: element.tagName,
+    role: element.getAttribute("role"),
+    testId: element.getAttribute("data-testid"),
+    inspector: element.getAttribute("data-mesurer-inspector-ui"),
+    className: element.getAttribute("class")?.slice(0, 180),
+    pointerEvents: getComputedStyle(element).pointerEvents,
+  })),
+};
+
+await window.electronMesurer.clickAt(modePoint);
 
 await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
 
