@@ -444,15 +444,15 @@ await window.electronMesurer.clickAt(centerOf(selectModeButton));
 
 await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
 
-const selectButton = await waitFor(() =>
+const selectForMotionButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>("[data-mesurer-builtin='select'] button"),
 );
 
-if (selectButton.getAttribute("aria-pressed") !== "true") {
-  await window.electronMesurer.clickAt(centerOf(selectButton));
+if (selectForMotionButton.getAttribute("aria-pressed") !== "true") {
+  await window.electronMesurer.clickAt(centerOf(selectForMotionButton));
 }
 
-await waitFor(() => selectButton.getAttribute("aria-pressed") === "true" ? true : null);
+await waitFor(() => selectForMotionButton.getAttribute("aria-pressed") === "true" ? true : null);
 
 const animatedTarget = document.querySelector<HTMLElement>('[data-testid="electron-motion-target"]');
 
