@@ -268,6 +268,10 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || !String(summary.colorPickerValue ?? "").includes("#123456")
     || summary.nativeEyeDropperOpens !== 0
     || summary.colorPickerOverlayRemoved !== true
+    || summary.electronTextEditIntent !== "Edited in Electron"
+    || summary.electronTextDoubleClicks < 1
+    || summary.electronMotionPaused !== true
+    || summary.electronMotionDetails !== true
     || summary.codexBridgeOk !== true
     || !["shared", "standalone", "desktop", "none"].includes(summary.codexRuntimeSource)
     || !["shared-app-server", "desktop-queue", "private-stdio", "none"].includes(summary.codexRuntimeTransport)
