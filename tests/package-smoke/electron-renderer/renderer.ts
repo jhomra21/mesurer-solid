@@ -439,9 +439,10 @@ const selectModeButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="select"]'),
 );
 
-// Mac verifies the Select switch directly. Linux xvfb does not deliver
-// Electron native clicks to the toolbar's first (upper-left) button; toggle
-// the Edit control that was already exercised successfully instead.
+// macOS physically checks Select mode. In Linux xvfb after native text editing,
+// Chromium reports the toolbar button at these coordinates but routes the
+// native click to html. Use the public command only for this setup transition;
+// the Edit entry, text editor and Motion controls remain physical E2E.
 acceptanceStage = "return to Select from Edit";
 
 const linuxWindow = /Linux/i.test(navigator.platform);
@@ -479,7 +480,8 @@ acceptanceHitStack = {
   })),
 };
 
-await window.electronMesurer.clickAt(modePoint);
+if (linuxWindow) await mesurer.command("arrange.toggle");
+else await window.electronMesurer.clickAt(modePoint);
 
 await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
 
