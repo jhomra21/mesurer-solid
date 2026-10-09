@@ -140,6 +140,9 @@ ipcMain.handle("mesurer:double-click-at", async (event, payload) => {
   }
 });
 
+ipcMain.handle("mesurer:require-native-select", () =>
+  process.env.MESURER_ELECTRON_REQUIRE_NATIVE_SELECT === "1");
+
 ipcMain.handle("mesurer:press-key", async (event, value) => {
   const window = BrowserWindow.fromWebContents(event.sender);
 
