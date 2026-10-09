@@ -25,6 +25,7 @@ type ElectronTestSummary = {
   electronTextDoubleClicks: number;
   nativeSelectModeSwitch: {
     platform: string;
+    nativeAttempted: boolean;
     point: { x: number; y: number };
     nativeReachedSelect: boolean;
     usedCommandFallback: boolean;
@@ -88,6 +89,7 @@ declare global {
       doubleClickAt(payload: { x: number; y: number }): Promise<void>;
       pressKey(key: "1" | "Enter" | "Escape"): Promise<void>;
       typeText(value: string): Promise<void>;
+      requireNativeSelect(): Promise<boolean>;
     };
   }
 }
@@ -447,9 +449,9 @@ const selectModeButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="select"]'),
 );
 
-// Probe physical Select on both hosts. Linux xvfb previously routed this
-// click to html despite Shadow DOM hit testing the toolbar button. Keep the
-// fallback separate from native acceptance so CI records the discrepancy.
+// On Linux, the required consumer smoke uses the public transition. A separate
+// strict E2E attempts the physical click after editing and records the mismatch
+// without preventing unrelated Motion and Recording acceptance.
 acceptanceStage = "return to Select from Edit";
 
 const linuxWindow = /Linux/i.test(navigator.platform);
@@ -489,18 +491,23 @@ const readLiveToolbarMode = () =>
   shadow.querySelector<HTMLElement>("[data-mesurer-toolbar='true']")
     ?.getAttribute("data-mesurer-toolbar-mode");
 
+const nativeAttempted = !linuxWindow || await window.electronMesurer.requireNativeSelect();
+
 const modeTraceStart = electronInputTrace.length;
 
-await window.electronMesurer.clickAt(modePoint);
+if (nativeAttempted) {
+  await window.electronMesurer.clickAt(modePoint);
 
-for (let attempt = 0; attempt < 15 && readLiveToolbarMode() !== "select"; attempt += 1) {
-  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  for (let attempt = 0; attempt < 15 && readLiveToolbarMode() !== "select"; attempt += 1) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  }
 }
 
-const nativeReachedSelect = readLiveToolbarMode() === "select";
+const nativeReachedSelect = nativeAttempted && readLiveToolbarMode() === "select";
 
 const nativeSelectModeSwitch = {
   platform: navigator.platform,
+  nativeAttempted,
   point: modePoint,
   nativeReachedSelect,
   usedCommandFallback: linuxWindow && !nativeReachedSelect,
@@ -509,7 +516,7 @@ const nativeSelectModeSwitch = {
 };
 
 if (!nativeReachedSelect) {
-  if (!linuxWindow) {
+  if (nativeAttempted) {
     throw new Error(`Native Select mode switch failed: ${JSON.stringify(nativeSelectModeSwitch)}`);
   }
 
