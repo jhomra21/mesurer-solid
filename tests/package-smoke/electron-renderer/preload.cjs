@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld("electronMesurer", {
   clickAt: (payload) => ipcRenderer.invoke("mesurer:click-at", payload),
   doubleClickAt: (payload) => ipcRenderer.invoke("mesurer:double-click-at", payload),
   pressKey: (key) => ipcRenderer.invoke("mesurer:press-key", key),
+  requireNativeSelect: () => ipcRenderer.invoke("mesurer:require-native-select"),
   typeText: (value) => ipcRenderer.invoke("mesurer:type-text", value),
 });

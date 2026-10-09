@@ -23,6 +23,15 @@ type ElectronTestSummary = {
   colorPickerOverlayRemoved: boolean;
   electronTextEditIntent: string;
   electronTextDoubleClicks: number;
+  nativeSelectModeSwitch: {
+    platform: string;
+    nativeAttempted: boolean;
+    point: { x: number; y: number };
+    nativeReachedSelect: boolean;
+    usedCommandFallback: boolean;
+    hits: ElectronHitStack["hits"];
+    events: Array<{ type: string; target: string; detail: number }>;
+  };
   electronMotionPaused: boolean;
   electronMotionDetails: boolean;
   codexBridgeOk: boolean;
@@ -80,6 +89,7 @@ declare global {
       doubleClickAt(payload: { x: number; y: number }): Promise<void>;
       pressKey(key: "1" | "Enter" | "Escape"): Promise<void>;
       typeText(value: string): Promise<void>;
+      requireNativeSelect(): Promise<boolean>;
     };
   }
 }
@@ -439,19 +449,16 @@ const selectModeButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="select"]'),
 );
 
-// macOS physically checks Select mode. In Linux xvfb after native text editing,
-// Chromium reports the toolbar button at these coordinates but routes the
-// native click to html. Use the public command only for this setup transition;
-// the Edit entry, text editor and Motion controls remain physical E2E.
+// On Linux, the required consumer smoke uses the public transition. A separate
+// strict E2E attempts the physical click after editing and records the mismatch
+// without preventing unrelated Motion and Recording acceptance.
 acceptanceStage = "return to Select from Edit";
 
 const linuxWindow = /Linux/i.test(navigator.platform);
 
-const modeTarget = linuxWindow ? editButton : selectModeButton;
+const modePoint = centerOf(selectModeButton);
 
-const modePoint = centerOf(modeTarget);
-
-const modeBounds = modeTarget.getBoundingClientRect();
+const modeBounds = selectModeButton.getBoundingClientRect();
 
 acceptanceHitStack = {
   textPoint: modePoint,
@@ -480,10 +487,44 @@ acceptanceHitStack = {
   })),
 };
 
-if (linuxWindow) await mesurer.agent.command("arrange.toggle");
-else await window.electronMesurer.clickAt(modePoint);
+const readLiveToolbarMode = () =>
+  shadow.querySelector<HTMLElement>("[data-mesurer-toolbar='true']")
+    ?.getAttribute("data-mesurer-toolbar-mode");
 
-await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
+const nativeAttempted = !linuxWindow || await window.electronMesurer.requireNativeSelect();
+
+const modeTraceStart = electronInputTrace.length;
+
+if (nativeAttempted) {
+  await window.electronMesurer.clickAt(modePoint);
+
+  for (let attempt = 0; attempt < 15 && readLiveToolbarMode() !== "select"; attempt += 1) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  }
+}
+
+const nativeReachedSelect = nativeAttempted && readLiveToolbarMode() === "select";
+
+const nativeSelectModeSwitch = {
+  platform: navigator.platform,
+  nativeAttempted,
+  point: modePoint,
+  nativeReachedSelect,
+  usedCommandFallback: linuxWindow && !nativeReachedSelect,
+  hits: acceptanceHitStack.hits,
+  events: electronInputTrace.slice(modeTraceStart),
+};
+
+if (!nativeReachedSelect) {
+  if (nativeAttempted) {
+    throw new Error(`Native Select mode switch failed: ${JSON.stringify(nativeSelectModeSwitch)}`);
+  }
+
+  // This is setup for the subsequent Motion E2E, not Linux physical acceptance.
+  await mesurer.agent.command("arrange.toggle");
+}
+
+await waitFor(() => readLiveToolbarMode() === "select" ? true : null);
 
 const selectForMotionButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>("[data-mesurer-builtin='select'] button"),
@@ -775,6 +816,7 @@ await window.electronMesurer.complete({
     colorPickerOverlayRemoved: shadow.querySelector("[data-mesurer-color-picker-target='true']") === null,
     electronTextEditIntent,
     electronTextDoubleClicks,
+    nativeSelectModeSwitch,
     electronMotionPaused,
     electronMotionDetails,
     codexBridgeOk: true,

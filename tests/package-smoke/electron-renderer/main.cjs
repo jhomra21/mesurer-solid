@@ -140,6 +140,13 @@ ipcMain.handle("mesurer:double-click-at", async (event, payload) => {
   }
 });
 
+ipcMain.handle("mesurer:require-native-select", () => {
+  const required = process.env.MESURER_ELECTRON_REQUIRE_NATIVE_SELECT === "1";
+  console.log(`Electron native Select strict input: ${required}`);
+
+  return required;
+});
+
 ipcMain.handle("mesurer:press-key", async (event, value) => {
   const window = BrowserWindow.fromWebContents(event.sender);
 
@@ -270,6 +277,11 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || summary.colorPickerOverlayRemoved !== true
     || summary.electronTextEditIntent !== "Edited in Electron"
     || summary.electronTextDoubleClicks < 1
+    || !summary.nativeSelectModeSwitch
+    || summary.nativeSelectModeSwitch.usedCommandFallback !== (
+      /Linux/i.test(summary.nativeSelectModeSwitch.platform)
+      && summary.nativeSelectModeSwitch.nativeReachedSelect === false
+    )
     || summary.electronMotionPaused !== true
     || summary.electronMotionDetails !== true
     || summary.codexBridgeOk !== true
@@ -292,6 +304,13 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     throw new Error(`Unexpected Mesurer Electron result: ${JSON.stringify(summary)}`);
   }
 
+  if (
+    process.env.MESURER_ELECTRON_REQUIRE_NATIVE_SELECT === "1"
+    && !summary.nativeSelectModeSwitch.nativeReachedSelect
+  ) {
+    throw new Error(`Native Select mode click did not reach the button: ${JSON.stringify(summary.nativeSelectModeSwitch)}`);
+  }
+
   finished = true;
 
   mkdirSync(artifactDir, { recursive: true });
@@ -309,10 +328,16 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
   console.log(
     `Mesurer Electron renderer contract: PASS (${size.width}x${size.height}, ${png.byteLength} bytes)`,
   );
+  console.log(`Native Select probe: ${JSON.stringify(summary.nativeSelectModeSwitch)}`);
 
   if (timeoutId) clearTimeout(timeoutId);
   setTimeout(() => app.quit(), 0);
 });
+
+if (process.env.MESURER_ELECTRON_USER_DATA_DIR) {
+  mkdirSync(process.env.MESURER_ELECTRON_USER_DATA_DIR, { recursive: true });
+  app.setPath("userData", process.env.MESURER_ELECTRON_USER_DATA_DIR);
+}
 
 app.whenReady().then(async () => {
   const { installMesurerCodexHost } = await import("mesurer-solid/plugins/codex/bridge");
