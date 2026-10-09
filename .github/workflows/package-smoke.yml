@@ -526,9 +526,10 @@ jobs:
       - name: Probe Linux native Select after direct text editing
         env:
           MESURER_ELECTRON_ARTIFACT_DIR: /tmp/mesurer-electron/native-select-probe
+          MESURER_ELECTRON_USER_DATA_DIR: /tmp/mesurer-electron/native-select-profile
           MESURER_ELECTRON_REQUIRE_NATIVE_SELECT: "1"
         run: |
-          rm -rf linux-native-select-artifacts /tmp/mesurer-electron/native-select-probe
+          rm -rf linux-native-select-artifacts /tmp/mesurer-electron/native-select-probe /tmp/mesurer-electron/native-select-profile
           mkdir -p linux-native-select-artifacts
           set +e
           (
