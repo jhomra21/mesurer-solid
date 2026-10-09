@@ -13,8 +13,15 @@ const browser = await chromium.launch({ headless: true });
 
 const errors = [];
 
+let stage = "initialize";
+
+let activePage = null;
+
 const createPage = async (supported) => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+
+  activePage = page;
+  stage = supported ? "start supported consumer" : "start unsupported consumer";
 
   page.on("pageerror", (error) => errors.push(String(error)));
   page.on("console", (message) => {
@@ -68,6 +75,7 @@ const createPage = async (supported) => {
 };
 
 try {
+  stage = "unsupported fixture";
   const unsupported = await createPage(false);
 
   assert.equal(
@@ -79,10 +87,12 @@ try {
   assert.equal(await unsupported.locator(".mesurer-color-picker").count(), 0);
   await unsupported.close();
 
+  stage = "supported fixture";
   const supported = await createPage(true);
   const picker = supported.getByRole("button", { name: "Color picker (P)" });
   const panel = supported.locator(".mesurer-color-picker");
 
+  stage = "wait for native Color Picker button";
   await picker.waitFor({ state: "visible" });
   const buttonBox = await picker.boundingBox();
 
@@ -95,6 +105,7 @@ try {
     await supported.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   };
 
+  stage = "open EyeDropper and render first native result";
   await clickPicker();
   await panel.waitFor({ state: "visible" });
   await supported.waitForFunction(() =>
@@ -111,16 +122,19 @@ try {
 
   await supported.screenshot({ path: join(output, "packed-color-picker.png") });
 
+  stage = "toggle native Color Picker off";
   await clickPicker();
   await panel.waitFor({ state: "detached" });
   assert.equal(await picker.getAttribute("aria-pressed"), "false");
   assert.equal(await supported.evaluate(() => window.__packedColorPickerOpens), 1);
 
+  stage = "reopen native Color Picker";
   await clickPicker();
   await supported.waitForFunction(() =>
     document.querySelector(".mesurer-color-picker")?.textContent?.includes("#818cf8") === true,
   );
 
+  stage = "restart EyeDropper with P shortcut";
   await supported.keyboard.press("p");
   await supported.waitForFunction(() =>
     document.querySelector(".mesurer-color-picker")?.textContent?.includes("#fb7185") === true,
@@ -149,6 +163,26 @@ try {
 
   console.log("Packed Solid 2 consumer Color Picker physical E2E: PASS");
   await supported.close();
+} catch (error) {
+  const snapshot = await activePage?.evaluate(() => ({
+    location: location.href,
+    ready: Boolean(window.__HOST_READY__),
+    eyeDropper: typeof window.EyeDropper,
+    island: Boolean(document.querySelector("[data-mesurer-island='true']")),
+    picker: document.querySelector("button[aria-label='Color picker (P)']")?.outerHTML.slice(0, 700) ?? null,
+    panel: document.querySelector(".mesurer-color-picker")?.outerHTML.slice(0, 1000) ?? null,
+    opens: window.__packedColorPickerOpens,
+    writes: window.__packedClipboardWrites,
+  })).catch(() => null);
+
+  await writeFile(join(output, "failure.json"), `${JSON.stringify({
+    stage,
+    snapshot,
+    errors,
+    message: String(error),
+  }, null, 2)}\n`, "utf8");
+
+  throw new Error(`Packed browser Color Picker failed at ${stage}: ${String(error)}`, { cause: error });
 } finally {
   await browser.close();
 }
