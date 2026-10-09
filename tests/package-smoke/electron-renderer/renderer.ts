@@ -157,6 +157,8 @@ const electronInputTrace: Array<{ type: string; target: string; detail: number }
 
 let acceptanceStage = "initialization";
 
+let acceptanceHitStack: unknown = null;
+
 for (const type of ["pointerdown", "click", "dblclick", "keydown"]) {
   window.addEventListener(type, (event) => {
     const target = event.target instanceof Element
@@ -196,7 +198,10 @@ const waitFor = async <T>(read: () => T | null, timeoutMs = 5000): Promise<T> =>
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   }
 
-  throw new Error(`Timed out during ${acceptanceStage}: ${JSON.stringify(electronInputTrace)}`);
+  throw new Error(`Timed out during ${acceptanceStage}: ${JSON.stringify({
+    hitStack: acceptanceHitStack,
+    inputTrace: electronInputTrace,
+  })}`);
 };
 
 const codexBridge = window.__MESURER_HOST__?.codexBridge;
@@ -313,6 +318,29 @@ if (!textTarget || textTarget.childNodes.length !== 1) {
 }
 
 const textPoint = centerOf(textTarget);
+
+const textBounds = textTarget.getBoundingClientRect();
+
+acceptanceHitStack = {
+  textPoint,
+  textBounds: {
+    x: textBounds.x, y: textBounds.y, width: textBounds.width, height: textBounds.height,
+  },
+  toolbarBounds: {
+    x: toolbar.getBoundingClientRect().x,
+    y: toolbar.getBoundingClientRect().y,
+    width: toolbar.getBoundingClientRect().width,
+    height: toolbar.getBoundingClientRect().height,
+  },
+  hits: document.elementsFromPoint(textPoint.x, textPoint.y).slice(0, 10).map((element) => ({
+    tag: element.tagName,
+    role: element.getAttribute("role"),
+    testId: element.getAttribute("data-testid"),
+    inspector: element.getAttribute("data-mesurer-inspector-ui"),
+    className: element.getAttribute("class")?.slice(0, 180),
+    pointerEvents: getComputedStyle(element).pointerEvents,
+  })),
+};
 
 acceptanceStage = "select editable text with native click";
 
