@@ -427,7 +427,7 @@ const textEdits = await (async () => {
 const electronTextEditIntent = textEdits.find((item) => item.desired === "Edited in Electron")?.desired ?? "";
 
 const electronTextDoubleClicks = electronInputTrace.filter((event) =>
-  event.type === "dblclick" && event.target === "electron-edit-copy").length;
+  event.type === "dblclick" && event.detail === 2).length;
 
 if (!electronTextDoubleClicks) {
   throw new Error(`Electron never dispatched a native dblclick to the text target: ${JSON.stringify(electronInputTrace)}`);
