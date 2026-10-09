@@ -445,7 +445,7 @@ const selectModeButton = await waitFor(() =>
 // physical input through webContents.sendInputEvent.
 acceptanceStage = "return to Select from Edit";
 
-if (process.platform === "linux") selectModeButton.click();
+if (/Linux/i.test(navigator.platform)) selectModeButton.click();
 else await window.electronMesurer.clickAt(centerOf(selectModeButton));
 
 await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
