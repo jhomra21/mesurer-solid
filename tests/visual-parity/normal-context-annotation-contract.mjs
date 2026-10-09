@@ -3,7 +3,18 @@ import { chromium } from "playwright";
 
 const url = process.env.NORMAL_CONTEXT_URL ?? "http://127.0.0.1:4174/";
 
-const browser = await chromium.launch({ channel: "chrome", headless: true });
+// Use the Playwright-managed browser locally. CI explicitly requests Chrome
+// to preserve its stable macOS integration gate.
+const browserName = process.env.NORMAL_CONTEXT_BROWSER ?? "chromium";
+
+assert(
+  browserName === "chromium" || browserName === "chrome",
+  "NORMAL_CONTEXT_BROWSER must be chromium or chrome",
+);
+
+const browser = await chromium.launch(browserName === "chrome"
+  ? { channel: "chrome", headless: true }
+  : { headless: true });
 
 const page = await browser.newPage({
   viewport: { width: 1162, height: 494 },
@@ -379,18 +390,50 @@ try {
   const marker = markers.first();
   assert.equal(await marker.getAttribute("data-mesurer-annotation-number"), "1", "first marker must be numbered 1");
 
-  const markerAppearance = await marker.evaluate((element) => {
-    const bounds = element.getBoundingClientRect();
+  const markerAppearance = await page.evaluate(async () => {
+    let lastAppearance = null;
 
-    return {
-      width: bounds.width,
-      height: bounds.height,
-      badge: element.querySelector("[data-mesurer-annotation-badge]")?.textContent?.trim(),
-    };
+    // Saving a note can replace the marker when Context swaps its provisional
+    // placement for the document-backed anchor. Reacquire by selector on each
+    // paint frame rather than measuring a detached locator reference.
+    for (let frame = 0; frame < 20; frame += 1) {
+      const element = document.querySelector(
+        "[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']",
+      );
+
+      if (element instanceof HTMLElement) {
+        const bounds = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+
+        lastAppearance = {
+          width: bounds.width,
+          height: bounds.height,
+          connected: element.isConnected,
+          offsetWidth: element.offsetWidth,
+          offsetHeight: element.offsetHeight,
+          display: style.display,
+          transform: style.transform,
+          computedWidth: style.width,
+          computedHeight: style.height,
+          scrollMode: element.getAttribute("data-mesurer-annotation-scroll-mode"),
+          badge: element.querySelector("[data-mesurer-annotation-badge]")?.textContent?.trim(),
+        };
+
+        if (lastAppearance.connected
+          && lastAppearance.width === 24
+          && lastAppearance.height === 24) return lastAppearance;
+      }
+
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    return lastAppearance;
   });
 
-  assert.equal(markerAppearance.width, 24);
-  assert.equal(markerAppearance.height, 24);
+  assert(markerAppearance, "Context marker failed to render after placement settled");
+
+  assert.equal(markerAppearance.width, 24, `Context marker geometry: ${JSON.stringify(markerAppearance)}`);
+  assert.equal(markerAppearance.height, 24, `Context marker geometry: ${JSON.stringify(markerAppearance)}`);
   assert.equal(markerAppearance.badge, "1");
   await assertDocumentSurface(marker, "saved annotation marker");
 

@@ -67,7 +67,33 @@ const clickDocumentUi = async (locator, label) => {
 
 try {
   await page.goto(url, { waitUntil: "networkidle" });
-  await page.waitForFunction(() => Boolean(window.__MESURER_IFRAME_TEST__));
+
+  // A generic consumer app may load successfully without containing the
+  // dedicated transformed-frame acceptance fixture. Distinguish that from a
+  // real selection timeout and always retain enough evidence to reproduce it.
+  const fixture = await page.evaluate(() => ({
+    url: location.href,
+    title: document.title,
+    hasIframe: Boolean(document.querySelector("iframe[data-testid='same-origin-frame']")),
+    hasTestHarness: Boolean(window.__MESURER_IFRAME_TEST__?.subject),
+    hasInspectorIsland: Boolean(document.querySelector("[data-mesurer-island='true']")),
+  }));
+
+  await writeFile(join(output, "iframe-preflight.json"), `${JSON.stringify(fixture, null, 2)}\n`, "utf8");
+
+  assert(
+    fixture.hasIframe,
+    "Missing iframe selection fixture. Serve examples/basic/iframe-selection.html, not a generic Mesurer consumer page.",
+  );
+
+  if (!fixture.hasTestHarness) {
+    await page.waitForFunction(() => Boolean(window.__MESURER_IFRAME_TEST__?.subject), null, { timeout: 8000 })
+      .catch(() => {
+        throw new Error(
+          `Iframe fixture mounted no test harness. Confirm /src/iframe-selection.ts loaded and the app initialized: ${JSON.stringify(fixture)}`,
+        );
+      });
+  }
 
   const select = page.locator("[data-mesurer-builtin='select'] button");
 
