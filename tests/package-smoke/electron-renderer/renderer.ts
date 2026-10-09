@@ -440,6 +440,7 @@ if (!electronTextDoubleClicks) {
 acceptanceStage = "return to Select from Edit";
 
 await window.electronMesurer.pressKey("1");
+
 await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
 
 const selectForMotionButton = await waitFor(() =>
