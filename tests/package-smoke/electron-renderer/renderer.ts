@@ -480,7 +480,7 @@ acceptanceHitStack = {
   })),
 };
 
-if (linuxWindow) await mesurer.command("arrange.toggle");
+if (linuxWindow) await mesurer.agent.command("arrange.toggle");
 else await window.electronMesurer.clickAt(modePoint);
 
 await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
