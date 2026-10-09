@@ -417,14 +417,14 @@ const textEdits = await (async () => {
   for (let attempt = 0; attempt < 120; attempt += 1) {
     const edits = await mesurer.textEdits();
 
-    if (edits.some((item) => item.desiredText === "Edited in Electron")) return edits;
+    if (edits.some((item) => item.desired === "Edited in Electron")) return edits;
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   }
 
   throw new Error(`Electron text edit did not persist its Desired intent: ${JSON.stringify(electronInputTrace)}`);
 })();
 
-const electronTextEditIntent = textEdits.find((item) => item.desiredText === "Edited in Electron")?.desiredText ?? "";
+const electronTextEditIntent = textEdits.find((item) => item.desired === "Edited in Electron")?.desired ?? "";
 
 const electronTextDoubleClicks = electronInputTrace.filter((event) =>
   event.type === "dblclick" && event.target === "electron-edit-copy").length;
