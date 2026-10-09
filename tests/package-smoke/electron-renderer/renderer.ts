@@ -394,6 +394,7 @@ try {
 }
 
 const editorRoot = editor.getRootNode();
+
 const editorFocus = editorRoot instanceof ShadowRoot
   ? editorRoot.activeElement
   : document.activeElement;
