@@ -439,9 +439,39 @@ const selectModeButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="select"]'),
 );
 
+const modeButtonPoint = centerOf(selectModeButton);
+const modeButtonRect = selectModeButton.getBoundingClientRect();
+
+acceptanceHitStack = {
+  textPoint: modeButtonPoint,
+  textBounds: {
+    x: modeButtonRect.x,
+    y: modeButtonRect.y,
+    width: modeButtonRect.width,
+    height: modeButtonRect.height,
+  },
+  toolbarBounds: {
+    x: toolbar.getBoundingClientRect().x,
+    y: toolbar.getBoundingClientRect().y,
+    width: toolbar.getBoundingClientRect().width,
+    height: toolbar.getBoundingClientRect().height,
+  },
+  hits: [
+    ...document.elementsFromPoint(modeButtonPoint.x, modeButtonPoint.y),
+    ...[shadow.elementFromPoint(modeButtonPoint.x, modeButtonPoint.y)].filter((element): element is Element => Boolean(element)),
+  ].slice(0, 10).map((element) => ({
+    tag: element.tagName,
+    role: element.getAttribute("role"),
+    testId: element.getAttribute("data-testid"),
+    inspector: element.getAttribute("data-mesurer-inspector-ui"),
+    className: element.getAttribute("class")?.slice(0, 180),
+    pointerEvents: getComputedStyle(element).pointerEvents,
+  })),
+};
+
 acceptanceStage = "return to Select from Edit";
 
-await window.electronMesurer.clickAt(centerOf(selectModeButton));
+await window.electronMesurer.clickAt(modeButtonPoint);
 
 await waitFor(() => toolbar.getAttribute("data-mesurer-toolbar-mode") === "select" ? true : null);
 
