@@ -523,6 +523,39 @@ jobs:
           fi
           exit "$status"
 
+      - name: Probe Linux native Select after direct text editing
+        env:
+          MESURER_ELECTRON_ARTIFACT_DIR: /tmp/mesurer-electron/native-select-probe
+          MESURER_ELECTRON_REQUIRE_NATIVE_SELECT: "1"
+        run: |
+          rm -rf linux-native-select-artifacts /tmp/mesurer-electron/native-select-probe
+          mkdir -p linux-native-select-artifacts
+          set +e
+          (
+            cd /tmp/mesurer-electron
+            timeout 60s xvfb-run -a ./node_modules/.bin/electron main-bundled.cjs
+          )
+          status=$?
+          set -e
+          printf '%s\\n' "$status" > linux-native-select-artifacts/exit-code.txt
+          if [ ! -f /tmp/mesurer-electron/native-select-probe/result.json ]; then
+            echo "Native Select probe did not produce a result."
+            exit 1
+          fi
+          cp /tmp/mesurer-electron/native-select-probe/result.json linux-native-select-artifacts/result.json
+          cat linux-native-select-artifacts/result.json
+          # A native hit is acceptance. A miss is still an open Linux xvfb
+          # investigation, and must not hide the passing packed consumer.
+
+      - name: Upload Linux native Select probe evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-native-select-probe
+          path: linux-native-select-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload Electron renderer evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
