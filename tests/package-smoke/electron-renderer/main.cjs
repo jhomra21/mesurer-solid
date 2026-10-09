@@ -271,8 +271,10 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || summary.electronTextEditIntent !== "Edited in Electron"
     || summary.electronTextDoubleClicks < 1
     || !summary.nativeSelectModeSwitch
-    || typeof summary.nativeSelectModeSwitch.nativeReachedSelect !== "boolean"
-    || typeof summary.nativeSelectModeSwitch.usedCommandFallback !== "boolean"
+    || summary.nativeSelectModeSwitch.usedCommandFallback !== (
+      /Linux/i.test(summary.nativeSelectModeSwitch.platform)
+      && summary.nativeSelectModeSwitch.nativeReachedSelect === false
+    )
     || summary.electronMotionPaused !== true
     || summary.electronMotionDetails !== true
     || summary.codexBridgeOk !== true
