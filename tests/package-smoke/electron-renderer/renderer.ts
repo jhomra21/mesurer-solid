@@ -447,7 +447,9 @@ acceptanceStage = "return to Select from Edit";
 const linuxWindow = /Linux/i.test(navigator.platform);
 
 const modeTarget = linuxWindow ? editButton : selectModeButton;
+
 const modePoint = centerOf(modeTarget);
+
 const modeBounds = modeTarget.getBoundingClientRect();
 
 acceptanceHitStack = {
