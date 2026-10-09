@@ -393,15 +393,25 @@ try {
   const markerAppearance = await marker.evaluate((element) => {
     const bounds = element.getBoundingClientRect();
 
+    const style = getComputedStyle(element);
+
     return {
       width: bounds.width,
       height: bounds.height,
+      connected: element.isConnected,
+      offsetWidth: element.offsetWidth,
+      offsetHeight: element.offsetHeight,
+      display: style.display,
+      transform: style.transform,
+      computedWidth: style.width,
+      computedHeight: style.height,
+      scrollMode: element.getAttribute("data-mesurer-annotation-scroll-mode"),
       badge: element.querySelector("[data-mesurer-annotation-badge]")?.textContent?.trim(),
     };
   });
 
-  assert.equal(markerAppearance.width, 24);
-  assert.equal(markerAppearance.height, 24);
+  assert.equal(markerAppearance.width, 24, `Context marker geometry: ${JSON.stringify(markerAppearance)}`);
+  assert.equal(markerAppearance.height, 24, `Context marker geometry: ${JSON.stringify(markerAppearance)}`);
   assert.equal(markerAppearance.badge, "1");
   await assertDocumentSurface(marker, "saved annotation marker");
 
