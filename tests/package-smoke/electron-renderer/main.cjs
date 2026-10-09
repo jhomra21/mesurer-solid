@@ -140,8 +140,11 @@ ipcMain.handle("mesurer:double-click-at", async (event, payload) => {
   }
 });
 
-ipcMain.handle("mesurer:require-native-select", () =>
-  process.env.MESURER_ELECTRON_REQUIRE_NATIVE_SELECT === "1");
+ipcMain.handle("mesurer:require-native-select", () => {
+  const required = process.env.MESURER_ELECTRON_REQUIRE_NATIVE_SELECT === "1";
+  console.log(`Electron native Select strict input: ${required}`);
+  return required;
+});
 
 ipcMain.handle("mesurer:press-key", async (event, value) => {
   const window = BrowserWindow.fromWebContents(event.sender);
@@ -329,6 +332,11 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
   if (timeoutId) clearTimeout(timeoutId);
   setTimeout(() => app.quit(), 0);
 });
+
+if (process.env.MESURER_ELECTRON_USER_DATA_DIR) {
+  mkdirSync(process.env.MESURER_ELECTRON_USER_DATA_DIR, { recursive: true });
+  app.setPath("userData", process.env.MESURER_ELECTRON_USER_DATA_DIR);
+}
 
 app.whenReady().then(async () => {
   const { installMesurerCodexHost } = await import("mesurer-solid/plugins/codex/bridge");
