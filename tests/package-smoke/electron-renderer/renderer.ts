@@ -157,7 +157,23 @@ const electronInputTrace: Array<{ type: string; target: string; detail: number }
 
 let acceptanceStage = "initialization";
 
-let acceptanceHitStack: unknown = null;
+type HitStackRect = { x: number; y: number; width: number; height: number };
+
+type ElectronHitStack = {
+  textPoint: { x: number; y: number };
+  textBounds: HitStackRect;
+  toolbarBounds: HitStackRect;
+  hits: Array<{
+    tag: string;
+    role: string | null;
+    testId: string | null;
+    inspector: string | null;
+    className: string | undefined;
+    pointerEvents: string;
+  }>;
+};
+
+let acceptanceHitStack: ElectronHitStack | null = null;
 
 for (const type of ["pointerdown", "click", "dblclick", "keydown"]) {
   window.addEventListener(type, (event) => {
