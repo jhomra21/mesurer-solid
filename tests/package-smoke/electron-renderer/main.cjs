@@ -97,6 +97,74 @@ ipcMain.handle("mesurer:click-at", async (event, payload) => {
   await new Promise((resolve) => setTimeout(resolve, 50));
 });
 
+// Physical double-clicks must originate from Electron, not dispatchEvent in
+// the renderer. The second press carries clickCount=2 so Chromium synthesizes
+// the real dblclick event consumed by the direct-text editor.
+ipcMain.handle("mesurer:double-click-at", async (event, payload) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+
+  if (!window || window.isDestroyed()) {
+    throw new Error("Electron double-click requested without a live BrowserWindow.");
+  }
+
+  const x = Math.round(payload?.x);
+  const y = Math.round(payload?.y);
+
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error("Electron double-click received invalid coordinates.");
+  }
+
+  window.show();
+  window.focus();
+  window.webContents.focus();
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  for (const count of [1, 2]) {
+    window.webContents.sendInputEvent({ type: "mouseMove", x, y });
+    window.webContents.sendInputEvent({
+      type: "mouseDown",
+      x,
+      y,
+      button: "left",
+      clickCount: count,
+    });
+    window.webContents.sendInputEvent({
+      type: "mouseUp",
+      x,
+      y,
+      button: "left",
+      clickCount: count,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 35));
+  }
+});
+
+ipcMain.handle("mesurer:press-key", async (event, value) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+
+  if (!window || window.isDestroyed()) {
+    throw new Error("Electron keyboard input requested without a live BrowserWindow.");
+  }
+
+  if (!["Enter", "Escape"].includes(value)) {
+    throw new Error("Electron contract received an unsupported key.");
+  }
+
+  window.webContents.sendInputEvent({ type: "keyDown", keyCode: value });
+  window.webContents.sendInputEvent({ type: "keyUp", keyCode: value });
+});
+
+ipcMain.handle("mesurer:type-text", async (event, value) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+
+  if (!window || window.isDestroyed() || typeof value !== "string") {
+    throw new Error("Electron text input requires a live window and string.");
+  }
+
+  window.webContents.insertText(value);
+});
+
 ipcMain.handle("mesurer:drag-toolbar", async (event, payload) => {
   const window = BrowserWindow.fromWebContents(event.sender);
 
