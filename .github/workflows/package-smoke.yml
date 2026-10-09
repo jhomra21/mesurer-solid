@@ -544,8 +544,20 @@ jobs:
           fi
           cp /tmp/mesurer-electron/native-select-probe/result.json linux-native-select-artifacts/result.json
           cat linux-native-select-artifacts/result.json
-          # A native hit is acceptance. A miss is still an open Linux xvfb
-          # investigation, and must not hide the passing packed consumer.
+          PROBE_EXIT_CODE="$status" bun -e '
+            const report = await Bun.file("linux-native-select-artifacts/result.json").json();
+            const succeeded = report.ok === true;
+            const knownMiss = String(report.error ?? "").includes("Native Select mode switch failed:");
+            if (succeeded !== (Number(process.env.PROBE_EXIT_CODE) === 0)) {
+              throw new Error("Probe process exit disagrees with its result");
+            }
+            if (!succeeded && !knownMiss) throw new Error("Unexpected failure in Linux native Select probe");
+            if (succeeded && report.nativeSelectModeSwitch?.nativeReachedSelect !== true) {
+              throw new Error("Probe passed without a physical Select click");
+            }
+          '
+          # A known native miss stays visible in the artifact without failing
+          # the unrelated required package consumer.
 
       - name: Upload Linux native Select probe evidence
         if: always()
