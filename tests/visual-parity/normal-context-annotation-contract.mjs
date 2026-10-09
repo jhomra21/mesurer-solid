@@ -3,7 +3,18 @@ import { chromium } from "playwright";
 
 const url = process.env.NORMAL_CONTEXT_URL ?? "http://127.0.0.1:4174/";
 
-const browser = await chromium.launch({ channel: "chrome", headless: true });
+// Use the Playwright-managed browser locally. CI explicitly requests Chrome
+// to preserve its stable macOS integration gate.
+const browserName = process.env.NORMAL_CONTEXT_BROWSER ?? "chromium";
+
+assert(
+  browserName === "chromium" || browserName === "chrome",
+  "NORMAL_CONTEXT_BROWSER must be chromium or chrome",
+);
+
+const browser = await chromium.launch(browserName === "chrome"
+  ? { channel: "chrome", headless: true }
+  : { headless: true });
 
 const page = await browser.newPage({
   viewport: { width: 1162, height: 494 },
