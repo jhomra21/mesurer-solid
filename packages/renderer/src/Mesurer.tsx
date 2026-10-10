@@ -1202,6 +1202,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         if (model.current.heldDistances.length) model.setHeldDistances(model.current.heldDistances.map((item) => updateDistanceForResize(item, viewport, ownerDocument, ownerWindow)));
         const hover = model.current.hoverElement;
 
+        if (!hoverPoint && hover) model.setHoverTarget(null, null);
+
         if (hover?.isConnected && hoverPoint && model.current.toolMode === "select") {
           const rect = hover.getBoundingClientRect();
           model.setHoverTarget(hover, model.current.settings.hoverHighlightEnabled ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null);
