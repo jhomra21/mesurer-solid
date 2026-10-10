@@ -342,7 +342,7 @@ export function Toolbar(props: ToolbarProps) {
     };
   };
 
-  const onMotionPointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+  const onMotionPointerDown = (event: PointerEvent, surface: HTMLDivElement) => {
     if (event.button !== 0) return;
 
     const target = event.target;
@@ -357,7 +357,6 @@ export function Toolbar(props: ToolbarProps) {
     if (target.closest("button, input, select, textarea, [role='slider']")
       && !target.closest('button[aria-label="Motion preview"]')) return;
 
-    const surface = event.currentTarget;
     const rect = surface.getBoundingClientRect();
     const startX = event.clientX;
     const startY = event.clientY;
@@ -942,19 +941,26 @@ export function Toolbar(props: ToolbarProps) {
         if (!motionElement) return null;
 
         const geometry = motionSurfaceGeometry();
+        const activeMotionElement: Element = motionElement;
 
         return (
           <div
-            ref={(element) => { motionSurfaceElement = element; }}
+            ref={(element) => {
+              motionSurfaceElement = element;
+
+              // The player stops bubbling so playback controls remain isolated.
+              // Native capture events support both Solid 1 and Solid 2.
+              element.addEventListener("pointerdown", (event) => onMotionPointerDown(event, element), true);
+              element.addEventListener("click", (event) => {
+                if (!suppressMotionClick) return;
+
+                suppressMotionClick = false;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+              }, true);
+            }}
             data-mesurer-motion-surface="true"
             data-mesurer-motion-detached={detachedMotionPosition() ? "true" : "false"}
-            onPointerDownCapture={onMotionPointerDown}
-            onClickCapture={(event) => {
-              if (!suppressMotionClick) return;
-              suppressMotionClick = false;
-              event.preventDefault();
-              event.stopPropagation();
-            }}
             data-mesurer-inspector-ui="true"
             class="msr:pointer-events-auto msr:absolute msr:z-[80] msr:overflow-visible"
             style={{
@@ -966,8 +972,8 @@ export function Toolbar(props: ToolbarProps) {
             }}
           >
             <MotionPlayer
-              element={motionElement}
-              ownerWindow={motionElement.ownerDocument.defaultView ?? props.ownerWindow}
+              element={activeMotionElement}
+              ownerWindow={activeMotionElement.ownerDocument.defaultView ?? props.ownerWindow}
               suspended={motionSuspended}
             />
             {detachedMotionPosition() && <button
