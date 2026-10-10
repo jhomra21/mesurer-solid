@@ -346,6 +346,8 @@ export function Toolbar(props: ToolbarProps) {
     if (event.button !== 0) return;
 
     const target = event.target;
+    // SAFETY: props.ownerWindow is the browsing-context global that produced
+    // the pointer event; its Element constructor is the correct realm.
     const realm = props.ownerWindow as Window & typeof globalThis;
 
     if (!(target instanceof realm.Element)) return;
@@ -399,6 +401,7 @@ export function Toolbar(props: ToolbarProps) {
     const finish = (commit: boolean) => {
       if (frame) props.ownerWindow.cancelAnimationFrame(frame);
       frame = 0;
+
       if (dragging && commit) setDetachedMotionPosition({ x: nextX, y: nextY });
       surface.style.transform = originalTransform;
       surface.style.willChange = originalWillChange;
@@ -580,6 +583,7 @@ export function Toolbar(props: ToolbarProps) {
         setPluginMenuOpenId(null);
         pluginMenuAnchorElement = undefined;
         surface.style.willChange = "transform";
+
         if (attachedMotion) attachedMotion.style.willChange = "transform";
         setMotionSuspended(true);
 
@@ -603,6 +607,7 @@ export function Toolbar(props: ToolbarProps) {
 
       surface.style.transform = previousTransform;
       surface.style.willChange = previousWillChange;
+
       if (attachedMotion) {
         attachedMotion.style.transform = previousMotionTransform;
         attachedMotion.style.willChange = "";
