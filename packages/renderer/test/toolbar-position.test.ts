@@ -16,21 +16,39 @@ const fakeWindow = (options: {
   framed?: boolean;
   windowControls?: { visible: boolean; bounds?: { x: number; y: number; width: number; height: number } };
   overlay?: { visible: boolean; content: { x: number; y: number; width: number; height: number } };
-}) : ToolbarHostEnvironment => ({
-  navigator: {
+}) : ToolbarHostEnvironment => {
+  const navigator: ToolbarHostEnvironment["navigator"] & {
+    windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect: () => { x: number; y: number; width: number; height: number } };
+  } = {
     platform: options.platform,
     userAgent: options.userAgent,
-    ...(options.overlay ? { windowControlsOverlay: {
-      visible: options.overlay.visible,
-      getTitlebarAreaRect: () => options.overlay!.content,
-    } } : {}),
-  },
-  ...(options.framed ? { outerHeight: 844, innerHeight: 800 } : {}),
-  ...(options.windowControls ? { __MESURER_HOST__: { windowControls: options.windowControls } } : {}),
-  process: options.electronVersion
-    ? { type: "renderer", versions: { electron: options.electronVersion } }
-    : undefined,
-});
+  };
+
+  if (options.overlay) {
+    const overlay = options.overlay;
+
+    navigator.windowControlsOverlay = {
+      visible: overlay.visible,
+      getTitlebarAreaRect: () => overlay.content,
+    };
+  }
+
+  const value: ToolbarHostEnvironment = {
+    navigator,
+    process: options.electronVersion
+      ? { type: "renderer", versions: { electron: options.electronVersion } }
+      : undefined,
+  };
+
+  if (options.framed) {
+    value.outerHeight = 844;
+    value.innerHeight = 800;
+  }
+
+  if (options.windowControls) value.__MESURER_HOST__ = { windowControls: options.windowControls };
+
+  return value;
+};
 
 describe("default toolbar position", () => {
   it("starts below the macOS titlebar area in Electron", () => {
