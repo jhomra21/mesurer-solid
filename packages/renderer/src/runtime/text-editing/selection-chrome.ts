@@ -38,6 +38,20 @@ export function installDirectEditSelectionChromeOwnership(
 
   if (!runtimeMount) return;
 
+  // The selected MeasurementBox can be portaled into <body> after the editor
+  // opens. Hide that document-layer border synchronously through CSS, even
+  // before the MutationObserver reconciles a newly mounted selection root.
+  // The direct-edit ring remains visible and follows the edited text.
+  const editPaintGuard = ownerDocument.createElement("style");
+  editPaintGuard.dataset.mesurerEditSelectionPaintGuard = "true";
+  editPaintGuard.textContent = `
+body:has([data-mesurer-text-editor="true"]) [data-mesurer-selected-measurement="true"],
+body:has([data-mesurer-text-editor="true"]) [data-mesurer-hover-measurement="true"] {
+  opacity: 0 !important;
+}
+`;
+  ownerDocument.head.append(editPaintGuard);
+
   const workspace = runtime.createWorkspaceRuntime();
   const selectedSuppressed = new Map<HTMLElement, InlineOpacity>();
   const hoverSuppressed = new Map<HTMLElement, InlineOpacity>();
@@ -253,5 +267,6 @@ export function installDirectEditSelectionChromeOwnership(
     restoreAll(hoverSuppressed, HOVER_SUPPRESSED);
     selectedRoots.clear();
     hoverRoots.clear();
+    editPaintGuard.remove();
   });
 }
