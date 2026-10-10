@@ -1202,7 +1202,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         if (model.current.heldDistances.length) model.setHeldDistances(model.current.heldDistances.map((item) => updateDistanceForResize(item, viewport, ownerDocument, ownerWindow)));
         const hover = model.current.hoverElement;
 
-        if (hover?.isConnected && model.current.toolMode === "select") {
+        if (hover?.isConnected && hoverPoint && model.current.toolMode === "select") {
           const rect = hover.getBoundingClientRect();
           model.setHoverTarget(hover, model.current.settings.hoverHighlightEnabled ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null);
         }
@@ -1214,15 +1214,14 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       scrollSettleTimer = ownerWindow.setTimeout(() => {
         scrollSettleTimer = 0;
         syncLive();
-        const latest = hoverPoint;
-
-        if (latest && model.current.toolMode === "select" && !model.current.draggingGuideId) {
-          updateHover(latest);
-        }
       }, NATIVE_SCROLL_SETTLE_MS);
     };
 
     const scroll = () => {
+      // A pointer that has not moved is not an active hover gesture. Do not
+      // paint its old viewport coordinate over newly scrolled content.
+      hoverPoint = null;
+      model.setHoverTarget(null, null);
       const next = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
       const dx = next.x - scrollPosition.x, dy = next.y - scrollPosition.y;
       scrollPosition = next;
