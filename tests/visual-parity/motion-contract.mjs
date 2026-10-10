@@ -100,6 +100,62 @@ try {
   await player.waitFor({ state: "visible", timeout: 5000 });
   await scrubber.waitFor({ state: "visible" });
 
+  const motionSurface = page.locator("[data-mesurer-motion-surface='true']");
+  const toolbarSurface = page.locator("[data-mesurer-toolbar='true']");
+  const toolbarDragHandle = page.getByRole("button", { name: /^Settings/ }).first();
+  const motionPreviewButton = page.getByRole("button", { name: "Motion preview" });
+  const motionBox = async () => {
+    const rect = await motionSurface.boundingBox();
+
+    assert(rect, "Motion surface should have viewport geometry");
+
+    return rect;
+  };
+  const moveFrom = async (locator, dx, dy) => {
+    const rect = await locator.boundingBox();
+
+    assert(rect, "Drag source should be visible");
+
+    const x = rect.x + Math.min(rect.width / 2, 30);
+    const y = rect.y + Math.min(rect.height / 2, 25);
+
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + dx, y + dy, { steps: 8 });
+    await page.mouse.up();
+    await settle();
+  };
+  const toolbarBefore = await toolbarSurface.boundingBox();
+  const playerBefore = await motionBox();
+
+  assert(toolbarBefore, "Toolbar geometry before Motion follow");
+  await moveFrom(toolbarDragHandle, 84, 44);
+
+  const toolbarAfter = await toolbarSurface.boundingBox();
+  const playerAfter = await motionBox();
+
+  assert(toolbarAfter, "Toolbar geometry after Motion follow");
+  assert(Math.abs((playerAfter.x - playerBefore.x) - (toolbarAfter.x - toolbarBefore.x)) <= 2);
+  assert(Math.abs((playerAfter.y - playerBefore.y) - (toolbarAfter.y - toolbarBefore.y)) <= 2);
+  assert.equal(await motionSurface.getAttribute("data-mesurer-motion-detached"), "false");
+
+  // A small accidental move on preview pixels should still click playback,
+  // not detach the card. A deliberate move beyond 14px should detach it.
+  await moveFrom(motionPreviewButton, 5, 5);
+  assert.equal(await motionSurface.getAttribute("data-mesurer-motion-detached"), "false");
+  await moveFrom(motionPreviewButton, 72, 56);
+  assert.equal(await motionSurface.getAttribute("data-mesurer-motion-detached"), "true");
+  const detached = await motionBox();
+
+  await moveFrom(toolbarDragHandle, -42, 24);
+  const afterDetachedToolbarMove = await motionBox();
+
+  assert(Math.abs(afterDetachedToolbarMove.x - detached.x) <= 2, "Detached Motion must not follow toolbar x");
+  assert(Math.abs(afterDetachedToolbarMove.y - detached.y) <= 2, "Detached Motion must not follow toolbar y");
+
+  await page.getByRole("button", { name: "Attach Motion preview to toolbar" }).click();
+  assert.equal(await motionSurface.getAttribute("data-mesurer-motion-detached"), "false");
+
   assert.equal(
     await inspect.getAttribute("aria-expanded"),
     "false",
