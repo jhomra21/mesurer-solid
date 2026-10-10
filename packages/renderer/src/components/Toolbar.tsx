@@ -132,13 +132,11 @@ export function Toolbar(props: ToolbarProps) {
 
   let previousMotionElement: Element | null = null;
 
-  createEffect(() => {
-    const element = visibleMotionElement();
+  createEffect(visibleMotionElement, (element) => {
+    if (element === previousMotionElement) return;
 
-    if (element !== previousMotionElement) {
-      previousMotionElement = element;
-      setDetachedMotionPosition(null);
-    }
+    previousMotionElement = element;
+    setDetachedMotionPosition(null);
   });
 
   const commitColorPickerCapability = (supported: boolean, revision: number) => {
