@@ -23,3 +23,18 @@ export const registerNativeScrollAnchoring = (ownerDocument: Document) => {
 
 export const hasNativeScrollAnchoring = (ownerDocument: Document) =>
   (nativeScrollAnchoringCounts.get(ownerDocument) ?? 0) > 0;
+
+/** Link a portaled selection border to its actual element; DOMRect matching is
+ * ambiguous when the border uses document coordinates during a scroll. */
+const selectionChromeTargets = new WeakMap<HTMLElement, Element>();
+
+export const registerSelectionChromeTarget = (chrome: HTMLElement, target: Element) => {
+  selectionChromeTargets.set(chrome, target);
+
+  return () => {
+    if (selectionChromeTargets.get(chrome) === target) selectionChromeTargets.delete(chrome);
+  };
+};
+
+export const getSelectionChromeTarget = (chrome: HTMLElement): Element | undefined =>
+  selectionChromeTargets.get(chrome);
