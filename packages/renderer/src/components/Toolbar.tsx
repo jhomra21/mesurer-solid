@@ -601,17 +601,20 @@ export function Toolbar(props: ToolbarProps) {
       if (dragFrame) props.ownerWindow.cancelAnimationFrame(dragFrame);
       dragFrame = 0;
 
-      if (didDrag && commit) {
-        setPosition(nextPosition);
-        props.onPositionChange?.(nextPosition);
-      }
-
       surface.style.transform = previousTransform;
       surface.style.willChange = previousWillChange;
       if (attachedMotion) {
         attachedMotion.style.transform = previousMotionTransform;
         attachedMotion.style.willChange = "";
       }
+
+      // Clear the transient transform BEFORE the Solid position commit. The
+      // attached player measures the toolbar rect and must never see both.
+      if (didDrag && commit) {
+        setPosition(nextPosition);
+        props.onPositionChange?.(nextPosition);
+      }
+
       setMotionSuspended(false);
 
       if (previousUserSelect !== null) {
