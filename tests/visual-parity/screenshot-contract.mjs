@@ -93,6 +93,32 @@ try {
     throw new Error(`Expected 2x cropped PNG dimensions 600x360, got ${previewSize.width}x${previewSize.height}`);
   }
 
+  // Regression: a Screenshot thumbnail must take physical pointer input even
+  // while Select's full-viewport interaction plane is active behind it.
+  const selectButton = island.locator("[data-mesurer-builtin='select'] button").first();
+  await selectButton.waitFor({ state: "visible" });
+
+  if ((await selectButton.getAttribute("aria-pressed")) !== "true") await selectButton.click();
+
+  await island.locator("[data-mesurer-interaction-overlay='true']").waitFor({ state: "attached" });
+
+  const previewFront = await preview.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const root = element.getRootNode();
+    const hit = root.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+
+    return {
+      hit: hit?.getAttribute("data-mesurer-screenshot-preview-image") === "true" || element.contains(hit),
+      tag: hit?.tagName ?? null,
+      overlayActive: Boolean(root.querySelector("[data-mesurer-interaction-overlay='true']")),
+    };
+  });
+
+  if (!previewFront.hit) throw new Error(`Select overlay intercepted Screenshot thumbnail pointer hit: ${JSON.stringify(previewFront)}`);
+  await previewImage.click({ position: { x: 28, y: 40 } });
+  await island.locator("[data-mesurer-screenshot-viewer='true']").waitFor({ state: "visible" });
+  await island.locator("[data-mesurer-screenshot-viewer-close='true']").click();
+
   const previewPointerEvents = await preview.evaluate((element) => getComputedStyle(element).pointerEvents);
 
   if (previewPointerEvents === "none") throw new Error("Screenshot preview is not interactive");

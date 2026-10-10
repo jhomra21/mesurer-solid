@@ -1,6 +1,6 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
-import { registerNativeScrollAnchoring } from "./native-scroll-registry";
+import { getSelectionChromeTarget, registerNativeScrollAnchoring } from "./native-scroll-registry";
 
 const SCROLL_IDLE_MS = 80;
 
@@ -81,6 +81,20 @@ const inlineRect = (element: HTMLElement): Rect => {
     bottom: top + height,
     width,
     height,
+  };
+};
+
+const selectionViewportRect = (chrome: HTMLElement, root: HTMLElement, ownerDocument: Document, ownerWindow: Window): Rect => {
+  const rect = inlineRect(chrome);
+
+  if (root.parentNode !== ownerDocument.body) return rect;
+
+  return {
+    ...rect,
+    left: rect.left - ownerWindow.scrollX,
+    right: rect.right - ownerWindow.scrollX,
+    top: rect.top - ownerWindow.scrollY,
+    bottom: rect.bottom - ownerWindow.scrollY,
   };
 };
 
@@ -432,10 +446,14 @@ export function installDocumentScrollAnchoring(
         if (existing.label?.isConnected) applyAnchor(existing.label, existing, "label");
 
         if (selectedTargets.includes(existing.target) || scrolling) continue;
-        const intended = inlineRect(existing.chrome);
 
-        const target = selectedTargetForRect(intended, selectedTargets)
-          ?? findTargetForRect(intended, ownerDocument, realm, pageTarget);
+        const registered = getSelectionChromeTarget(existing.chrome);
+        const viewportRect = selectionViewportRect(existing.chrome, root, ownerDocument, ownerWindow);
+
+        const target = registered instanceof realm.HTMLElement && registered.isConnected
+          ? registered
+          : selectedTargetForRect(viewportRect, selectedTargets)
+            ?? findTargetForRect(viewportRect, ownerDocument, realm, pageTarget);
 
         if (target) bindSelection(root, target, existing.chrome, existing.label);
         continue;
@@ -455,10 +473,13 @@ export function installDocumentScrollAnchoring(
         ? labelCandidate
         : null;
 
-      const intended = inlineRect(chrome);
+      const registered = getSelectionChromeTarget(chrome);
+      const viewportRect = selectionViewportRect(chrome, root, ownerDocument, ownerWindow);
 
-      const target = selectedTargetForRect(intended, selectedTargets)
-        ?? findTargetForRect(intended, ownerDocument, realm, pageTarget);
+      const target = registered instanceof realm.HTMLElement && registered.isConnected
+        ? registered
+        : selectedTargetForRect(viewportRect, selectedTargets)
+          ?? findTargetForRect(viewportRect, ownerDocument, realm, pageTarget);
 
       if (target) bindSelection(root, target, chrome, label);
     }
