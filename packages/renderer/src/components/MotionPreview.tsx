@@ -50,12 +50,6 @@ export function MotionPreview(props: {
   let framingElement: Element | null = null;
   let framingBounds: PreviewBounds | null = null;
 
-  // Waking after a compositor-only drag resumes the existing snapshot rather
-  // than rebuilding the cloned subtree while the toolbar is moving.
-  createEffect(() => {
-    if (!props.suspended?.()) props.wakeRef?.current?.();
-  });
-
   createEffect(
     () => [
       props.element,
