@@ -122,17 +122,13 @@ try {
 
   await supported.screenshot({ path: join(output, "packed-color-picker.png") });
 
-  stage = "toggle native Color Picker off";
-  await clickPicker();
-  await panel.waitFor({ state: "detached" });
-  assert.equal(await picker.getAttribute("aria-pressed"), "false");
-  assert.equal(await supported.evaluate(() => window.__packedColorPickerOpens), 1);
-
-  stage = "reopen native Color Picker";
+  stage = "repeat native Color Picker sampling";
   await clickPicker();
   await supported.waitForFunction(() =>
     (document.querySelector("[data-mesurer-island='true']")?.shadowRoot ?? document).querySelector(".mesurer-color-picker")?.textContent?.includes("#818cf8") === true,
   );
+  assert.equal(await picker.getAttribute("aria-pressed"), "true");
+  assert.equal(await supported.evaluate(() => window.__packedColorPickerOpens), 2);
 
   stage = "restart EyeDropper with P shortcut";
   await supported.keyboard.press("p");
