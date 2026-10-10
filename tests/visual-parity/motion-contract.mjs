@@ -104,6 +104,7 @@ try {
   const toolbarSurface = page.locator("[data-mesurer-toolbar='true']");
   const toolbarDragHandle = page.getByRole("button", { name: /^Settings/ }).first();
   const motionPreviewButton = page.getByRole("button", { name: "Motion preview" });
+
   const motionBox = async () => {
     const rect = await motionSurface.boundingBox();
 
@@ -111,6 +112,7 @@ try {
 
     return rect;
   };
+
   const moveFrom = async (locator, dx, dy) => {
     const rect = await locator.boundingBox();
 
@@ -125,6 +127,7 @@ try {
     await page.mouse.up();
     await settle();
   };
+
   const toolbarBefore = await toolbarSurface.boundingBox();
   const playerBefore = await motionBox();
 
