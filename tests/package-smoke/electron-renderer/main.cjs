@@ -252,14 +252,15 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
   const toolbarInitialRect = summary.toolbarInitialRect ?? {};
   const toolbarDraggedRect = summary.toolbarDraggedRect ?? {};
 
+  const overlapsMacOSWindowControls = (rect) =>
+    Number(rect.top) < 8
+    || (Number(rect.top) < 48 && Number(rect.left) < 84);
+
   if (
     process.platform === "darwin"
-    && (
-      Number(toolbarInitialRect.top) < 48
-      || Number(toolbarDraggedRect.top) < 48
-    )
+    && (overlapsMacOSWindowControls(toolbarInitialRect) || overlapsMacOSWindowControls(toolbarDraggedRect))
   ) {
-    throw new Error(`Mesurer toolbar overlaps the native macOS titlebar area: ${JSON.stringify({
+    throw new Error(`Mesurer toolbar overlaps the native macOS window controls: ${JSON.stringify({
       toolbarInitialRect,
       toolbarDraggedRect,
     })}`);
