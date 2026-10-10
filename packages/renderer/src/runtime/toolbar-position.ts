@@ -52,6 +52,8 @@ const getWindowControls = (ownerWindow: ToolbarHostEnvironment): NativeControlsR
 
   if (declared) return declared.visible ? declared.bounds ?? DEFAULT_CONTROLS : null;
 
+  // SAFETY: this is the same Navigator with an optional standards-based
+  // Window Controls Overlay feature; no unchecked bridge methods are called.
   const overlay = (ownerWindow.navigator as Navigator & {
     windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect: () => DOMRect };
   }).windowControlsOverlay;
