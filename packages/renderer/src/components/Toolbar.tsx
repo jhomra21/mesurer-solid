@@ -1,4 +1,4 @@
-import { For, Show, createSignal, flush, onSettled } from "solid-js";
+import { For, Show, createEffect, createSignal, flush, onSettled } from "solid-js";
 import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesurer-solid-core";
 import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel } from "../model/create-mesurer-model";
