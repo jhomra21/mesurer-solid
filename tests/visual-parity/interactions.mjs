@@ -329,7 +329,9 @@ const cases = [
   { name: "toolbar-xray-on", run: async (p) => realClick(button(p, /^X-ray/)) },
   { name: "toolbar-xray-off", run: async (p) => { await realClick(button(p, /^X-ray/)); await sleep(p, 40); await realClick(button(p, /^X-ray/)); } },
   { name: "toolbar-color-picker-open", run: openColorPicker },
-  { name: "toolbar-color-picker-close", run: async (p) => { await openColorPicker(p); await realClick(button(p, /^Color picker/)); await sleep(p, 80); } },
+  // Upstream toggles Color Picker off on the second press. Solid intentionally
+  // resamples instead; its repeated-picker contract runs in the real browser
+  // and packed consumers, so the two states no longer belong in shared parity.
   { name: "toolbar-rulers-on", run: async (p) => realClick(button(p, /^Rulers/)) },
   { name: "toolbar-rulers-off", run: async (p) => { await realClick(button(p, /^Rulers/)); await sleep(p, 40); await realClick(button(p, /^Rulers/)); await p.mouse.move(900, 700); } },
   { name: "toolbar-text-inspector-on", run: async (p, implementation) => { await realClick(typographyButton(p, implementation)); await p.mouse.move(900, 700); } },

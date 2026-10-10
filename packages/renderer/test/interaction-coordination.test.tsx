@@ -60,7 +60,7 @@ const tallPluginMenuFixture = defineMesurerPlugin({
 });
 
 describe("page interaction coordination", () => {
-  it("matches upstream Color Picker button toggling while P starts a fresh native pick", async () => {
+  it("samples a new color on repeated toolbar press and P while preserving the result until another tool", async () => {
     let opens = 0;
     const colors = ["#123456", "#abcdef", "#fedcba"];
     Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
@@ -96,12 +96,6 @@ describe("page interaction coordination", () => {
     const firstPanel = document.querySelector<HTMLElement>(".mesurer-color-picker");
     expect(firstPanel?.textContent).toContain("#123456");
     expect(firstPanel?.dataset.mesurerColorPickerMode).toBe("native");
-
-    button.click();
-    await settle();
-    expect(opens).toBe(1);
-    expect(button.getAttribute("aria-pressed")).toBe("false");
-    expect(document.querySelector(".mesurer-color-picker")).toBeNull();
 
     button.click();
     await vi.waitFor(() => expect(opens).toBe(2));

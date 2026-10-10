@@ -33,29 +33,28 @@ const isMacOSWindow = (ownerWindow: ToolbarHostEnvironment) => {
 export const isMacOSElectronToolbarHost = (ownerWindow: ToolbarHostEnvironment) =>
   isElectronWindow(ownerWindow) && isMacOSWindow(ownerWindow);
 
-const clearMacOSTitlebar = (
-  ownerWindow: ToolbarHostEnvironment,
-  position: ToolbarPosition,
-): ToolbarPosition => {
-  if (!isMacOSElectronToolbarHost(ownerWindow)) return position;
-
-  return {
-    x: position.x,
-    y: Math.max(MACOS_ELECTRON_TITLEBAR_SAFE_TOP, position.y),
-  };
-};
-
 export const getDefaultToolbarPosition = (ownerWindow: ToolbarHostEnvironment): ToolbarPosition =>
   isMacOSElectronToolbarHost(ownerWindow)
     ? MACOS_ELECTRON_TOOLBAR_POSITION
     : DEFAULT_TOOLBAR_POSITION;
 
+const clearMacOSWindowControls = (
+  ownerWindow: ToolbarHostEnvironment,
+  position: ToolbarPosition,
+  padding: number,
+): ToolbarPosition => isMacOSElectronToolbarHost(ownerWindow)
+    && position.x < MACOS_ELECTRON_TOOLBAR_POSITION.x
+    && position.y < MACOS_ELECTRON_TITLEBAR_SAFE_TOP
+  ? { ...position, y: Math.max(padding, MACOS_ELECTRON_TITLEBAR_SAFE_TOP) }
+  : position;
+
 export const resolveInitialToolbarPosition = (
   ownerWindow: ToolbarHostEnvironment,
   savedPosition?: ToolbarPosition,
-): ToolbarPosition => clearMacOSTitlebar(
+): ToolbarPosition => clearMacOSWindowControls(
   ownerWindow,
   savedPosition ?? getDefaultToolbarPosition(ownerWindow),
+  8,
 );
 
 export const constrainToolbarPosition = (
@@ -65,9 +64,7 @@ export const constrainToolbarPosition = (
   viewportSize: { width: number; height: number },
   viewportPadding = 8,
 ): ToolbarPosition => {
-  const minY = isMacOSElectronToolbarHost(ownerWindow)
-    ? Math.max(viewportPadding, MACOS_ELECTRON_TITLEBAR_SAFE_TOP)
-    : viewportPadding;
+  const minY = viewportPadding;
 
   const maxX = Math.max(
     viewportPadding,
@@ -79,8 +76,8 @@ export const constrainToolbarPosition = (
     viewportSize.height - toolbarSize.height - viewportPadding,
   );
 
-  return {
+  return clearMacOSWindowControls(ownerWindow, {
     x: Math.min(maxX, Math.max(viewportPadding, position.x)),
     y: Math.min(maxY, Math.max(minY, position.y)),
-  };
+  }, viewportPadding);
 };

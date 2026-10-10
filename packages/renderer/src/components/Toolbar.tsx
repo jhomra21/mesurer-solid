@@ -108,6 +108,7 @@ export function Toolbar(props: ToolbarProps) {
   let pluginMenuAnchorElement: HTMLElement | undefined;
   let suppressClick = false;
   let previousUserSelect: string | null = null;
+  let cancelActiveDrag: (() => void) | null = null;
   const [colorPickerSupported, setColorPickerSupported] = createSignal(false);
   let colorPickerConfirmTimer = 0;
   let compactMotionTimer = 0;
@@ -425,11 +426,25 @@ export function Toolbar(props: ToolbarProps) {
 
     const startX = event.clientX;
     const startY = event.clientY;
+    cancelActiveDrag?.();
     const origin = position();
-    const rect = event.currentTarget.getBoundingClientRect();
+    const surface = event.currentTarget;
+    const rect = surface.getBoundingClientRect();
+    const previousTransform = surface.style.transform;
+    const previousWillChange = surface.style.willChange;
     let active = false;
     let didDrag = false;
+    let dragFrame = 0;
+    let nextPosition = origin;
     const pointerId = event.pointerId;
+
+    // Drag the painted surface on the compositor. Commit reactive position and
+    // persistence only once, on release; nearby previews must not rerender for
+    // every pointer event.
+    const paint = () => {
+      dragFrame = 0;
+      surface.style.transform = `translate3d(${nextPosition.x - origin.x}px, ${nextPosition.y - origin.y}px, 0)`;
+    };
 
     const move = (next: PointerEvent) => {
       if (next.pointerId !== pointerId) return;
@@ -443,24 +458,33 @@ export function Toolbar(props: ToolbarProps) {
         setGuideMenuOpen(false);
         setPluginMenuOpenId(null);
         pluginMenuAnchorElement = undefined;
+        surface.style.willChange = "transform";
 
         if (props.model.current.settingsOpen) props.model.setTransient({ settingsOpen: false });
       }
 
       didDrag = true;
-      setPosition(constrainToolbarPosition(
+      nextPosition = constrainToolbarPosition(
         props.ownerWindow,
         { x: origin.x + dx, y: origin.y + dy },
         { width: rect.width, height: rect.height },
         { width: props.ownerWindow.innerWidth, height: props.ownerWindow.innerHeight },
-      ));
+      );
+
+      if (!dragFrame) dragFrame = props.ownerWindow.requestAnimationFrame(paint);
     };
 
-    const end = (next: PointerEvent) => {
-      if (next.pointerId !== pointerId) return;
-      suppressClick = didDrag;
+    const finish = (commit: boolean) => {
+      if (dragFrame) props.ownerWindow.cancelAnimationFrame(dragFrame);
+      dragFrame = 0;
 
-      if (didDrag) props.onPositionChange?.(position());
+      if (didDrag && commit) {
+        setPosition(nextPosition);
+        props.onPositionChange?.(nextPosition);
+      }
+
+      surface.style.transform = previousTransform;
+      surface.style.willChange = previousWillChange;
 
       if (previousUserSelect !== null) {
         root.style.userSelect = previousUserSelect;
@@ -470,8 +494,16 @@ export function Toolbar(props: ToolbarProps) {
       props.ownerWindow.removeEventListener("pointermove", move);
       props.ownerWindow.removeEventListener("pointerup", end);
       props.ownerWindow.removeEventListener("pointercancel", end);
+      cancelActiveDrag = null;
     };
 
+    const end = (next: PointerEvent) => {
+      if (next.pointerId !== pointerId) return;
+      suppressClick = didDrag;
+      finish(next.type === "pointerup");
+    };
+
+    cancelActiveDrag = () => finish(false);
     props.ownerWindow.addEventListener("pointermove", move);
     props.ownerWindow.addEventListener("pointerup", end);
     props.ownerWindow.addEventListener("pointercancel", end);
@@ -725,6 +757,8 @@ export function Toolbar(props: ToolbarProps) {
       keyboardTarget.removeEventListener("keydown", handleKeyDown, true);
       props.ownerWindow.removeEventListener("resize", resize);
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
+
+      cancelActiveDrag?.();
 
       if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
     };

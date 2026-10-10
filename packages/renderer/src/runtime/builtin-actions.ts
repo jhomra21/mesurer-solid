@@ -366,6 +366,14 @@ export function createMesurerBuiltinController(options: {
 
           return;
         case "color-picker":
+          // Once a color has been sampled, the next toolbar press should start a
+          // fresh sample rather than requiring an off/on cycle.
+          if (model.current.colorPickerActive && model.current.colorPickerSample) {
+            await openColorPicker();
+
+            return;
+          }
+
           if (model.current.colorPickerActive || localPickActive || nativeAbortController) {
             closeColorPicker();
 
