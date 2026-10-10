@@ -235,6 +235,7 @@ function MotionValues(props: {
 export function MotionPlayer(props: {
   element: Element;
   ownerWindow: Window;
+  suspended?: () => boolean;
 }) {
   const [duration, setDuration] = createSignal(0);
   const [progress, setProgress] = createSignal(0);
@@ -368,7 +369,7 @@ export function MotionPlayer(props: {
 
         setProgress(playback.progress);
         setPlaying(playback.playing);
-        previewWakeRef.current?.();
+        if (!props.suspended?.()) previewWakeRef.current?.();
 
         if (playback.playing) {
           frame = ownerWindow.requestAnimationFrame(update);
@@ -538,6 +539,7 @@ export function MotionPlayer(props: {
               ownerWindow={props.ownerWindow}
               observedTargets={observedTargets()}
               wakeRef={previewWakeRef}
+              suspended={props.suspended}
             />
           </button>
 
