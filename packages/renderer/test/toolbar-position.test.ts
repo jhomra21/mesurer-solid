@@ -54,19 +54,23 @@ describe("default toolbar position", () => {
     expect(resolveInitialToolbarPosition(ownerWindow, { x: 24, y: 72 })).toEqual({ x: 24, y: 72 });
   });
 
-  it("preserves an explicitly saved toolbar position near the top edge on macOS", () => {
+  it("preserves a saved near-top macOS position beyond the window controls", () => {
     const ownerWindow = fakeWindow({
       platform: "MacIntel",
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/150.0.0.0 Electron/43.1.1 Safari/537.36",
     });
 
+    expect(resolveInitialToolbarPosition(ownerWindow, { x: 84, y: 8 })).toEqual({
+      x: 84,
+      y: 8,
+    });
     expect(resolveInitialToolbarPosition(ownerWindow, { x: 16, y: 8 })).toEqual({
       x: 16,
-      y: 8,
+      y: MACOS_ELECTRON_TITLEBAR_SAFE_TOP,
     });
   });
 
-  it("allows dragging closer to the top on macOS while keeping the default safe", () => {
+  it("allows dragging to the top edge beyond the macOS window controls", () => {
     const ownerWindow = fakeWindow({
       platform: "MacIntel",
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/150.0.0.0 Electron/43.1.1 Safari/537.36",
@@ -80,6 +84,15 @@ describe("default toolbar position", () => {
     )).toEqual({
       x: 320,
       y: 8,
+    });
+    expect(constrainToolbarPosition(
+      ownerWindow,
+      { x: 8, y: 8 },
+      { width: 438, height: 40 },
+      { width: 900, height: 700 },
+    )).toEqual({
+      x: 8,
+      y: MACOS_ELECTRON_TITLEBAR_SAFE_TOP,
     });
   });
 
