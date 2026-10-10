@@ -365,6 +365,14 @@ export function MotionPlayer(props: {
       const update = () => {
         if (disposed) return;
 
+        // Keep the inspected host animation running, but stop the Motion
+        // player's 60fps progress/snapshot loop while either card is dragged.
+        if (props.suspended?.()) {
+          timer = ownerWindow.setTimeout(update, 100);
+
+          return;
+        }
+
         const playback = motionPlaybackState(animations, duration());
 
         setProgress(playback.progress);
