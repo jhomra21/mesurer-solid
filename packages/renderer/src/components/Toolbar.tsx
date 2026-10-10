@@ -270,12 +270,14 @@ export function Toolbar(props: ToolbarProps) {
     viewportRevision();
 
     const toolbarBounds = toolbarElement?.getBoundingClientRect();
+
     const toolbar = toolbarBounds && {
       left: toolbarPosition.x,
       top: toolbarPosition.y,
       right: toolbarPosition.x + toolbarBounds.width,
       bottom: toolbarPosition.y + toolbarBounds.height,
     };
+
     const viewportWidth = props.ownerWindow.innerWidth || MOTION_PLAYER_WIDTH + VIEWPORT_PADDING * 2;
     const viewportHeightValue = props.ownerWindow.innerHeight || MOTION_PLAYER_IDEAL_HEIGHT + VIEWPORT_PADDING * 2;
 
