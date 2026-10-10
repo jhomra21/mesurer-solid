@@ -84,6 +84,20 @@ const inlineRect = (element: HTMLElement): Rect => {
   };
 };
 
+const selectionViewportRect = (chrome: HTMLElement, root: HTMLElement, ownerDocument: Document, ownerWindow: Window): Rect => {
+  const rect = inlineRect(chrome);
+
+  if (root.parentNode !== ownerDocument.body) return rect;
+
+  return {
+    ...rect,
+    left: rect.left - ownerWindow.scrollX,
+    right: rect.right - ownerWindow.scrollX,
+    top: rect.top - ownerWindow.scrollY,
+    bottom: rect.bottom - ownerWindow.scrollY,
+  };
+};
+
 const sameRect = (left: Rect, right: Rect, tolerance = 5) => (
   Math.abs(left.left - right.left) <= tolerance
   && Math.abs(left.top - right.top) <= tolerance
@@ -432,11 +446,9 @@ export function installDocumentScrollAnchoring(
         if (existing.label?.isConnected) applyAnchor(existing.label, existing, "label");
 
         if (selectedTargets.includes(existing.target) || scrolling) continue;
+
         const registered = getSelectionChromeTarget(existing.chrome);
-        const intended = inlineRect(existing.chrome);
-        const viewportRect = root.parentNode === ownerDocument.body
-          ? { ...intended, left: intended.left - ownerWindow.scrollX, top: intended.top - ownerWindow.scrollY }
-          : intended;
+        const viewportRect = selectionViewportRect(existing.chrome, root, ownerDocument, ownerWindow);
         const target = registered instanceof realm.HTMLElement && registered.isConnected
           ? registered
           : selectedTargetForRect(viewportRect, selectedTargets)
@@ -461,12 +473,7 @@ export function installDocumentScrollAnchoring(
         : null;
 
       const registered = getSelectionChromeTarget(chrome);
-      const intended = inlineRect(chrome);
-      // Document-portaled selection chrome keeps its fallback left/top in
-      // document coordinates, unlike the viewport rect used by DOM hit tests.
-      const viewportRect = root.parentNode === ownerDocument.body
-        ? { ...intended, left: intended.left - ownerWindow.scrollX, top: intended.top - ownerWindow.scrollY }
-        : intended;
+      const viewportRect = selectionViewportRect(chrome, root, ownerDocument, ownerWindow);
       const target = registered instanceof realm.HTMLElement && registered.isConnected
         ? registered
         : selectedTargetForRect(viewportRect, selectedTargets)
