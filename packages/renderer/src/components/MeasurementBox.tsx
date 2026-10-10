@@ -5,6 +5,7 @@ import type { EdgeVisibility } from "../core/edge-visibility";
 import type { MesurerTheme } from "../core/persistence";
 import { MEASURE_LABEL_OFFSET, MEASURE_TRANSITION_MS } from "../core/constants";
 import { installNestedScrollCompensation } from "../runtime/nested-scroll-compensation";
+import { registerSelectionChromeTarget } from "../runtime/native-scroll-registry";
 import { getRectFromDom } from "../core/dom";
 
 export type MeasurementBoxProps = {
@@ -112,6 +113,10 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     if (documentBacked) setSelectionPortalTarget(target.ownerDocument.body);
     else setSelectionPortalTarget(null);
 
+    const unregisterTarget = chromeElement && documentBacked
+      ? registerSelectionChromeTarget(chromeElement, target)
+      : null;
+
     // Native absolute anchors already follow window/document scrolling. A
     // portaled surface does not inherit nested overflow scrolling, so compensate
     // only that ancestor delta from scrollTop/scrollLeft. The helper performs no
@@ -150,6 +155,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
 
     return () => {
       targetResizeObserver.disconnect();
+      unregisterTarget?.();
       nestedScroll?.release();
 
       if (scrollFrame) ownerWindow.cancelAnimationFrame(scrollFrame);
