@@ -36,7 +36,23 @@ Mesurer uses two managed paint domains rather than forcing every control into on
 
 Viewport-owned controls such as the toolbar, Settings, Screenshot selection/status/viewer UI, Recording selection/status/editor UI, and other global inspector chrome stay in the protected outer host and top-layer path.
 
-Toolbar drag ownership is also isolated. Pointer movement from toolbar chrome or a tool trigger can start a drag after the movement threshold, but menus, dialogs, form controls, editable regions, and sliders keep the pointer and do not move the toolbar.
+Toolbar drag ownership is also isolated. Pointer movement from toolbar chrome or a tool trigger can start a drag after the movement threshold, but menus, dialogs, form controls, editable regions, and sliders keep the pointer and do not move the toolbar. Motion's preview follows the toolbar with a compositor transform while dragging; a deliberate 14px drag on the preview detaches it, and the attach control returns it to the toolbar. Motion's snapshot refresh pauses during dragging; the page animation continues.
+
+### macOS Electron window controls
+
+For framed Electron windows, macOS traffic lights live outside the web content area, so the toolbar can use the full renderer viewport (with 8px padding). For frameless/custom-titlebar windows, Mesurer uses `navigator.windowControlsOverlay` when available. If the window's native controls are inside the web content but Window Controls Overlay is unavailable, the host can expose their bounds through its existing narrow renderer bridge:
+
+```ts
+window.__MESURER_HOST__ = {
+  // Preserve other host capabilities such as codexBridge.
+  windowControls: {
+    visible: true,
+    bounds: { x: 0, y: 0, width: 90, height: 42 },
+  },
+};
+```
+
+`bounds` is an example only: use the actual controls region in CSS viewport pixels. Set `visible: false` when the window deliberately hides native traffic lights; that also removes the top-left exclusion. The host must provide this metadata from a trusted preload/capability layer when context isolation is enabled, not by exposing Electron or Node globals. When a custom titlebar cannot report controls, a conservative upper-left exclusion remains. Electron does not otherwise expose a reliable general-purpose renderer API for arbitrary traffic-light placement.
 
 Source-linked inspector UI may use a managed document inspector mount when browser scrolling and page-relative geometry should move it with the content it describes. Context uses this path for Add Note, its composer, saved markers and panels, and annotation ownership evidence. Ordinary source-linked Typography can use the same document-backed model.
 
