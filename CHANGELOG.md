@@ -6,6 +6,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Keep Screenshot previews and their viewer clickable while Select is active by placing them above the selection plane in the same renderer stacking context.
+- Show Motion for animations on the selected element itself, rather than treating an animated descendant as motion on a static parent.
+- Keep selection borders bound to their actual page elements during scrolling, normalize document-portaled fallback geometry, and clear stale hover without reactive work inside scroll events.
+
 ## 0.2.2-beta.3 - 2026-10-10
 
 - Click Color Picker again after sampling to pick another color immediately, including through native EyeDropper and application-window capture.
