@@ -100,7 +100,7 @@ try {
 
   if ((await selectButton.getAttribute("aria-pressed")) !== "true") await selectButton.click();
 
-  await page.waitForFunction(() => document.querySelector("[data-mesurer-interaction-overlay='true']") !== null);
+  await island.locator("[data-mesurer-interaction-overlay='true']").waitFor({ state: "attached" });
   const previewFront = await preview.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     const root = element.getRootNode();
