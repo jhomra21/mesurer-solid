@@ -261,6 +261,13 @@ export function MotionPlayer(props: {
   const [observedTargets, setObservedTargets] = createSignal(readObservedMotion(props.element));
 
   const previewWakeRef: MotionPreviewWakeRef = { current: null };
+
+  // Resume the existing preview snapshot after a drag without cloning it.
+  // The inspected page's own animation continues throughout.
+  createEffect(() => {
+    if (!props.suspended?.()) previewWakeRef.current?.();
+  });
+
   let animations: Animation[] = [];
 
   const observedProperties = createMemo(() =>
