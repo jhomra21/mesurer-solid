@@ -1,5 +1,6 @@
 import {
   getMotionAnimations,
+  getOwnMotionAnimations,
   hasTransientScriptMotion,
   motionCssProperty,
   OBSERVED_MOTION_PROPERTIES,
@@ -61,11 +62,11 @@ export const readObservedMotion = (
 ): ObservedMotionTarget[] => {
   const cached = knownMotion
     .get(element)
-    ?.filter((target) => target.element.isConnected);
+    ?.filter((target) => target.element === element && target.element.isConnected);
 
   if (cached?.length) return cached;
 
-  return hasTransientScriptMotion(element)
+  return hasTransientScriptMotion(element, getOwnMotionAnimations(element))
     ? [{ element, properties: ["animation"] }]
     : [];
 };
