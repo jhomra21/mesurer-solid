@@ -82,6 +82,8 @@ const MOTION_PLAYER_GAP = 8;
 
 const MOTION_PLAYER_IDEAL_HEIGHT = 260;
 
+const MOTION_DETACH_SLOP = 14;
+
 type MotionPlayerGeometry = {
   left: number;
   top: number | null;
@@ -92,6 +94,8 @@ type MotionPlayerGeometry = {
 
 export function Toolbar(props: ToolbarProps) {
   const [position, setPosition] = createSignal(props.initialPosition ?? { x: 16, y: 16 });
+  const [detachedMotionPosition, setDetachedMotionPosition] = createSignal<{ x: number; y: number } | null>(null);
+  const [motionSuspended, setMotionSuspended] = createSignal(false);
   const [guideMenuOpen, setGuideMenuOpen] = createSignal(false);
   const [pluginMenuOpenId, setPluginMenuOpenId] = createSignal<string | null>(null);
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
@@ -100,6 +104,9 @@ export function Toolbar(props: ToolbarProps) {
   const [viewportRevision, setViewportRevision] = createSignal(0);
   const tooltip = createTooltip(props.ownerWindow);
   let toolbarElement: HTMLDivElement | undefined;
+  let motionSurfaceElement: HTMLDivElement | undefined;
+  let cancelMotionDrag: (() => void) | null = null;
+  let suppressMotionClick = false;
   let settingsElement: HTMLDivElement | undefined;
   let guideMenuElement: HTMLDivElement | undefined;
   let modeStageElement: HTMLDivElement | undefined;
@@ -122,6 +129,17 @@ export function Toolbar(props: ToolbarProps) {
 
   const visibleMotionElement = () =>
     recordingActive() ? null : props.motion?.element() ?? null;
+
+  let previousMotionElement: Element | null = null;
+
+  createEffect(() => {
+    const element = visibleMotionElement();
+
+    if (element !== previousMotionElement) {
+      previousMotionElement = element;
+      setDetachedMotionPosition(null);
+    }
+  });
 
   const commitColorPickerCapability = (supported: boolean, revision: number) => {
     colorPickerOwnerWindow().queueMicrotask(() => {
@@ -306,6 +324,103 @@ export function Toolbar(props: ToolbarProps) {
     };
   };
 
+  const motionSurfaceGeometry = (): MotionPlayerGeometry => {
+    const attached = motionPlayerGeometry();
+    const detached = detachedMotionPosition();
+
+    if (!detached) return attached;
+
+    const maxX = Math.max(VIEWPORT_PADDING, props.ownerWindow.innerWidth - attached.width - VIEWPORT_PADDING);
+    const maxY = Math.max(VIEWPORT_PADDING, props.ownerWindow.innerHeight - MOTION_PLAYER_IDEAL_HEIGHT - VIEWPORT_PADDING);
+
+    return {
+      ...attached,
+      left: Math.min(maxX, Math.max(VIEWPORT_PADDING, detached.x)),
+      top: Math.min(maxY, Math.max(VIEWPORT_PADDING, detached.y)),
+      bottom: null,
+      maxHeight: Math.max(0, props.ownerWindow.innerHeight - VIEWPORT_PADDING * 2),
+    };
+  };
+
+  const onMotionPointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+    if (event.button !== 0) return;
+
+    const target = event.target;
+    const realm = props.ownerWindow as Window & typeof globalThis;
+
+    if (!(target instanceof realm.Element)) return;
+
+    // Preview pixels are a drag handle after a deliberate gesture. Playback,
+    // timeline, speed and inspector controls retain their native interactions.
+    if (target.closest("button, input, select, textarea, [role='slider']")
+      && !target.closest('button[aria-label="Motion preview"]')) return;
+
+    const surface = event.currentTarget;
+    const rect = surface.getBoundingClientRect();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const pointerId = event.pointerId;
+    const originalTransform = surface.style.transform;
+    const originalWillChange = surface.style.willChange;
+    let frame = 0;
+    let dragging = false;
+    let nextX = rect.left;
+    let nextY = rect.top;
+
+    cancelMotionDrag?.();
+    suppressMotionClick = false;
+
+    const paint = () => {
+      frame = 0;
+      surface.style.transform = `translate3d(${nextX - rect.left}px, ${nextY - rect.top}px, 0)`;
+    };
+
+    const move = (next: PointerEvent) => {
+      if (next.pointerId !== pointerId) return;
+      const dx = next.clientX - startX;
+      const dy = next.clientY - startY;
+
+      if (!dragging && Math.hypot(dx, dy) < MOTION_DETACH_SLOP) return;
+
+      if (!dragging) {
+        dragging = true;
+        setMotionSuspended(true);
+        surface.style.willChange = "transform";
+      }
+
+      const maxX = Math.max(VIEWPORT_PADDING, props.ownerWindow.innerWidth - rect.width - VIEWPORT_PADDING);
+      const maxY = Math.max(VIEWPORT_PADDING, props.ownerWindow.innerHeight - rect.height - VIEWPORT_PADDING);
+      nextX = Math.min(maxX, Math.max(VIEWPORT_PADDING, rect.left + dx));
+      nextY = Math.min(maxY, Math.max(VIEWPORT_PADDING, rect.top + dy));
+
+      if (!frame) frame = props.ownerWindow.requestAnimationFrame(paint);
+    };
+
+    const finish = (commit: boolean) => {
+      if (frame) props.ownerWindow.cancelAnimationFrame(frame);
+      frame = 0;
+      if (dragging && commit) setDetachedMotionPosition({ x: nextX, y: nextY });
+      surface.style.transform = originalTransform;
+      surface.style.willChange = originalWillChange;
+      setMotionSuspended(false);
+      props.ownerWindow.removeEventListener("pointermove", move);
+      props.ownerWindow.removeEventListener("pointerup", end);
+      props.ownerWindow.removeEventListener("pointercancel", end);
+      cancelMotionDrag = null;
+    };
+
+    const end = (next: PointerEvent) => {
+      if (next.pointerId !== pointerId) return;
+      suppressMotionClick = dragging;
+      finish(next.type === "pointerup");
+    };
+
+    cancelMotionDrag = () => finish(false);
+    props.ownerWindow.addEventListener("pointermove", move);
+    props.ownerWindow.addEventListener("pointerup", end);
+    props.ownerWindow.addEventListener("pointercancel", end);
+  };
+
   const updateMenuAlign = () => {
     const anchorRect = guideMenuElement?.getBoundingClientRect();
 
@@ -432,6 +547,8 @@ export function Toolbar(props: ToolbarProps) {
     const rect = surface.getBoundingClientRect();
     const previousTransform = surface.style.transform;
     const previousWillChange = surface.style.willChange;
+    const attachedMotion = detachedMotionPosition() ? null : motionSurfaceElement;
+    const previousMotionTransform = attachedMotion?.style.transform ?? "";
     let active = false;
     let didDrag = false;
     let dragFrame = 0;
@@ -443,7 +560,11 @@ export function Toolbar(props: ToolbarProps) {
     // every pointer event.
     const paint = () => {
       dragFrame = 0;
-      surface.style.transform = `translate3d(${nextPosition.x - origin.x}px, ${nextPosition.y - origin.y}px, 0)`;
+      const delta = `translate3d(${nextPosition.x - origin.x}px, ${nextPosition.y - origin.y}px, 0)`;
+
+      surface.style.transform = delta;
+
+      if (attachedMotion) attachedMotion.style.transform = delta;
     };
 
     const move = (next: PointerEvent) => {
@@ -459,6 +580,8 @@ export function Toolbar(props: ToolbarProps) {
         setPluginMenuOpenId(null);
         pluginMenuAnchorElement = undefined;
         surface.style.willChange = "transform";
+        if (attachedMotion) attachedMotion.style.willChange = "transform";
+        setMotionSuspended(true);
 
         if (props.model.current.settingsOpen) props.model.setTransient({ settingsOpen: false });
       }
@@ -485,6 +608,11 @@ export function Toolbar(props: ToolbarProps) {
 
       surface.style.transform = previousTransform;
       surface.style.willChange = previousWillChange;
+      if (attachedMotion) {
+        attachedMotion.style.transform = previousMotionTransform;
+        attachedMotion.style.willChange = "";
+      }
+      setMotionSuspended(false);
 
       if (previousUserSelect !== null) {
         root.style.userSelect = previousUserSelect;
@@ -759,6 +887,7 @@ export function Toolbar(props: ToolbarProps) {
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
 
       cancelActiveDrag?.();
+      cancelMotionDrag?.();
 
       if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
     };
@@ -804,11 +933,20 @@ export function Toolbar(props: ToolbarProps) {
 
         if (!motionElement) return null;
 
-        const geometry = motionPlayerGeometry();
+        const geometry = motionSurfaceGeometry();
 
         return (
           <div
+            ref={(element) => { motionSurfaceElement = element; }}
             data-mesurer-motion-surface="true"
+            data-mesurer-motion-detached={detachedMotionPosition() ? "true" : "false"}
+            onPointerDownCapture={onMotionPointerDown}
+            onClickCapture={(event) => {
+              if (!suppressMotionClick) return;
+              suppressMotionClick = false;
+              event.preventDefault();
+              event.stopPropagation();
+            }}
             data-mesurer-inspector-ui="true"
             class="msr:pointer-events-auto msr:absolute msr:z-[80] msr:overflow-visible"
             style={{
@@ -822,7 +960,16 @@ export function Toolbar(props: ToolbarProps) {
             <MotionPlayer
               element={motionElement}
               ownerWindow={motionElement.ownerDocument.defaultView ?? props.ownerWindow}
+              suspended={motionSuspended}
             />
+            {detachedMotionPosition() && <button
+              type="button"
+              data-mesurer-motion-reattach="true"
+              aria-label="Attach Motion preview to toolbar"
+              title="Attach to toolbar"
+              class="msr:absolute msr:right-3 msr:top-3 msr:z-[3] msr:rounded msr:bg-white/85 msr:px-1.5 msr:py-0.5 msr:text-[10px] msr:text-ink-700 msr:hover:bg-white"
+              onClick={(event) => { event.stopPropagation(); setDetachedMotionPosition(null); }}
+            >↗</button>}
           </div>
         );
       })()}
