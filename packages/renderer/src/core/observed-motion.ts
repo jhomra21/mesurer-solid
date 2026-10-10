@@ -187,7 +187,7 @@ export function observeMotion(
 
       let changed = false;
 
-      if (hasTransientScriptMotion(root, animations) && !detected.has(root)) {
+      if (hasTransientScriptMotion(root, getOwnMotionAnimations(root)) && !detected.has(root)) {
         detected.set(root, new Set(["animation"]));
         changed = true;
       }
