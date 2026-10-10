@@ -314,9 +314,11 @@ try {
   const childMotion = await page.evaluate(() => {
     const parent = document.querySelector("[data-testid='static-target']");
     if (!parent) return null;
+
     const child = document.createElement("span");
     child.textContent = "Animated descendant";
     parent.append(child);
+
     const animation = child.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 500, iterations: Infinity });
     return { parentOwn: parent.getAnimations().length, subtree: parent.getAnimations({ subtree: true }).length, id: animation.id };
   });
