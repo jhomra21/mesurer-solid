@@ -13,9 +13,6 @@ export type ToolbarHostEnvironment = {
   navigator: Pick<Navigator, "platform" | "userAgent">;
   innerHeight?: number;
   outerHeight?: number;
-  __MESURER_HOST__?: {
-    windowControls?: { visible: boolean; bounds?: { x: number; y: number; width: number; height: number } };
-  };
   process?: {
     type?: string;
     versions?: {
@@ -48,14 +45,18 @@ const getWindowControls = (ownerWindow: ToolbarHostEnvironment): NativeControlsR
   // A desktop host with custom chrome can expose its actual traffic-light
   // geometry through the narrow Mesurer host bridge. No Electron/Node APIs
   // need to cross contextIsolation.
-  const declared = ownerWindow.__MESURER_HOST__?.windowControls;
+  // SAFETY: this optional bridge capability is read-only metadata; Electron
+  // internals are never accessed, and the real Window host may omit the field.
+  const declared = (ownerWindow as ToolbarHostEnvironment & {
+    __MESURER_HOST__?: { windowControls?: { visible: boolean; bounds?: NativeControlsRect } };
+  }).__MESURER_HOST__?.windowControls;
 
   if (declared) return declared.visible ? declared.bounds ?? DEFAULT_CONTROLS : null;
 
   // SAFETY: this is the same Navigator with an optional standards-based
   // Window Controls Overlay feature; no unchecked bridge methods are called.
   const overlay = (ownerWindow.navigator as Navigator & {
-    windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect: () => DOMRect };
+    windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect: () => NativeControlsRect };
   }).windowControlsOverlay;
 
   if (overlay?.visible) {
