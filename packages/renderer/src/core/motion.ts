@@ -189,6 +189,12 @@ export const getMotionAnimations = (element: Element) => {
   return [...animations];
 };
 
+export const getOwnMotionAnimations = (element: Element) => getMotionAnimations(element).filter((animation) => {
+  const effect = animation.effect;
+
+  return isKeyframeEffect(effect) && effect.target === element;
+});
+
 const animationFor = (
   animations: Animation[],
   name: string,
@@ -210,7 +216,7 @@ export const readMotionDetails = (
 ): MotionDetails[] => {
   const view = element.ownerDocument.defaultView ?? ownerWindow;
   const style = view.getComputedStyle(element);
-  const animations = getMotionAnimations(element);
+  const animations = getOwnMotionAnimations(element);
   const ownAnimations = ownAnimationsFor(element, animations);
 
   const names = splitList(style.animationName);
@@ -285,7 +291,7 @@ export const readMotionDetails = (
       .map((motion) => motion.animation),
   );
 
-  const webAnimations: MotionDetails[] = animations
+  const webAnimations: MotionDetails[] = ownAnimations
     .filter((animation) => !claimed.has(animation))
     .flatMap((animation, index) => {
       let timing: EffectTiming | null = null;
