@@ -13,11 +13,20 @@ const fakeWindow = (options: {
   platform: string;
   userAgent: string;
   electronVersion?: string;
+  framed?: boolean;
+  windowControls?: { visible: boolean; bounds?: { x: number; y: number; width: number; height: number } };
+  overlay?: { visible: boolean; content: { x: number; y: number; width: number; height: number } };
 }) : ToolbarHostEnvironment => ({
   navigator: {
     platform: options.platform,
     userAgent: options.userAgent,
+    ...(options.overlay ? { windowControlsOverlay: {
+      visible: options.overlay.visible,
+      getTitlebarAreaRect: () => options.overlay!.content,
+    } } : {}),
   },
+  ...(options.framed ? { outerHeight: 844, innerHeight: 800 } : {}),
+  ...(options.windowControls ? { __MESURER_HOST__: { windowControls: options.windowControls } } : {}),
   process: options.electronVersion
     ? { type: "renderer", versions: { electron: options.electronVersion } }
     : undefined,
@@ -108,6 +117,59 @@ describe("default toolbar position", () => {
       { width: 438, height: 40 },
       { width: 900, height: 700 },
     )).toEqual({ x: 8, y: 72 });
+  });
+
+  it("does not block the top-left of the renderer when macOS draws controls in a separate native titlebar", () => {
+    const ownerWindow = fakeWindow({
+      platform: "MacIntel",
+      userAgent: "Electron/44.4.2",
+      framed: true,
+    });
+
+    expect(getDefaultToolbarPosition(ownerWindow)).toEqual(DEFAULT_TOOLBAR_POSITION);
+    expect(resolveInitialToolbarPosition(ownerWindow, { x: 8, y: 8 })).toEqual({ x: 8, y: 8 });
+    expect(constrainToolbarPosition(
+      ownerWindow,
+      { x: 8, y: 8 },
+      { width: 438, height: 40 },
+      { width: 900, height: 700 },
+    )).toEqual({ x: 8, y: 8 });
+  });
+
+  it("accepts a frameless host's explicit hidden controls and custom positions", () => {
+    const ownerWindow = fakeWindow({
+      platform: "MacIntel",
+      userAgent: "Electron/44.4.2",
+      windowControls: { visible: false },
+    });
+
+    expect(constrainToolbarPosition(ownerWindow,
+      { x: 8, y: 8 }, { width: 438, height: 40 }, { width: 900, height: 700 },
+    )).toEqual({ x: 8, y: 8 });
+
+    ownerWindow.__MESURER_HOST__!.windowControls = {
+      visible: true,
+      bounds: { x: 40, y: 0, width: 90, height: 38 },
+    };
+
+    expect(constrainToolbarPosition(ownerWindow,
+      { x: 8, y: 8 }, { width: 438, height: 40 }, { width: 900, height: 700 },
+    )).toEqual({ x: 8, y: 38 });
+    expect(constrainToolbarPosition(ownerWindow,
+      { x: 160, y: 8 }, { width: 438, height: 40 }, { width: 900, height: 700 },
+    )).toEqual({ x: 160, y: 8 });
+  });
+
+  it("detects Window Controls Overlay geometry when a frameless Electron app exposes it", () => {
+    const ownerWindow = fakeWindow({
+      platform: "MacIntel",
+      userAgent: "Electron/44.4.2",
+      overlay: { visible: true, content: { x: 112, y: 0, width: 700, height: 40 } },
+    });
+
+    expect(constrainToolbarPosition(ownerWindow,
+      { x: 8, y: 8 }, { width: 438, height: 40 }, { width: 900, height: 700 },
+    )).toEqual({ x: 8, y: 40 });
   });
 
   it("does not apply the titlebar exclusion in a normal macOS browser", () => {
