@@ -309,6 +309,24 @@ try {
   await selectTarget("[data-testid='static-target']");
   await player.waitFor({ state: "hidden" });
 
+  // A selected static parent must not show Motion just because its child has
+  // an active Web Animation. Target the same parent after installing one.
+  const childMotion = await page.evaluate(() => {
+    const parent = document.querySelector("[data-testid='static-target']");
+    if (!parent) return null;
+    const child = document.createElement("span");
+    child.textContent = "Animated descendant";
+    parent.append(child);
+    const animation = child.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 500, iterations: Infinity });
+    return { parentOwn: parent.getAnimations().length, subtree: parent.getAnimations({ subtree: true }).length, id: animation.id };
+  });
+
+  assert.equal(childMotion?.parentOwn, 0);
+  assert((childMotion?.subtree ?? 0) > 0, "Fixture must have real descendant animation");
+  await selectTarget("[data-testid='static-target']");
+  await page.waitForTimeout(400);
+  await player.waitFor({ state: "hidden" });
+
   const report = {
     css: {
       paused,
