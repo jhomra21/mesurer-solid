@@ -265,11 +265,17 @@ export function Toolbar(props: ToolbarProps) {
   };
 
   const motionPlayerGeometry = (): MotionPlayerGeometry => {
-    position();
+    const toolbarPosition = position();
     compact();
     viewportRevision();
 
-    const toolbar = toolbarElement?.getBoundingClientRect();
+    const toolbarBounds = toolbarElement?.getBoundingClientRect();
+    const toolbar = toolbarBounds && {
+      left: toolbarPosition.x,
+      top: toolbarPosition.y,
+      right: toolbarPosition.x + toolbarBounds.width,
+      bottom: toolbarPosition.y + toolbarBounds.height,
+    };
     const viewportWidth = props.ownerWindow.innerWidth || MOTION_PLAYER_WIDTH + VIEWPORT_PADDING * 2;
     const viewportHeightValue = props.ownerWindow.innerHeight || MOTION_PLAYER_IDEAL_HEIGHT + VIEWPORT_PADDING * 2;
 
@@ -938,7 +944,7 @@ export function Toolbar(props: ToolbarProps) {
 
         if (!motionElement) return null;
 
-        const geometry = motionSurfaceGeometry();
+        const geometry = motionSurfaceGeometry;
         const activeMotionElement = motionElement!;
 
         return (
@@ -962,11 +968,11 @@ export function Toolbar(props: ToolbarProps) {
             data-mesurer-inspector-ui="true"
             class="msr:pointer-events-auto msr:absolute msr:z-[80] msr:overflow-visible"
             style={{
-              left: `${geometry.left}px`,
-              top: geometry.top === null ? "auto" : `${geometry.top}px`,
-              bottom: geometry.bottom === null ? "auto" : `${geometry.bottom}px`,
-              width: `${geometry.width}px`,
-              "max-height": `${Math.max(0, geometry.maxHeight)}px`,
+              left: `${geometry().left}px`,
+              top: geometry().top === null ? "auto" : `${geometry().top}px`,
+              bottom: geometry().bottom === null ? "auto" : `${geometry().bottom}px`,
+              width: `${geometry().width}px`,
+              "max-height": `${Math.max(0, geometry().maxHeight)}px`,
             }}
           >
             <MotionPlayer
