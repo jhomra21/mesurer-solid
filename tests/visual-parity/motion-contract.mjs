@@ -159,6 +159,19 @@ try {
   await page.getByRole("button", { name: "Attach Motion preview to toolbar" }).click();
   assert.equal(await motionSurface.getAttribute("data-mesurer-motion-detached"), "false");
 
+  // The small movement is a legitimate preview click, so it can toggle the
+  // source animation. Restore this fixture's running baseline before testing
+  // the playback controls below.
+  await page.evaluate(() => {
+    const source = document.querySelector("[data-testid='css-motion']");
+
+    for (const animation of source?.getAnimations() ?? []) animation.play();
+  });
+  await page.waitForFunction(() =>
+    window.__MESURER_MOTION_TEST__?.stateFor("[data-testid='css-motion']")[0]?.playState === "running"
+  );
+  await page.waitForTimeout(300);
+
   assert.equal(
     await inspect.getAttribute("aria-expanded"),
     "false",
