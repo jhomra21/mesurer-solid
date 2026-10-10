@@ -6,6 +6,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Avoid reserving the macOS traffic-light area in Electron windows whose native titlebar is outside the renderer. Honor visible window controls reported by Window Controls Overlay or a narrow host bridge in custom-titlebar windows.
+- Keep selection highlight chrome from painting over the Typography editor during direct text editing.
+- Keep Motion's preview attached to the toolbar during movement; detach it with a deliberate drag and reattach using its control. Suspend preview rendering during dragging without pausing the inspected page's animation.
+
 ## 0.2.2-beta.4 - 2026-10-10
 
 - Keep Screenshot previews and their viewer clickable while Select is active by placing them above the selection plane in the same renderer stacking context.

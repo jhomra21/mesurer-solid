@@ -235,6 +235,7 @@ function MotionValues(props: {
 export function MotionPlayer(props: {
   element: Element;
   ownerWindow: Window;
+  suspended?: () => boolean;
 }) {
   const [duration, setDuration] = createSignal(0);
   const [progress, setProgress] = createSignal(0);
@@ -260,6 +261,16 @@ export function MotionPlayer(props: {
   const [observedTargets, setObservedTargets] = createSignal(readObservedMotion(props.element));
 
   const previewWakeRef: MotionPreviewWakeRef = { current: null };
+
+  // Resume the existing preview snapshot after a drag without cloning it.
+  // The inspected page's own animation continues throughout.
+  createEffect(
+    () => props.suspended?.() ?? false,
+    (suspended) => {
+      if (!suspended) previewWakeRef.current?.();
+    },
+  );
+
   let animations: Animation[] = [];
 
   const observedProperties = createMemo(() =>
@@ -364,11 +375,20 @@ export function MotionPlayer(props: {
       const update = () => {
         if (disposed) return;
 
+        // Keep the inspected host animation running, but stop the Motion
+        // player's 60fps progress/snapshot loop while either card is dragged.
+        if (props.suspended?.()) {
+          timer = ownerWindow.setTimeout(update, 100);
+
+          return;
+        }
+
         const playback = motionPlaybackState(animations, duration());
 
         setProgress(playback.progress);
         setPlaying(playback.playing);
-        previewWakeRef.current?.();
+
+        if (!props.suspended?.()) previewWakeRef.current?.();
 
         if (playback.playing) {
           frame = ownerWindow.requestAnimationFrame(update);
@@ -441,7 +461,9 @@ export function MotionPlayer(props: {
     scrubPointer = null;
     scrubBounds = null;
 
-    if (scrubTrack?.hasPointerCapture(pointerId)) scrubTrack.releasePointerCapture(pointerId);
+    const track = scrubTrack;
+
+    if (track?.hasPointerCapture(pointerId)) track.releasePointerCapture(pointerId);
   };
 
   createEffect(
@@ -500,7 +522,9 @@ export function MotionPlayer(props: {
           return;
         }
 
-        if (speedAnchorElement && event.composedPath().includes(speedAnchorElement)) return;
+        const anchor = speedAnchorElement;
+
+        if (anchor && event.composedPath().includes(anchor)) return;
         setSpeedOpen(false);
       };
 
@@ -538,6 +562,7 @@ export function MotionPlayer(props: {
               ownerWindow={props.ownerWindow}
               observedTargets={observedTargets()}
               wakeRef={previewWakeRef}
+              suspended={props.suspended}
             />
           </button>
 

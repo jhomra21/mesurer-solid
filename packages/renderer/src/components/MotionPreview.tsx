@@ -44,6 +44,7 @@ export function MotionPreview(props: {
   ownerWindow: Window;
   observedTargets: ObservedMotionTarget[];
   wakeRef?: MotionPreviewWakeRef;
+  suspended?: () => boolean;
 }) {
   let hostElement: HTMLDivElement | undefined;
   let framingElement: Element | null = null;
@@ -354,7 +355,7 @@ export function MotionPreview(props: {
     const paint = (time: number) => {
       request = 0;
 
-      if (disposed || !element.isConnected) return;
+      if (disposed || !element.isConnected || props.suspended?.()) return;
 
       if (time - lastPaint >= 1000 / (observedTargets.length ? 60 : 30) - 1) {
         lastPaint = time;
@@ -458,7 +459,7 @@ export function MotionPreview(props: {
     };
 
     const wake = () => {
-      if (!disposed && !request) request = ownerWindow.requestAnimationFrame(paint);
+      if (!disposed && !request && !props.suspended?.()) request = ownerWindow.requestAnimationFrame(paint);
     };
 
     if (wakeRef) {

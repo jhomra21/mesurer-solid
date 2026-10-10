@@ -89,6 +89,15 @@ try {
   await editor.waitFor({ state: "visible" });
   await ring.waitFor({ state: "visible" });
   await inspector.waitFor({ state: "visible" });
+
+  // Native selected chrome remains mounted for geometry, but must never paint
+  // across interactive Typography controls during direct editing.
+  const selectedPaint = await page.evaluate(() => [...document.querySelectorAll(
+    "[data-mesurer-selected-measurement='true']",
+  )].map((element) => Number(getComputedStyle(element).opacity)));
+
+  assert(selectedPaint.every((opacity) => opacity === 0),
+    `selected measurement chrome painted on top of Typography: ${selectedPaint}`);
   await settle();
 
   // Opening the editor must not move the inspected page. Compare live geometry
