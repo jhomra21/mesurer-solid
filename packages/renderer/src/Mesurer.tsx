@@ -1223,7 +1223,6 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       // A pointer that has not moved is not an active hover gesture. Do not
       // paint its old viewport coordinate over newly scrolled content.
       hoverPoint = null;
-      model.setHoverTarget(null, null);
       const next = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
       const dx = next.x - scrollPosition.x, dy = next.y - scrollPosition.y;
       scrollPosition = next;
