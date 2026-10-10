@@ -264,9 +264,12 @@ export function MotionPlayer(props: {
 
   // Resume the existing preview snapshot after a drag without cloning it.
   // The inspected page's own animation continues throughout.
-  createEffect(() => {
-    if (!props.suspended?.()) previewWakeRef.current?.();
-  });
+  createEffect(
+    () => props.suspended?.() ?? false,
+    (suspended) => {
+      if (!suspended) previewWakeRef.current?.();
+    },
+  );
 
   let animations: Animation[] = [];
 
