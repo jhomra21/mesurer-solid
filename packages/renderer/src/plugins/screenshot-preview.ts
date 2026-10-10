@@ -131,7 +131,10 @@ export const createScreenshotPreviewController = ({
   previewDurationMs,
 }: ScreenshotPreviewControllerOptions): ScreenshotPreviewController => {
   const rendererRoot = root.closest<HTMLElement>("[data-mesurer-root='true']");
-  const interactionParent = rendererRoot?.parentNode ?? root.parentNode;
+  // Keep the thumbnail inside the same protected stacking context as Select.
+  // As a sibling of the renderer root, z-index: 96 cannot beat the root's
+  // document-level z-index and the selection plane intercepts all clicks.
+  const interactionParent = rendererRoot ?? root.parentNode;
 
   if (!isInteractionParent(interactionParent)) {
     throw new Error("Screenshot preview requires a mounted Mesurer host.");
