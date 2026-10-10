@@ -16,7 +16,9 @@ const fakeWindow = (options: {
   framed?: boolean;
   windowControls?: { visible: boolean; bounds?: { x: number; y: number; width: number; height: number } };
   overlay?: { visible: boolean; content: { x: number; y: number; width: number; height: number } };
-}) : ToolbarHostEnvironment => {
+}) : ToolbarHostEnvironment & {
+  __MESURER_HOST__?: { windowControls?: { visible: boolean; bounds?: { x: number; y: number; width: number; height: number } } };
+} => {
   const navigator: ToolbarHostEnvironment["navigator"] & {
     windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect: () => { x: number; y: number; width: number; height: number } };
   } = {
@@ -33,7 +35,9 @@ const fakeWindow = (options: {
     };
   }
 
-  const value: ToolbarHostEnvironment = {
+  const value: ToolbarHostEnvironment & {
+    __MESURER_HOST__?: { windowControls?: { visible: boolean; bounds?: { x: number; y: number; width: number; height: number } } };
+  } = {
     navigator,
     process: options.electronVersion
       ? { type: "renderer", versions: { electron: options.electronVersion } }
