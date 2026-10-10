@@ -8,7 +8,7 @@ import {
 } from "solid-js";
 import {
   controlMotion,
-  getMotionAnimations,
+  getOwnMotionAnimations,
   motionCssProperty,
   motionDuration,
   motionPlaybackState,
@@ -282,7 +282,7 @@ export function MotionPlayer(props: {
       const stopObserved = observeMotion(
         element,
         ownerWindow,
-        (targets) => setObservedTargets(targets),
+        (targets) => setObservedTargets(targets.filter((target) => target.element === element)),
       );
 
       onCleanup(stopObserved);
@@ -311,7 +311,7 @@ export function MotionPlayer(props: {
       setSpeedOpen(false);
       animations = [];
 
-      const first = getMotionAnimations(element)[0];
+      const first = getOwnMotionAnimations(element)[0];
 
       setSpeed(first?.playbackRate ?? 1);
 
@@ -332,7 +332,7 @@ export function MotionPlayer(props: {
             nextMotions.flatMap((motion) => motion.animation ? [motion.animation] : []),
           )];
 
-          setReady(nextMotions.length > 0 || getMotionAnimations(element).length > 0);
+          setReady(nextMotions.length > 0 || getOwnMotionAnimations(element).length > 0);
           setDuration(Math.max(0, ...nextMotions.map(motionDuration)));
           setMotions(nextMotions);
           animations = nextAnimations;
