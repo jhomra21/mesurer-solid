@@ -6,6 +6,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Click Color Picker again after sampling to pick another color immediately, including through native EyeDropper and application-window capture.
+- Move the toolbar on the compositor during dragging rather than updating its reactive layout for every pointer event. On macOS Electron, allow dragging close to the top beyond the window-control area while keeping the safer initial position.
+
 ## 0.2.2-beta.2 - 2026-10-09
 
 - No user-facing changes.
