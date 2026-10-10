@@ -38,10 +38,24 @@ export const getDefaultToolbarPosition = (ownerWindow: ToolbarHostEnvironment): 
     ? MACOS_ELECTRON_TOOLBAR_POSITION
     : DEFAULT_TOOLBAR_POSITION;
 
+const clearMacOSWindowControls = (
+  ownerWindow: ToolbarHostEnvironment,
+  position: ToolbarPosition,
+  padding: number,
+): ToolbarPosition => isMacOSElectronToolbarHost(ownerWindow)
+    && position.x < MACOS_ELECTRON_TOOLBAR_POSITION.x
+    && position.y < MACOS_ELECTRON_TITLEBAR_SAFE_TOP
+  ? { ...position, y: Math.max(padding, MACOS_ELECTRON_TITLEBAR_SAFE_TOP) }
+  : position;
+
 export const resolveInitialToolbarPosition = (
   ownerWindow: ToolbarHostEnvironment,
   savedPosition?: ToolbarPosition,
-): ToolbarPosition => savedPosition ?? getDefaultToolbarPosition(ownerWindow);
+): ToolbarPosition => clearMacOSWindowControls(
+  ownerWindow,
+  savedPosition ?? getDefaultToolbarPosition(ownerWindow),
+  8,
+);
 
 export const constrainToolbarPosition = (
   ownerWindow: ToolbarHostEnvironment,
@@ -62,8 +76,8 @@ export const constrainToolbarPosition = (
     viewportSize.height - toolbarSize.height - viewportPadding,
   );
 
-  return {
+  return clearMacOSWindowControls(ownerWindow, {
     x: Math.min(maxX, Math.max(viewportPadding, position.x)),
     y: Math.min(maxY, Math.max(minY, position.y)),
-  };
+  }, viewportPadding);
 };
