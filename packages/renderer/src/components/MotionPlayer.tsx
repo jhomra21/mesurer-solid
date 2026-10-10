@@ -369,6 +369,7 @@ export function MotionPlayer(props: {
 
         setProgress(playback.progress);
         setPlaying(playback.playing);
+
         if (!props.suspended?.()) previewWakeRef.current?.();
 
         if (playback.playing) {
