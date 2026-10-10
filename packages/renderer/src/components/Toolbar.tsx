@@ -941,7 +941,7 @@ export function Toolbar(props: ToolbarProps) {
         if (!motionElement) return null;
 
         const geometry = motionSurfaceGeometry();
-        const activeMotionElement: Element = motionElement;
+        const activeMotionElement = motionElement!;
 
         return (
           <div
