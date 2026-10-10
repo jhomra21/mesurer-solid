@@ -54,19 +54,19 @@ describe("default toolbar position", () => {
     expect(resolveInitialToolbarPosition(ownerWindow, { x: 24, y: 72 })).toEqual({ x: 24, y: 72 });
   });
 
-  it("moves a saved position below the macOS titlebar area", () => {
+  it("preserves an explicitly saved toolbar position near the top edge on macOS", () => {
     const ownerWindow = fakeWindow({
       platform: "MacIntel",
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/150.0.0.0 Electron/43.1.1 Safari/537.36",
     });
 
-    expect(resolveInitialToolbarPosition(ownerWindow, { x: 16, y: 16 })).toEqual({
+    expect(resolveInitialToolbarPosition(ownerWindow, { x: 16, y: 8 })).toEqual({
       x: 16,
-      y: MACOS_ELECTRON_TITLEBAR_SAFE_TOP,
+      y: 8,
     });
   });
 
-  it("prevents dragging into the macOS titlebar area anywhere across the window", () => {
+  it("allows dragging closer to the top on macOS while keeping the default safe", () => {
     const ownerWindow = fakeWindow({
       platform: "MacIntel",
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/150.0.0.0 Electron/43.1.1 Safari/537.36",
@@ -79,7 +79,7 @@ describe("default toolbar position", () => {
       { width: 900, height: 700 },
     )).toEqual({
       x: 320,
-      y: MACOS_ELECTRON_TITLEBAR_SAFE_TOP,
+      y: 8,
     });
   });
 
