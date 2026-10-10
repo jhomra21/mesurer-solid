@@ -449,6 +449,7 @@ export function installDocumentScrollAnchoring(
 
         const registered = getSelectionChromeTarget(existing.chrome);
         const viewportRect = selectionViewportRect(existing.chrome, root, ownerDocument, ownerWindow);
+
         const target = registered instanceof realm.HTMLElement && registered.isConnected
           ? registered
           : selectedTargetForRect(viewportRect, selectedTargets)
@@ -474,6 +475,7 @@ export function installDocumentScrollAnchoring(
 
       const registered = getSelectionChromeTarget(chrome);
       const viewportRect = selectionViewportRect(chrome, root, ownerDocument, ownerWindow);
+
       const target = registered instanceof realm.HTMLElement && registered.isConnected
         ? registered
         : selectedTargetForRect(viewportRect, selectedTargets)
