@@ -759,6 +759,7 @@ export function Toolbar(props: ToolbarProps) {
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
 
       cancelActiveDrag?.();
+
       if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
     };
   });
