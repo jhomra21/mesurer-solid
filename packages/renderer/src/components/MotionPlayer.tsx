@@ -458,7 +458,9 @@ export function MotionPlayer(props: {
     scrubPointer = null;
     scrubBounds = null;
 
-    if (scrubTrack?.hasPointerCapture(pointerId)) scrubTrack.releasePointerCapture(pointerId);
+    const track = scrubTrack;
+
+    if (track?.hasPointerCapture(pointerId)) track.releasePointerCapture(pointerId);
   };
 
   createEffect(
@@ -517,7 +519,9 @@ export function MotionPlayer(props: {
           return;
         }
 
-        if (speedAnchorElement && event.composedPath().includes(speedAnchorElement)) return;
+        const anchor = speedAnchorElement;
+
+        if (anchor && event.composedPath().includes(anchor)) return;
         setSpeedOpen(false);
       };
 
