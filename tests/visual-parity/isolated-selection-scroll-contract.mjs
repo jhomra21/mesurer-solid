@@ -408,19 +408,22 @@ try {
   const editBox = page.locator("[data-mesurer-arrange-box='true']");
   await editBox.waitFor({ state: "visible" });
   await page.waitForFunction(() => {
-    const box = document.querySelector("[data-mesurer-arrange-box='true']");
+    const hitBox = document.querySelector("[data-mesurer-arrange-box='true']");
+    const stroke = document.querySelector("body > [data-mesurer-arrange-native-stroke='true']");
     const selected = document.querySelector("body > [data-mesurer-selected-measurement='true']");
 
-    return box instanceof HTMLElement
+    return hitBox instanceof HTMLElement
+      && stroke instanceof HTMLElement
       && selected instanceof HTMLElement
-      && getComputedStyle(box).borderTopColor === "rgba(0, 0, 0, 0)"
-      && getComputedStyle(selected).visibility === "visible"
-      && Number(getComputedStyle(selected).opacity) > 0;
+      && getComputedStyle(hitBox).borderTopColor === "rgba(0, 0, 0, 0)"
+      && getComputedStyle(stroke).display !== "none"
+      && getComputedStyle(selected).visibility === "hidden";
   });
 
+  const nativeStroke = page.locator("body > [data-mesurer-arrange-native-stroke='true']");
   const parentEditBefore = {
     target: await box(parent, "nested parent before wheel"),
-    selected: await box(selectedChrome, "nested document selection before wheel"),
+    selected: await box(nativeStroke, "native Edit stroke before wheel"),
   };
 
   await page.mouse.move(1240, 830);
@@ -429,7 +432,7 @@ try {
 
   const parentEditAfter = {
     target: await box(parent, "nested parent after wheel"),
-    selected: await box(selectedChrome, "native selected parent after wheel"),
+    selected: await box(nativeStroke, "native Edit stroke after wheel"),
   };
 
   assert(Math.abs(parentEditAfter.target.y - parentEditBefore.target.y) > 20, "nested parent did not scroll");
@@ -442,11 +445,13 @@ try {
 
   await page.waitForFunction(() => {
     const box = document.querySelector("[data-mesurer-arrange-box='true']");
+    const strokes = [...document.querySelectorAll("body > [data-mesurer-arrange-native-stroke='true']")];
     const selected = [...document.querySelectorAll("body > [data-mesurer-selected-measurement='true']")];
     const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
 
     return box instanceof HTMLElement
       && getComputedStyle(box).display === "none"
+      && strokes.every((stroke) => getComputedStyle(stroke).display === "none")
       && selected.every((root) => {
         const style = getComputedStyle(root);
 
