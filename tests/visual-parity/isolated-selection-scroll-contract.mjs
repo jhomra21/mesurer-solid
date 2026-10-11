@@ -421,6 +421,7 @@ try {
   });
 
   const nativeStroke = page.locator("body > [data-mesurer-arrange-native-stroke='true']");
+
   const parentEditBefore = {
     target: await box(parent, "nested parent before wheel"),
     selected: await box(nativeStroke, "native Edit stroke before wheel"),
