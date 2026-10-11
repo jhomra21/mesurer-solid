@@ -418,7 +418,7 @@ try {
       && Number(getComputedStyle(selected).opacity) > 0;
   });
 
-  const nestedBefore = {
+  const parentEditBefore = {
     target: await box(parent, "nested parent before wheel"),
     selected: await box(selectedChrome, "nested document selection before wheel"),
   };
@@ -426,13 +426,13 @@ try {
   await page.mouse.move(1240, 830);
   await page.mouse.wheel(0, 72);
   await settle();
-  const nestedAfter = {
+  const parentEditAfter = {
     target: await box(parent, "nested parent after wheel"),
     selected: await box(selectedChrome, "native selected parent after wheel"),
   };
 
-  assert(Math.abs(nestedAfter.target.y - nestedBefore.target.y) > 20, "nested parent did not scroll");
-  assertSameBox(nestedAfter.selected, nestedAfter.target, "native selection follows nested parent under real wheel");
+  assert(Math.abs(parentEditAfter.target.y - parentEditBefore.target.y) > 20, "nested parent did not scroll");
+  assertSameBox(parentEditAfter.selected, parentEditAfter.target, "native selection follows nested parent under real wheel");
 
   const childRect = await box(child, "nested child before direct text edit");
   await page.mouse.dblclick(childRect.x + childRect.width / 2, childRect.y + childRect.height / 2);
