@@ -426,6 +426,7 @@ try {
   await page.mouse.move(1240, 830);
   await page.mouse.wheel(0, 72);
   await settle();
+
   const parentEditAfter = {
     target: await box(parent, "nested parent after wheel"),
     selected: await box(selectedChrome, "native selected parent after wheel"),
