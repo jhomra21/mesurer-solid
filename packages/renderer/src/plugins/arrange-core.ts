@@ -1753,6 +1753,12 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-strok
     box.addEventListener("pointercancel", onPointerCancel);
     ownerWindow.addEventListener("pointermove", onEditHoverPointerMove, true);
     ownerWindow.addEventListener("keydown", onKeyDown, true);
+    // Editors live in a separate document inspector mount. Their lifecycle
+    // does not necessarily mutate pageTarget, so resync Edit paint ownership
+    // after the native gestures that open and close the editor.
+    ownerWindow.addEventListener("dblclick", scheduleRefresh, true);
+    ownerWindow.addEventListener("keyup", scheduleRefresh, true);
+    ownerWindow.addEventListener("pointerup", scheduleRefresh, true);
     ownerWindow.addEventListener("resize", scheduleRefresh);
     ownerWindow.addEventListener("scroll", scheduleRefresh, true);
     pageTarget.addEventListener("scroll", scheduleRefresh, true);
@@ -2095,6 +2101,9 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-strok
       box.removeEventListener("pointercancel", onPointerCancel);
       ownerWindow.removeEventListener("pointermove", onEditHoverPointerMove, true);
       ownerWindow.removeEventListener("keydown", onKeyDown, true);
+      ownerWindow.removeEventListener("dblclick", scheduleRefresh, true);
+      ownerWindow.removeEventListener("keyup", scheduleRefresh, true);
+      ownerWindow.removeEventListener("pointerup", scheduleRefresh, true);
       ownerWindow.removeEventListener("resize", scheduleRefresh);
       ownerWindow.removeEventListener("scroll", scheduleRefresh, true);
       pageTarget.removeEventListener("scroll", scheduleRefresh, true);
