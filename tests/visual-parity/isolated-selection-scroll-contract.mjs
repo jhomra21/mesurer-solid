@@ -403,10 +403,13 @@ try {
 
   const parentBefore = await box(parent, "nested parent before Edit click");
   await page.mouse.click(parentBefore.x + 9, parentBefore.y + 9);
+  console.log("Nested Edit: selecting parent");
   await waitForStableSelectedChrome("isolated-edit-parent");
+  console.log("Nested Edit: native parent anchor ready");
 
   const editBox = page.locator("[data-mesurer-arrange-box='true']");
   await editBox.waitFor({ state: "visible" });
+  console.log("Nested Edit: waiting for source-owned visible stroke");
   await page.waitForFunction(() => {
     const hitBox = document.querySelector("[data-mesurer-arrange-box='true']");
     const stroke = document.querySelector("body > [data-mesurer-arrange-native-stroke='true']");
@@ -418,6 +421,24 @@ try {
       && getComputedStyle(hitBox).borderTopColor === "rgba(0, 0, 0, 0)"
       && getComputedStyle(stroke).display !== "none"
       && getComputedStyle(selected).visibility === "hidden";
+  }, undefined, { timeout: 6000 }).catch(async (cause) => {
+    const state = await page.evaluate(() => ({
+      parent: document.querySelector("#isolated-edit-parent")?.getBoundingClientRect().toJSON(),
+      editBox: [...document.querySelectorAll("[data-mesurer-arrange-box='true']")].map((node) => ({
+        display: getComputedStyle(node).display,
+        border: getComputedStyle(node).borderTopColor,
+      })),
+      roots: [...document.querySelectorAll("body > [data-mesurer-selected-measurement='true']")].map((root) => ({
+        visibility: getComputedStyle(root).visibility,
+        anchor: root.querySelector("[data-mesurer-measurement-chrome]")?.getAttribute("style"),
+      })),
+      strokes: [...document.querySelectorAll("body > [data-mesurer-arrange-native-stroke='true']")].map((node) => ({
+        display: getComputedStyle(node).display,
+        anchor: node.getAttribute("style"),
+      })),
+    }));
+
+    throw new Error(`Native Edit stroke did not take paint ownership: ${JSON.stringify(state)}`, { cause });
   });
 
   const nativeStroke = page.locator("body > [data-mesurer-arrange-native-stroke='true']");
