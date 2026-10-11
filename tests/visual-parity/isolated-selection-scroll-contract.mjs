@@ -411,7 +411,8 @@ try {
   await editBox.waitFor({ state: "visible" });
   console.log("Nested Edit: waiting for source-owned visible stroke");
   await page.waitForFunction(() => {
-    const hitBox = document.querySelector("[data-mesurer-arrange-box='true']");
+    const hitBox = document.querySelector("[data-mesurer-island='true']")?.shadowRoot?.querySelector("[data-mesurer-arrange-box='true']")
+      ?? document.querySelector("[data-mesurer-arrange-box='true']");
     const stroke = document.querySelector("body > [data-mesurer-arrange-native-stroke='true']");
     const selected = document.querySelector("body > [data-mesurer-selected-measurement='true']");
 
@@ -466,7 +467,8 @@ try {
   await inspector.waitFor({ state: "visible" });
 
   await page.waitForFunction(() => {
-    const box = document.querySelector("[data-mesurer-arrange-box='true']");
+    const box = document.querySelector("[data-mesurer-island='true']")?.shadowRoot?.querySelector("[data-mesurer-arrange-box='true']")
+      ?? document.querySelector("[data-mesurer-arrange-box='true']");
     const strokes = [...document.querySelectorAll("body > [data-mesurer-arrange-native-stroke='true']")];
     const selected = [...document.querySelectorAll("body > [data-mesurer-selected-measurement='true']")];
     const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
