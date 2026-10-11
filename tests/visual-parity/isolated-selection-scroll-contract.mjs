@@ -450,8 +450,30 @@ try {
     selected: await box(nativeStroke, "native Edit stroke before wheel"),
   };
 
+  assertSameBox(parentEditBefore.selected, parentEditBefore.target, "native Edit stroke before wheel");
   await page.mouse.move(1240, 830);
+
+  // Sample at the first real wheel scroll event, before the app's rAF-based
+  // Edit refresh can run. A fixed border that merely chases the parent later
+  // will fail here even if it settles into place.
+  const insideWheel = page.evaluate(() => new Promise((resolve) => {
+    const sample = () => {
+      const target = document.querySelector("#isolated-edit-parent");
+      const stroke = document.querySelector("body > [data-mesurer-arrange-native-stroke='true']");
+
+      if (!(target instanceof HTMLElement) || !(stroke instanceof HTMLElement)) return null;
+
+      return { target: target.getBoundingClientRect().toJSON(), selected: stroke.getBoundingClientRect().toJSON() };
+    };
+
+    window.addEventListener("scroll", () => resolve(sample()), { once: true, capture: true });
+  }));
+
   await page.mouse.wheel(0, 72);
+  const wheelFrame = await insideWheel;
+
+  assert(wheelFrame, "Edit source-owned stroke was missing in the real scroll event");
+  assertSameBox(wheelFrame.selected, wheelFrame.target, "native Edit stroke inside scroll event");
   await settle();
 
   const parentEditAfter = {
