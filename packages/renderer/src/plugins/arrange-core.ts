@@ -512,6 +512,90 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     box.style.userSelect = "none";
     root.append(verticalSnapLine, horizontalSnapLine, box);
 
+    // Edit retains its fixed, interactive drag hit region, but visible selection
+    // evidence must live in the same CSS anchor tree as the selected page node.
+    // Reuse the native anchors already owned by MeasurementBox, rather than
+    // measuring page geometry in a scroll-handler animation frame.
+    const nativeStrokes = new Map<HTMLElement, HTMLDivElement>();
+    const nativePaintGuard = ownerDocument.createElement("style");
+
+    nativePaintGuard.dataset.mesurerArrangeNativePaintGuard = "true";
+    nativePaintGuard.textContent = `
+body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-stroke="true"] {
+  display: none !important;
+}
+`;
+    ownerDocument.head.append(nativePaintGuard);
+
+    const clearNativeStrokes = () => {
+      for (const stroke of nativeStrokes.values()) stroke.remove();
+      nativeStrokes.clear();
+    };
+
+    const syncNativeStrokes = (elements: HTMLElement[]) => {
+      const body = ownerDocument.body;
+
+      if (!body || !elements.length
+        || !ownerWindow.CSS?.supports("left: anchor(left)")) {
+        clearNativeStrokes();
+
+        return false;
+      }
+
+      const roots = Array.from(body.children).filter(
+        (node): node is HTMLElement =>
+          node instanceof realm.HTMLElement
+          && node.dataset.mesurerSelectedMeasurement === "true"
+          && node.dataset.mesurerSelectionGroup !== "true",
+      );
+
+      const matched = roots.flatMap((root) => {
+        const chrome = root.querySelector<HTMLElement>("[data-mesurer-measurement-chrome='true']");
+        const anchor = chrome?.style.getPropertyValue("position-anchor").trim();
+
+        if (!chrome || chrome.dataset.mesurerNativeScrollAnchor !== "box" || !anchor) return [];
+
+        const source = elements.find((element) =>
+          element.getRootNode() === ownerDocument
+          && element.style.getPropertyValue("anchor-name").split(",").some((name) => name.trim() === anchor));
+
+        return source ? [{ chrome, anchor }] : [];
+      });
+
+      if (matched.length !== elements.length) {
+        clearNativeStrokes();
+
+        return false;
+      }
+
+      const live = new Set(matched.map(({ chrome }) => chrome));
+
+      for (const [chrome, stroke] of nativeStrokes) {
+        if (live.has(chrome)) continue;
+        stroke.remove();
+        nativeStrokes.delete(chrome);
+      }
+
+      for (const { chrome, anchor } of matched) {
+        let stroke = nativeStrokes.get(chrome);
+
+        if (!stroke) {
+          stroke = ownerDocument.createElement("div");
+          stroke.dataset.mesurerArrangeNativeStroke = "true";
+          stroke.dataset.mesurerInspectorUi = "true";
+          stroke.style.cssText = "position:absolute!important;left:anchor(left)!important;top:anchor(top)!important;width:anchor-size(width)!important;height:anchor-size(height)!important;box-sizing:border-box;border:1px solid #0d99ff;pointer-events:none;z-index:2147482801;transition:none;animation:none;";
+          nativeStrokes.set(chrome, stroke);
+          body.append(stroke);
+        }
+
+        if (stroke.style.getPropertyValue("position-anchor") !== anchor) {
+          stroke.style.setProperty("position-anchor", anchor, "important");
+        }
+      }
+
+      return true;
+    };
+
     const previews = new Map<HTMLElement, AppliedPreview>();
     const liveTargets = new Map<string, HTMLElement>();
     const transitionBaselines = new Map<HTMLElement, InlineStyleValue>();
@@ -1221,20 +1305,27 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       // selection or paint over Typography. The user-visible selection is the
       // page-linked MeasurementBox, while the transparent hit region continues
       // to support dragging without a scroll-following border.
-      if (!active() || directTextEditActive()) {
+      if (!active()) {
+        clearNativeStrokes();
         box.style.display = "none";
         clearResetButtons();
 
         return;
       }
 
-      const elements = selectedElements();
+      const nativeDocumentSelection = syncNativeStrokes(selectedElements());
 
-      const nativeDocumentSelection = elements.length > 0
-        && elements.every((element) => element.getRootNode() === ownerDocument)
-        && Boolean(ownerWindow.CSS?.supports("position-anchor: --mesurer-native-anchor"))
-        && Boolean(ownerWindow.CSS?.supports("left: anchor(left)"));
+      // Direct text edit owns the visible ring and contextual controls.
+      // Paint neither the Edit hitbox nor its native selection strokes.
+      if (directTextEditActive()) {
+        for (const stroke of nativeStrokes.values()) stroke.style.display = "none";
+        box.style.display = "none";
+        clearResetButtons();
 
+        return;
+      }
+
+      for (const stroke of nativeStrokes.values()) stroke.style.removeProperty("display");
       box.style.borderColor = nativeDocumentSelection ? "transparent" : "#0d99ff";
 
       const value = override === undefined ? selectionRect() : override;
@@ -2013,6 +2104,8 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       clearResetButtons();
       hideSnapLines();
       restoreMeasurementOverlays();
+      clearNativeStrokes();
+      nativePaintGuard.remove();
       workspace.dispose();
       inspectorMount.dispose();
     });
