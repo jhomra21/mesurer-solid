@@ -1229,6 +1229,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       }
 
       const elements = selectedElements();
+
       const nativeDocumentSelection = elements.length > 0
         && elements.every((element) => element.getRootNode() === ownerDocument)
         && Boolean(ownerWindow.CSS?.supports("position-anchor: --mesurer-native-anchor"))
