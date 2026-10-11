@@ -1235,6 +1235,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         && Boolean(ownerWindow.CSS?.supports("left: anchor(left)"));
 
       box.style.borderColor = nativeDocumentSelection ? "transparent" : "#0d99ff";
+
       const value = override === undefined ? selectionRect() : override;
 
       if (!value) {
