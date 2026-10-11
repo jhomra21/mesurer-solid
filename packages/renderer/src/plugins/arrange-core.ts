@@ -1217,13 +1217,24 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     };
 
     const renderBox = (override?: ArrangeRect | null) => {
-      if (!active()) {
+      // Edit's fixed hit region must not compete with the document-anchored
+      // selection or paint over Typography. The user-visible selection is the
+      // page-linked MeasurementBox, while the transparent hit region continues
+      // to support dragging without a scroll-following border.
+      if (!active() || directTextEditActive()) {
         box.style.display = "none";
         clearResetButtons();
 
         return;
       }
 
+      const elements = selectedElements();
+      const nativeDocumentSelection = elements.length > 0
+        && elements.every((element) => element.getRootNode() === ownerDocument)
+        && Boolean(ownerWindow.CSS?.supports("position-anchor: --mesurer-native-anchor"))
+        && Boolean(ownerWindow.CSS?.supports("left: anchor(left)"));
+
+      box.style.borderColor = nativeDocumentSelection ? "transparent" : "#0d99ff";
       const value = override === undefined ? selectionRect() : override;
 
       if (!value) {
