@@ -389,6 +389,73 @@ try {
     );
   }
 
+  // Consumer regression: select a parent in Edit, scroll, then double-click
+  // a nested child. The fixed Edit hit region must not paint a second border
+  // that chases scrolling, and must not cover the Typography card afterward.
+  await editor.focus();
+  await editor.press("Escape");
+  await editor.waitFor({ state: "detached" });
+
+  const parent = page.locator("#isolated-edit-parent");
+  const child = page.locator("#isolated-edit-child");
+  await parent.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  await settle();
+
+  const parentBefore = await box(parent, "nested parent before Edit click");
+  await page.mouse.click(parentBefore.x + 9, parentBefore.y + 9);
+  await waitForStableSelectedChrome("isolated-edit-parent");
+
+  const editBox = page.locator("[data-mesurer-arrange-box='true']");
+  await editBox.waitFor({ state: "visible" });
+  await page.waitForFunction(() => {
+    const box = document.querySelector("[data-mesurer-arrange-box='true']");
+    const selected = document.querySelector("body > [data-mesurer-selected-measurement='true']");
+
+    return box instanceof HTMLElement
+      && selected instanceof HTMLElement
+      && getComputedStyle(box).borderTopColor === "rgba(0, 0, 0, 0)"
+      && getComputedStyle(selected).visibility === "visible"
+      && Number(getComputedStyle(selected).opacity) > 0;
+  });
+
+  const nestedBefore = {
+    target: await box(parent, "nested parent before wheel"),
+    selected: await box(selectedChrome, "nested document selection before wheel"),
+  };
+
+  await page.mouse.move(1240, 830);
+  await page.mouse.wheel(0, 72);
+  await settle();
+  const nestedAfter = {
+    target: await box(parent, "nested parent after wheel"),
+    selected: await box(selectedChrome, "native selected parent after wheel"),
+  };
+
+  assert(Math.abs(nestedAfter.target.y - nestedBefore.target.y) > 20, "nested parent did not scroll");
+  assertSameBox(nestedAfter.selected, nestedAfter.target, "native selection follows nested parent under real wheel");
+
+  const childRect = await box(child, "nested child before direct text edit");
+  await page.mouse.dblclick(childRect.x + childRect.width / 2, childRect.y + childRect.height / 2);
+  await editor.waitFor({ state: "visible" });
+  await inspector.waitFor({ state: "visible" });
+
+  await page.waitForFunction(() => {
+    const box = document.querySelector("[data-mesurer-arrange-box='true']");
+    const selected = [...document.querySelectorAll("body > [data-mesurer-selected-measurement='true']")];
+    const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
+
+    return box instanceof HTMLElement
+      && getComputedStyle(box).display === "none"
+      && selected.every((root) => {
+        const style = getComputedStyle(root);
+
+        return style.visibility === "hidden" || style.opacity === "0";
+      })
+      && card instanceof HTMLElement
+      && getComputedStyle(card).visibility === "visible";
+  });
+
+
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
   console.log("Public isolated E2E: real window/nested scrolling keeps document-owned annotation and native selection attached; physical Typography control input changes rendered source without retargeting page ownership; Context window scroll needs no JS catch-up; Typography leaves with its source while toolbar stays viewport-owned: PASS");
 } finally {
