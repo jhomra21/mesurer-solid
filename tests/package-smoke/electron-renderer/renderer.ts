@@ -404,6 +404,23 @@ try {
   })}`, { cause: error });
 }
 
+// Check the actual packed Electron surface, not a simulated component: once
+// direct text editing opens, neither the Edit drag hitbox nor a native source-
+// anchored stroke may paint over Typography.
+const editSurface = shadow.querySelector<HTMLElement>("[data-mesurer-arrange-box='true']");
+
+if (!editSurface) throw new Error("Missing Electron Edit drag surface during direct text edit.");
+
+await waitFor(() => getComputedStyle(editSurface).display === "none" ? true : null);
+
+const leakingEditStrokes = Array.from(document.querySelectorAll<HTMLElement>(
+  "body > [data-mesurer-arrange-native-stroke='true']",
+)).filter((stroke) => getComputedStyle(stroke).display !== "none");
+
+if (leakingEditStrokes.length) {
+  throw new Error("Native Electron Edit selection stroke covered the Typography editor.");
+}
+
 const editorRoot = editor.getRootNode();
 
 const editorFocus = editorRoot instanceof ShadowRoot
@@ -424,6 +441,10 @@ await window.electronMesurer.pressKey("Enter");
 
 await waitFor(() => !document.querySelector("[data-mesurer-text-editor='true']")
   && !shadow.querySelector("[data-mesurer-text-editor='true']") ? true : null);
+
+// Editor teardown must restore the movable Edit hit target before the next
+// native click (including an immediate switch back to Select mode).
+await waitFor(() => getComputedStyle(editSurface).display !== "none" ? true : null);
 
 const textEdits = await (async () => {
   for (let attempt = 0; attempt < 120; attempt += 1) {
