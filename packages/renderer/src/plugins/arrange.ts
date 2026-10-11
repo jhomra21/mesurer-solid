@@ -175,7 +175,7 @@ const installArrangeDocumentMeasurementGuard = (
       mount.isConnected && Boolean(mount.querySelector(TEXT_EDITOR)));
 
   const hideMeasurement = (element: HTMLElement) => {
-    if (!active || directEditActive() || !isDocumentMeasurement(element)) return;
+    if (!active || !directEditActive() || !isDocumentMeasurement(element)) return;
 
     if (!hiddenMeasurements.has(element)) {
       hiddenMeasurements.set(element, {
@@ -193,7 +193,7 @@ const installArrangeDocumentMeasurementGuard = (
   };
 
   const hideCurrentMeasurements = () => {
-    if (!active || directEditActive()) return;
+    if (!active || !directEditActive()) return;
 
     for (const candidate of body.querySelectorAll(DOCUMENT_SELECTED_MEASUREMENT)) {
       if (candidate instanceof realm.HTMLElement) hideMeasurement(candidate);
@@ -201,7 +201,7 @@ const installArrangeDocumentMeasurementGuard = (
   };
 
   const syncMeasurements = () => {
-    if (!active || directEditActive()) restoreMeasurements();
+    if (!active || !directEditActive()) restoreMeasurements();
     else hideCurrentMeasurements();
   };
 
