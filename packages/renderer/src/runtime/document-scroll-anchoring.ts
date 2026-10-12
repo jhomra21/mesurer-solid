@@ -375,6 +375,7 @@ body:has([data-mesurer-text-editor="true"]) [data-mesurer-source-selection-paint
       existing.count -= 1;
 
       if (existing.count > 0) return;
+
       if (existing.previous === null) target.removeAttribute("data-mesurer-source-selection-paint");
       else target.setAttribute("data-mesurer-source-selection-paint", existing.previous);
       sourcePaintOwners.delete(target);
