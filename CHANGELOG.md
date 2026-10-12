@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.2.2-beta.7 - 2026-10-12
+
 - Render selected page outlines and their translucent tint directly on the selected element's own scroll/compositor layer, rather than painting a second, lagging border in the document portal. Keep portaled measurement geometry and labels, and restore the host's original styling when the selection clears.
 
 ## 0.2.2-beta.6 - 2026-10-12
