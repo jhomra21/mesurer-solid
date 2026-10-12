@@ -577,7 +577,9 @@ if (!nativeScrollTarget) throw new Error("Missing source-owned scrolling selecti
 const temporaryScrollHeight = document.createElement("div");
 
 temporaryScrollHeight.style.height = "2200px";
+
 temporaryScrollHeight.dataset.mesurerElectronScrollFixture = "true";
+
 document.body.append(temporaryScrollHeight);
 
 await window.electronMesurer.clickAt(centerOf(nativeScrollTarget));
@@ -650,7 +652,9 @@ const electronSelectionScroll = {
 };
 
 window.scrollTo(0, 0);
+
 temporaryScrollHeight.remove();
+
 await waitFor(() => window.scrollY === 0 ? true : null, 4000);
 
 const animatedTarget = document.querySelector<HTMLElement>('[data-testid="electron-motion-target"]');
