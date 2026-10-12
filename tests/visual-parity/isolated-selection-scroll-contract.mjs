@@ -409,7 +409,7 @@ try {
 
   const editBox = page.locator("[data-mesurer-arrange-box='true']");
   await editBox.waitFor({ state: "visible" });
-  console.log("Nested Edit: waiting for source-owned visible stroke");
+  console.log("Nested Edit: waiting for source-painted outline with invisible portal stroke");
   await page.waitForFunction(() => {
     const hitBox = document.querySelector("[data-mesurer-island='true']")?.shadowRoot?.querySelector("[data-mesurer-arrange-box='true']")
       ?? document.querySelector("[data-mesurer-arrange-box='true']");
@@ -422,6 +422,8 @@ try {
       && selected instanceof HTMLElement
       && getComputedStyle(hitBox).borderTopColor === "rgba(0, 0, 0, 0)"
       && getComputedStyle(stroke).display !== "none"
+      && getComputedStyle(stroke).opacity === "0"
+      && getComputedStyle(document.querySelector("#isolated-edit-parent")).outlineStyle === "solid"
       && getComputedStyle(selected).visibility === "hidden";
   }, undefined, { timeout: 6000 }).catch(async (cause) => {
     const state = await page.evaluate(() => ({
@@ -451,6 +453,11 @@ try {
   };
 
   assertSameBox(parentEditBefore.selected, parentEditBefore.target, "native Edit stroke before wheel");
+  assert.equal(
+    await parent.evaluate((element) => getComputedStyle(element).outlineStyle),
+    "solid",
+    "the parent itself must paint the visible Edit selection outline",
+  );
   await page.mouse.move(1240, 830);
 
   // Sample at the first real wheel scroll event, before the app's rAF-based
@@ -474,6 +481,11 @@ try {
 
   assert(wheelFrame, "Edit source-owned stroke was missing in the real scroll event");
   assertSameBox(wheelFrame.selected, wheelFrame.target, "native Edit stroke inside scroll event");
+  assert.equal(
+    await parent.evaluate((element) => getComputedStyle(element).outlineStyle),
+    "solid",
+    "source-native outline must survive wheel without an rAF catch-up",
+  );
   await settle();
 
   const parentEditAfter = {
@@ -499,6 +511,7 @@ try {
 
     return box instanceof HTMLElement
       && getComputedStyle(box).display === "none"
+      && getComputedStyle(document.querySelector("#isolated-edit-parent")).outlineStyle === "none"
       && strokes.every((stroke) => getComputedStyle(stroke).display === "none")
       && selected.every((root) => {
         const style = getComputedStyle(root);
