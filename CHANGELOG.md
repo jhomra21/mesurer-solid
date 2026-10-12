@@ -6,6 +6,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Keep Edit selection outlines attached to their page elements while scrolling, rather than painting a lagging fixed border. The page-anchored outline and Edit's drag hitbox now have separate ownership.
+- Hide both the Edit hitbox and its visible selection outline while the direct Typography editor is open, then restore dragging after the editor closes.
+
 ## 0.2.2-beta.5 - 2026-10-10
 
 - Avoid reserving the macOS traffic-light area in Electron windows whose native titlebar is outside the renderer. Honor visible window controls reported by Window Controls Overlay or a narrow host bridge in custom-titlebar windows.

@@ -389,6 +389,127 @@ try {
     );
   }
 
+  // Consumer regression: select a parent in Edit, scroll, then double-click
+  // a nested child. The fixed Edit hit region must not paint a second border
+  // that chases scrolling, and must not cover the Typography card afterward.
+  await editor.focus();
+  await editor.press("Escape");
+  await editor.waitFor({ state: "detached" });
+
+  const parent = page.locator("#isolated-edit-parent");
+  const child = page.locator("#isolated-edit-child");
+  await parent.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  await settle();
+
+  const parentBefore = await box(parent, "nested parent before Edit click");
+  await page.mouse.click(parentBefore.x + 9, parentBefore.y + 9);
+  console.log("Nested Edit: selecting parent");
+  await waitForStableSelectedChrome("isolated-edit-parent");
+  console.log("Nested Edit: native parent anchor ready");
+
+  const editBox = page.locator("[data-mesurer-arrange-box='true']");
+  await editBox.waitFor({ state: "visible" });
+  console.log("Nested Edit: waiting for source-owned visible stroke");
+  await page.waitForFunction(() => {
+    const hitBox = document.querySelector("[data-mesurer-island='true']")?.shadowRoot?.querySelector("[data-mesurer-arrange-box='true']")
+      ?? document.querySelector("[data-mesurer-arrange-box='true']");
+
+    const stroke = document.querySelector("body > [data-mesurer-arrange-native-stroke='true']");
+    const selected = document.querySelector("body > [data-mesurer-selected-measurement='true']");
+
+    return hitBox instanceof HTMLElement
+      && stroke instanceof HTMLElement
+      && selected instanceof HTMLElement
+      && getComputedStyle(hitBox).borderTopColor === "rgba(0, 0, 0, 0)"
+      && getComputedStyle(stroke).display !== "none"
+      && getComputedStyle(selected).visibility === "hidden";
+  }, undefined, { timeout: 6000 }).catch(async (cause) => {
+    const state = await page.evaluate(() => ({
+      parent: document.querySelector("#isolated-edit-parent")?.getBoundingClientRect().toJSON(),
+      editBox: [...document.querySelectorAll("[data-mesurer-arrange-box='true']")].map((node) => ({
+        display: getComputedStyle(node).display,
+        border: getComputedStyle(node).borderTopColor,
+      })),
+      roots: [...document.querySelectorAll("body > [data-mesurer-selected-measurement='true']")].map((root) => ({
+        visibility: getComputedStyle(root).visibility,
+        anchor: root.querySelector("[data-mesurer-measurement-chrome]")?.getAttribute("style"),
+      })),
+      strokes: [...document.querySelectorAll("body > [data-mesurer-arrange-native-stroke='true']")].map((node) => ({
+        display: getComputedStyle(node).display,
+        anchor: node.getAttribute("style"),
+      })),
+    }));
+
+    throw new Error(`Native Edit stroke did not take paint ownership: ${JSON.stringify(state)}`, { cause });
+  });
+
+  const nativeStroke = page.locator("body > [data-mesurer-arrange-native-stroke='true']");
+
+  const parentEditBefore = {
+    target: await box(parent, "nested parent before wheel"),
+    selected: await box(nativeStroke, "native Edit stroke before wheel"),
+  };
+
+  assertSameBox(parentEditBefore.selected, parentEditBefore.target, "native Edit stroke before wheel");
+  await page.mouse.move(1240, 830);
+
+  // Sample at the first real wheel scroll event, before the app's rAF-based
+  // Edit refresh can run. A fixed border that merely chases the parent later
+  // will fail here even if it settles into place.
+  const insideWheel = page.evaluate(() => new Promise((resolve) => {
+    const sample = () => {
+      const target = document.querySelector("#isolated-edit-parent");
+      const stroke = document.querySelector("body > [data-mesurer-arrange-native-stroke='true']");
+
+      if (!(target instanceof HTMLElement) || !(stroke instanceof HTMLElement)) return null;
+
+      return { target: target.getBoundingClientRect().toJSON(), selected: stroke.getBoundingClientRect().toJSON() };
+    };
+
+    window.addEventListener("scroll", () => resolve(sample()), { once: true, capture: true });
+  }));
+
+  await page.mouse.wheel(0, 72);
+  const wheelFrame = await insideWheel;
+
+  assert(wheelFrame, "Edit source-owned stroke was missing in the real scroll event");
+  assertSameBox(wheelFrame.selected, wheelFrame.target, "native Edit stroke inside scroll event");
+  await settle();
+
+  const parentEditAfter = {
+    target: await box(parent, "nested parent after wheel"),
+    selected: await box(nativeStroke, "native Edit stroke after wheel"),
+  };
+
+  assert(Math.abs(parentEditAfter.target.y - parentEditBefore.target.y) > 20, "nested parent did not scroll");
+  assertSameBox(parentEditAfter.selected, parentEditAfter.target, "native selection follows nested parent under real wheel");
+
+  const childRect = await box(child, "nested child before direct text edit");
+  await page.mouse.dblclick(childRect.x + childRect.width / 2, childRect.y + childRect.height / 2);
+  await editor.waitFor({ state: "visible" });
+  await inspector.waitFor({ state: "visible" });
+
+  await page.waitForFunction(() => {
+    const box = document.querySelector("[data-mesurer-island='true']")?.shadowRoot?.querySelector("[data-mesurer-arrange-box='true']")
+      ?? document.querySelector("[data-mesurer-arrange-box='true']");
+
+    const strokes = [...document.querySelectorAll("body > [data-mesurer-arrange-native-stroke='true']")];
+    const selected = [...document.querySelectorAll("body > [data-mesurer-selected-measurement='true']")];
+    const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
+
+    return box instanceof HTMLElement
+      && getComputedStyle(box).display === "none"
+      && strokes.every((stroke) => getComputedStyle(stroke).display === "none")
+      && selected.every((root) => {
+        const style = getComputedStyle(root);
+
+        return style.visibility === "hidden" || style.opacity === "0";
+      })
+      && card instanceof HTMLElement
+      && getComputedStyle(card).visibility === "visible";
+  });
+
+
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
   console.log("Public isolated E2E: real window/nested scrolling keeps document-owned annotation and native selection attached; physical Typography control input changes rendered source without retargeting page ownership; Context window scroll needs no JS catch-up; Typography leaves with its source while toolbar stays viewport-owned: PASS");
 } finally {
