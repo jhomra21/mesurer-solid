@@ -140,6 +140,32 @@ ipcMain.handle("mesurer:double-click-at", async (event, payload) => {
   }
 });
 
+
+/** Exercise real Chromium wheel scrolling through Electron's input pipeline. */
+ipcMain.handle("mesurer:scroll-at", async (event, payload) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+
+  if (!window || window.isDestroyed()) {
+    throw new Error("Electron wheel scroll requested without a live BrowserWindow.");
+  }
+
+  const x = Math.round(payload?.x);
+  const y = Math.round(payload?.y);
+  const deltaY = Math.round(payload?.deltaY);
+
+  if (![x, y, deltaY].every(Number.isFinite) || deltaY === 0) {
+    throw new Error("Electron wheel scroll received invalid coordinates or delta.");
+  }
+
+  window.show();
+  window.focus();
+  window.webContents.focus();
+  window.webContents.sendInputEvent({ type: "mouseMove", x, y });
+  window.webContents.sendInputEvent({
+    type: "mouseWheel", x, y, deltaX: 0, deltaY, canScroll: true,
+  });
+});
+
 ipcMain.handle("mesurer:require-native-select", () => {
   const required = process.env.MESURER_ELECTRON_REQUIRE_NATIVE_SELECT === "1";
   console.log(`Electron native Select strict input: ${required}`);
