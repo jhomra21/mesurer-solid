@@ -375,7 +375,7 @@ body:has([data-mesurer-text-editor="true"]) [data-mesurer-source-selection-paint
       // The tint is composited underneath text in the source's own scroll
       // layer. Never discard user-defined background images or inline styles.
       const computed = realm.getComputedStyle(target);
-      const outlineEdge = chrome.querySelector<HTMLElement(":scope > div");
+      const outlineEdge = chrome.querySelector<HTMLElement>(":scope > div");
       const outline = outlineEdge ? realm.getComputedStyle(outlineEdge).backgroundColor : "#0d99ff";
       const fill = realm.getComputedStyle(chrome).backgroundColor;
       const styles = snapshotStyles(target, SOURCE_PAINT_STYLES);
