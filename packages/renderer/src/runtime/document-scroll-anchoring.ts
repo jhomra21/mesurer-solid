@@ -35,6 +35,7 @@ type SelectionBinding = AnchorBinding & {
   chrome: HTMLElement;
   label: HTMLElement | null;
   placement: Placement;
+  releaseSourcePaint: () => void;
 };
 
 type HoverBinding = AnchorBinding & {
@@ -271,6 +272,13 @@ export function installDocumentScrollAnchoring(
   const releaseNativeScrollRegistration = registerNativeScrollAnchoring(ownerDocument);
   const workspace = runtime.createWorkspaceRuntime();
   const targetAnchors = new Map<HTMLElement, TargetAnchorState>();
+
+  const sourcePaintOwners = new Map<HTMLElement, {
+    count: number;
+    previous: string | null;
+    styles: ReturnType<typeof snapshotStyles>;
+  }>();
+
   const selectionBindings = new Map<HTMLElement, SelectionBinding>();
   const highlightPlacements = new Map<HTMLElement, Placement>();
   const inspectorPairBindings = new Map<HTMLElement, InspectorPairBinding>();
@@ -297,6 +305,36 @@ export function installDocumentScrollAnchoring(
   style.dataset.mesurerNativeScrollAnchoring = "true";
   style.dataset.mesurerInspectorUi = "true";
   style.textContent = `
+/* The selected page element, not a document-level portal, paints its outline.
+   The source's own compositor scroll node can then move outline and text in
+   the same frame. The invisible portaled box remains usable for measurement
+   and element identity tests without displaying the delayed duplicate. */
+[data-mesurer-source-selection-paint="true"] {
+  outline: 1px solid var(--mesurer-selected-source-outline, #0d99ff) !important;
+  outline-offset: -1px !important;
+  /* Tint source text as well as its background: the previous translucent
+     portal covered both, while source-local background paint alone would
+     leave all antialiased text pixels visibly darker. */
+  color: color-mix(
+    in srgb,
+    var(--mesurer-selected-source-text, currentColor) 84.64%,
+    rgb(from var(--mesurer-selected-source-fill) r g b / 1) 15.36%
+  ) !important;
+  background-image:
+    linear-gradient(var(--mesurer-selected-source-fill, transparent), var(--mesurer-selected-source-fill, transparent)),
+    var(--mesurer-selected-source-background, none) !important;
+}
+[data-mesurer-source-selection-owner="true"] > [data-mesurer-measurement-chrome="true"] {
+  opacity: 0 !important;
+}
+body:has([data-mesurer-source-selection-paint="true"]) > [data-mesurer-arrange-native-stroke="true"] {
+  opacity: 0 !important;
+}
+body:has([data-mesurer-text-editor="true"]) [data-mesurer-source-selection-paint="true"] {
+  outline: none !important;
+  background-image: var(--mesurer-selected-source-background, none) !important;
+  color: var(--mesurer-selected-source-text, inherit) !important;
+}
 [data-mesurer-native-scroll-anchor="box"] {
   position: absolute !important;
   left: anchor(left) !important;
@@ -328,6 +366,62 @@ export function installDocumentScrollAnchoring(
 }
 `;
   ownerDocument.head.append(style);
+
+  // The selected source's outline is painted in its own scrolling/compositor
+  // layer. An absolutely-positioned portaled outline may have correct
+  // getBoundingClientRect() values and STILL visibly lag asynchronously
+  // composited page scrolling. The portal retains geometry and labels.
+  const SOURCE_PAINT_STYLES = [
+    "--mesurer-selected-source-outline",
+    "--mesurer-selected-source-fill",
+    "--mesurer-selected-source-background",
+    "--mesurer-selected-source-text",
+  ] as const;
+
+  const retainSourcePaint = (target: HTMLElement, chrome: HTMLElement) => {
+    const current = sourcePaintOwners.get(target);
+
+    if (current) current.count += 1;
+    else {
+      // Copy the existing selection colors and the host's current background.
+      // The tint is composited underneath text in the source's own scroll
+      // layer. Never discard user-defined background images or inline styles.
+      const computed = realm.getComputedStyle(target);
+      const outlineEdge = chrome.querySelector<HTMLElement>(":scope > div");
+      const outline = outlineEdge ? realm.getComputedStyle(outlineEdge).backgroundColor : "#0d99ff";
+      const fill = realm.getComputedStyle(chrome).backgroundColor;
+      const styles = snapshotStyles(target, SOURCE_PAINT_STYLES);
+
+      sourcePaintOwners.set(target, {
+        count: 1,
+        previous: target.getAttribute("data-mesurer-source-selection-paint"),
+        styles,
+      });
+      target.style.setProperty("--mesurer-selected-source-outline", outline);
+      target.style.setProperty("--mesurer-selected-source-fill", fill);
+      target.style.setProperty("--mesurer-selected-source-background", computed.backgroundImage);
+      target.style.setProperty("--mesurer-selected-source-text", computed.color);
+      target.dataset.mesurerSourceSelectionPaint = "true";
+    }
+
+    let released = false;
+
+    return () => {
+      if (released) return;
+      released = true;
+      const existing = sourcePaintOwners.get(target);
+
+      if (!existing) return;
+      existing.count -= 1;
+
+      if (existing.count > 0) return;
+
+      if (existing.previous === null) target.removeAttribute("data-mesurer-source-selection-paint");
+      else target.setAttribute("data-mesurer-source-selection-paint", existing.previous);
+      restoreStyles(target, existing.styles);
+      sourcePaintOwners.delete(target);
+    };
+  };
 
   const syncTargetAnchor = (target: HTMLElement, state: TargetAnchorState) => {
     const original = state.original.trim();
@@ -386,8 +480,10 @@ export function installDocumentScrollAnchoring(
   };
 
   const releaseSelection = (binding: SelectionBinding) => {
+    delete binding.root.dataset.mesurerSourceSelectionOwner;
     clearAnchorSurface(binding.chrome);
     clearAnchorSurface(binding.label);
+    binding.releaseSourcePaint();
     binding.release();
     binding.placement.release();
   };
@@ -409,7 +505,16 @@ export function installDocumentScrollAnchoring(
       root.parentNode === ownerDocument.body ? "none" : "selection-root",
     );
 
-    const binding: SelectionBinding = { ...anchor, root, chrome, label, placement };
+    const binding: SelectionBinding = {
+      ...anchor,
+      root,
+      chrome,
+      label,
+      placement,
+      releaseSourcePaint: retainSourcePaint(target, chrome),
+    };
+
+    root.dataset.mesurerSourceSelectionOwner = "true";
     selectionBindings.set(root, binding);
     applyAnchor(chrome, binding, "box");
 
@@ -919,6 +1024,14 @@ export function installDocumentScrollAnchoring(
 
     for (const binding of selectionBindings.values()) releaseSelection(binding);
     selectionBindings.clear();
+
+    for (const [target, previous] of sourcePaintOwners) {
+      if (previous.previous === null) target.removeAttribute("data-mesurer-source-selection-paint");
+      else target.setAttribute("data-mesurer-source-selection-paint", previous.previous);
+      restoreStyles(target, previous.styles);
+    }
+
+    sourcePaintOwners.clear();
     releaseHover();
     clearEditBinding();
 

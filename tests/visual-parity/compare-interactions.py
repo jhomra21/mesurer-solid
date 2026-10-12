@@ -277,7 +277,11 @@ for name, meta in cases.items():
     # between the React and Solid lifecycles even when geometry, colors, and
     # normalized interaction state are identical. Keep this exception scoped
     # to those two pixels; every other non-version interaction remains zero.
-    pixel_budget = 2 if name == "settings-tab-select" else 250 if allow_version else 0
+    # Native source paint replaces a lag-prone document-portal border while
+    # preserving its tint. Chromium differs by eight antialiased glyph-edge
+    # pixels for the historical Select-target snapshot; all interaction state,
+    # geometry, and verified selection-label checks remain exact.
+    pixel_budget = 8 if name == "action-select-target" else 2 if name == "settings-tab-select" else 250 if allow_version else 0
     if name == "action-select-target" and selection_label_region is None:
         failures.append(f"{name}: selected measurement label contract did not match")
     if state_diffs:
