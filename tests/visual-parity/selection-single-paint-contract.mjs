@@ -83,6 +83,27 @@ try {
 
   targetBox = await box(target, "target after selection");
   assertSameBox(await box(selected, "selected chrome after selection"), targetBox, "single selected chrome");
+
+  const initialPaint = await page.evaluate((selector) => {
+    const source = document.querySelector("#isolated-scroll-target");
+    const detached = document.querySelector(selector);
+
+    if (!(source instanceof HTMLElement) || !(detached instanceof HTMLElement)) return null;
+
+    return {
+      sourceOwned: source.dataset.mesurerSourceSelectionPaint === "true",
+      outlineStyle: getComputedStyle(source).outlineStyle,
+      outlineWidth: getComputedStyle(source).outlineWidth,
+      outlineColor: getComputedStyle(source).outlineColor,
+      detachedOpacity: getComputedStyle(detached).opacity,
+    };
+  }, SELECTED_CHROME);
+
+  assert(initialPaint?.sourceOwned, "The selected element must paint the visible outline in its own scroll layer");
+  assert.equal(initialPaint.outlineStyle, "solid");
+  assert.equal(initialPaint.outlineWidth, "1px");
+  assert.equal(initialPaint.detachedOpacity, "0", "Portaled selection paint must not chase compositor scroll");
+
   assert.deepEqual(
     await topLayerDuplicates("isolated-scroll-target"),
     [],
@@ -96,6 +117,11 @@ try {
     const frameTarget = await box(target, `target after wheel ${delta}`);
     const frameSelected = await box(selected, `selected chrome after wheel ${delta}`);
     assertSameBox(frameSelected, frameTarget, `selection after wheel ${delta}`);
+    assert.equal(
+      await target.evaluate((element) => getComputedStyle(element).outlineStyle),
+      "solid",
+      `source selection outline disappeared during wheel ${delta}`,
+    );
     assert.deepEqual(
       await topLayerDuplicates("isolated-scroll-target"),
       [],
@@ -113,7 +139,7 @@ try {
 
   assert.equal(await page.locator(SELECTED_CHROME).count(), 1, "selection must have exactly one persistent document chrome box");
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Selection single-paint E2E: a selected target has one document-owned border, no fixed-island duplicate, and wheel scrolling cannot recreate a ghost selection: PASS");
+  console.log("Selection single-paint E2E: the selected source paints the only visible border in its own compositor scroll layer; portaled geometry stays aligned without painting a lagging duplicate: PASS");
 } finally {
   await browser.close();
 }
