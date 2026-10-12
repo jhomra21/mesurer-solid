@@ -272,11 +272,13 @@ export function installDocumentScrollAnchoring(
   const releaseNativeScrollRegistration = registerNativeScrollAnchoring(ownerDocument);
   const workspace = runtime.createWorkspaceRuntime();
   const targetAnchors = new Map<HTMLElement, TargetAnchorState>();
+
   const sourcePaintOwners = new Map<HTMLElement, {
     count: number;
     previous: string | null;
     styles: ReturnType<typeof snapshotStyles>;
   }>();
+
   const selectionBindings = new Map<HTMLElement, SelectionBinding>();
   const highlightPlacements = new Map<HTMLElement, Placement>();
   const inspectorPairBindings = new Map<HTMLElement, InspectorPairBinding>();
