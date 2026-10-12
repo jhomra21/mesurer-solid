@@ -32,6 +32,14 @@ type ElectronTestSummary = {
     hits: ElectronHitStack["hits"];
     events: Array<{ type: string; target: string; detail: number }>;
   };
+  electronSelectionScroll: {
+    beforeTop: number;
+    duringTop: number;
+    afterTop: number;
+    wheelScrollY: number;
+    portalOpacity: string;
+    sourceOutline: string;
+  };
   electronMotionPaused: boolean;
   electronMotionDetails: boolean;
   codexBridgeOk: boolean;
@@ -86,6 +94,7 @@ declare global {
         end: { x: number; y: number };
       }): Promise<void>;
       clickAt(payload: { x: number; y: number }): Promise<void>;
+      scrollAt(payload: { x: number; y: number; deltaY: number }): Promise<void>;
       doubleClickAt(payload: { x: number; y: number }): Promise<void>;
       pressKey(key: "1" | "Enter" | "Escape"): Promise<void>;
       typeText(value: string): Promise<void>;
@@ -557,6 +566,97 @@ if (selectForMotionButton.getAttribute("aria-pressed") !== "true") {
 
 await waitFor(() => selectForMotionButton.getAttribute("aria-pressed") === "true" ? true : null);
 
+// The visible source outline must scroll in the page's own compositor layer.
+// Geometry-only checks on a portaled border missed the original beta.6 bug.
+acceptanceStage = "native Electron wheel scroll with selected source-owned outline";
+
+const nativeScrollTarget = document.querySelector<HTMLElement>('[data-testid="electron-edit-copy"]');
+
+if (!nativeScrollTarget) throw new Error("Missing source-owned scrolling selection fixture.");
+
+const temporaryScrollHeight = document.createElement("div");
+
+temporaryScrollHeight.style.height = "2200px";
+
+temporaryScrollHeight.dataset.mesurerElectronScrollFixture = "true";
+
+document.body.append(temporaryScrollHeight);
+
+await window.electronMesurer.clickAt(centerOf(nativeScrollTarget));
+
+await waitFor(() => nativeScrollTarget.dataset.mesurerSourceSelectionPaint === "true" ? true : null);
+
+const selectedPortalChrome = await waitFor(() =>
+  document.querySelector<HTMLElement>(
+    "body > [data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true']",
+  ),
+);
+
+const sourcePaintBefore = nativeScrollTarget.getBoundingClientRect();
+
+if (getComputedStyle(nativeScrollTarget).outlineStyle !== "solid"
+  || getComputedStyle(selectedPortalChrome).opacity !== "0") {
+  throw new Error("Electron selected element did not own its painted outline before native scrolling.");
+}
+
+const scrollingAtEvent = new Promise<{
+  sourceTop: number;
+  scrollY: number;
+  portalOpacity: string;
+  sourceOutline: string;
+}>((resolve) => {
+  const onScroll = () => {
+    resolve({
+      sourceTop: nativeScrollTarget.getBoundingClientRect().top,
+      scrollY: window.scrollY,
+      portalOpacity: getComputedStyle(selectedPortalChrome).opacity,
+      sourceOutline: getComputedStyle(nativeScrollTarget).outlineStyle,
+    });
+  };
+
+  window.addEventListener("scroll", onScroll, { once: true, capture: true });
+});
+
+await window.electronMesurer.scrollAt({ x: 520, y: 475, deltaY: -160 });
+
+const nativeWheelFrame = await Promise.race([
+  scrollingAtEvent,
+  new Promise<never>((_resolve, reject) => {
+    window.setTimeout(() => reject(new Error("Electron wheel did not produce a real scroll event.")), 3000);
+  }),
+]);
+
+await waitFor(() => Math.abs(window.scrollY) >= 40 ? true : null, 4000);
+
+const sourcePaintAfter = nativeScrollTarget.getBoundingClientRect();
+
+if (Math.abs(sourcePaintAfter.top - sourcePaintBefore.top) < 30
+  || nativeWheelFrame.scrollY === 0
+  || nativeWheelFrame.sourceOutline !== "solid"
+  || nativeWheelFrame.portalOpacity !== "0"
+  || getComputedStyle(nativeScrollTarget).outlineStyle !== "solid") {
+  throw new Error(`Native Electron selection outline did not follow its source: ${JSON.stringify({
+    before: sourcePaintBefore.top,
+    during: nativeWheelFrame,
+    after: sourcePaintAfter.top,
+  })}`);
+}
+
+const electronSelectionScroll = {
+  beforeTop: sourcePaintBefore.top,
+  duringTop: nativeWheelFrame.sourceTop,
+  afterTop: sourcePaintAfter.top,
+  wheelScrollY: nativeWheelFrame.scrollY,
+  portalOpacity: nativeWheelFrame.portalOpacity,
+  sourceOutline: nativeWheelFrame.sourceOutline,
+};
+
+window.scrollTo(0, 0);
+
+temporaryScrollHeight.remove();
+
+await waitFor(() => window.scrollY === 0 ? true : null, 4000);
+
 const animatedTarget = document.querySelector<HTMLElement>('[data-testid="electron-motion-target"]');
 
 if (!animatedTarget || !animatedTarget.getAnimations().length) {
@@ -838,6 +938,7 @@ await window.electronMesurer.complete({
     electronTextEditIntent,
     electronTextDoubleClicks,
     nativeSelectModeSwitch,
+    electronSelectionScroll,
     electronMotionPaused,
     electronMotionDetails,
     codexBridgeOk: true,
