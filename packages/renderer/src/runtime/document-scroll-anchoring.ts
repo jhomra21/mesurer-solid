@@ -312,6 +312,14 @@ export function installDocumentScrollAnchoring(
 [data-mesurer-source-selection-paint="true"] {
   outline: 1px solid var(--mesurer-selected-source-outline, #0d99ff) !important;
   outline-offset: -1px !important;
+  /* Tint source text as well as its background: the previous translucent
+     portal covered both, while source-local background paint alone would
+     leave all antialiased text pixels visibly darker. */
+  color: color-mix(
+    in srgb,
+    var(--mesurer-selected-source-text, currentColor) 84.64%,
+    rgb(from var(--mesurer-selected-source-fill) r g b / 1) 15.36%
+  ) !important;
   background-image:
     linear-gradient(var(--mesurer-selected-source-fill, transparent), var(--mesurer-selected-source-fill, transparent)),
     var(--mesurer-selected-source-background, none) !important;
@@ -325,6 +333,7 @@ body:has([data-mesurer-source-selection-paint="true"]) > [data-mesurer-arrange-n
 body:has([data-mesurer-text-editor="true"]) [data-mesurer-source-selection-paint="true"] {
   outline: none !important;
   background-image: var(--mesurer-selected-source-background, none) !important;
+  color: var(--mesurer-selected-source-text, inherit) !important;
 }
 [data-mesurer-native-scroll-anchor="box"] {
   position: absolute !important;
@@ -366,6 +375,7 @@ body:has([data-mesurer-text-editor="true"]) [data-mesurer-source-selection-paint
     "--mesurer-selected-source-outline",
     "--mesurer-selected-source-fill",
     "--mesurer-selected-source-background",
+    "--mesurer-selected-source-text",
   ] as const;
 
   const retainSourcePaint = (target: HTMLElement, chrome: HTMLElement) => {
@@ -390,6 +400,7 @@ body:has([data-mesurer-text-editor="true"]) [data-mesurer-source-selection-paint
       target.style.setProperty("--mesurer-selected-source-outline", outline);
       target.style.setProperty("--mesurer-selected-source-fill", fill);
       target.style.setProperty("--mesurer-selected-source-background", computed.backgroundImage);
+      target.style.setProperty("--mesurer-selected-source-text", computed.color);
       target.dataset.mesurerSourceSelectionPaint = "true";
     }
 
