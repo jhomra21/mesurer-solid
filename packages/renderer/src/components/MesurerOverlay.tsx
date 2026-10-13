@@ -515,15 +515,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
             }}
           />
         )}</For>
-        <For each={selectionSpacingOverlays()}>{(distance) => (
-          <DistanceOverlayItem
-            distance={distance}
-            showRects={false}
-            kind="selection-spacing"
-            selectionSpacingStyle={props.selectionSpacingStyle}
-            spacingInteraction={spacingInteraction}
-          />
-        )}</For>
+
       </Show>
     </>
   );
@@ -595,6 +587,20 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
             </div>
           </Portal>}
         </Show>
+      </Show>
+
+      {/* Interactive spacing labels must remain in the top-layer host. Its
+          pointer plane intercepts all labels rendered below it in <body>. */}
+      <Show when={selectionVisible() && selectedMeasurements().length > 1}>
+        <For each={selectionSpacingOverlays()}>{(distance) => (
+          <DistanceOverlayItem
+            distance={distance}
+            showRects={false}
+            kind="selection-spacing"
+            selectionSpacingStyle={props.selectionSpacingStyle}
+            spacingInteraction={spacingInteraction}
+          />
+        )}</For>
       </Show>
 
       <For each={heldDistances()}>{(distance) => <DistanceOverlayItem distance={distance} onRemove={props.model.removeHeldDistance} kind="held" />}</For>
