@@ -360,6 +360,7 @@ try {
   // assertion and still visibly chase the page compositor in a screen capture.
   await page.waitForFunction(() => {
     const visual = document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]');
+
     const hit = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root
       ?.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]');
 
