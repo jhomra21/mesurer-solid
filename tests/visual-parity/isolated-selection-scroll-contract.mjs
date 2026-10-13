@@ -274,6 +274,7 @@ try {
     const sample = () => {
       const targets = ["#isolated-scroll-target", "#isolated-edit-parent"]
         .map((selector) => document.querySelector(selector)?.getBoundingClientRect());
+
       const outlines = [...document.querySelectorAll(
         "body > [data-mesurer-multi-selection-document-layer='true'] [data-mesurer-selection-spacing-target='true']",
       )].map((element) => element.getBoundingClientRect());
@@ -334,7 +335,9 @@ try {
 
   const multiArtifacts = process.env.ISOLATED_SCROLL_ARTIFACT_DIR ?? "isolated-scroll-artifacts";
   await fs.mkdir(multiArtifacts, { recursive: true });
+
   const dimensionsBadge = multiLayer.locator("[data-mesurer-selection-group='true'] [data-mesurer-measurement-label='true']");
+
   const badgeStyle = await dimensionsBadge.evaluate((element) => ({
     whiteSpace: getComputedStyle(element).whiteSpace,
     height: element.getBoundingClientRect().height,
