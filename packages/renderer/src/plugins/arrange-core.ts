@@ -521,7 +521,8 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     nativePaintGuard.dataset.mesurerArrangeNativePaintGuard = "true";
     nativePaintGuard.textContent = `
-body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-stroke="true"] {
+body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-stroke="true"],
+body:has([data-mesurer-text-editor="true"]) > [data-mesurer-multi-selection-document-layer="true"] {
   display: none !important;
 }
 `;
