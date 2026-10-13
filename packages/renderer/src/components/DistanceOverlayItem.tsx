@@ -13,6 +13,7 @@ export type DistanceOverlayItemProps = {
   selectionSpacingStyle?: SelectionSpacingStyle;
   spacingInteraction?: SelectionSpacingInteraction;
   spacingScopeId?: string;
+  renderPart?: "all" | "paint" | "interaction";
 };
 
 type DistanceLabelProps = {
@@ -197,7 +198,13 @@ const expandLabelGroup = (scope: HTMLElement, key: string, interaction?: Selecti
 };
 
 const setSpacingFocus = (scope: HTMLElement, distanceId: string | null) => {
-  const roots = scope.querySelectorAll<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]');
+  const interactiveRoots = [...scope.querySelectorAll<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')];
+  const scopeId = interactiveRoots[0]?.getAttribute("data-mesurer-selection-scope");
+  const paintRoots = scopeId
+    ? [...scope.ownerDocument.querySelectorAll<HTMLElement>('[data-mesurer-spacing-paint="true"]')]
+      .filter((root) => root.getAttribute("data-mesurer-selection-scope") === scopeId)
+    : [];
+  const roots = [...interactiveRoots, ...paintRoots];
 
   if (distanceId && !scope.hasAttribute("data-mesurer-spacing-focus")) {
     for (const root of roots) {
@@ -231,7 +238,7 @@ const setSpacingFocus = (scope: HTMLElement, distanceId: string | null) => {
 
     if (active) {
       root.setAttribute("data-mesurer-distance-active", "true");
-      activeRoot = root;
+      if (root.dataset.mesurerDistanceKind === "selection-spacing") activeRoot = root;
     } else {
       root.removeAttribute("data-mesurer-distance-active");
     }
@@ -569,6 +576,8 @@ const segmentIntersectsViewport = (start: number, end: number, limit: number) =>
 
 export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
   const selectionSpacing = () => props.kind === "selection-spacing";
+  const showPaint = () => props.renderPart !== "interaction";
+  const showInteraction = () => props.renderPart !== "paint";
   const spacingStyle = () => props.selectionSpacingStyle ?? DEFAULT_SELECTION_SPACING_STYLE;
 
   const ownerWindow = () => props.distance.elementRefA?.ownerDocument.defaultView
@@ -618,18 +627,19 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
 
   return (
     <div
-      data-mesurer-distance="true"
-      data-mesurer-distance-kind={props.kind}
+      data-mesurer-distance={showInteraction() ? "true" : undefined}
+      data-mesurer-distance-kind={showInteraction() ? props.kind : undefined}
+      data-mesurer-spacing-paint={props.renderPart === "paint" ? "true" : undefined}
       data-mesurer-selection-scope={props.spacingScopeId}
       data-mesurer-distance-id={props.distance.id}
       class={props.onRemove ? "msr:pointer-events-auto" : "msr:pointer-events-none"}
       onClick={props.onRemove ? (event) => { event.stopPropagation(); props.onRemove?.(props.distance.id); } : undefined}
     >
-      <Show when={props.showRects !== false}>
+      <Show when={showPaint() && props.showRects !== false}>
         <div class="msr:absolute msr:rounded msr:border msr:border-[#2563eb]/70" style={{ left: `${props.distance.rectA.left}px`, top: `${props.distance.rectA.top}px`, width: `${props.distance.rectA.width}px`, height: `${props.distance.rectA.height}px` }} />
         <div class="msr:absolute msr:rounded msr:border msr:border-[#2563eb]/70" style={{ left: `${props.distance.rectB.left}px`, top: `${props.distance.rectB.top}px`, width: `${props.distance.rectB.width}px`, height: `${props.distance.rectB.height}px` }} />
       </Show>
-      <Show when={selectionSpacing()}>
+      <Show when={selectionSpacing() && showInteraction()}>
         <div
           data-mesurer-distance-hover-target="true"
           class="msr:pointer-events-none msr:absolute"
@@ -641,7 +651,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
           style={{ left: `${props.distance.rectB.left}px`, top: `${props.distance.rectB.top}px`, width: `${props.distance.rectB.width}px`, height: `${props.distance.rectB.height}px`, opacity: 0 }}
         />
       </Show>
-      <Show when={props.distance.showConnectors !== false}>
+      <Show when={showPaint() && props.distance.showConnectors !== false}>
         <For each={props.distance.connectors}>{(connector) => Math.abs(connector.x1 - connector.x2) < 1
           ? <div data-mesurer-distance-connector="true" class="msr:absolute msr:border-l msr:border-dashed msr:border-[#2563eb]/70" style={{ left: `${connector.x1}px`, top: `${Math.min(connector.y1, connector.y2)}px`, height: `${Math.abs(connector.y2 - connector.y1)}px` }} />
           : <div data-mesurer-distance-connector="true" class="msr:absolute msr:border-t msr:border-dashed msr:border-[#2563eb]/70" style={{ left: `${Math.min(connector.x1, connector.x2)}px`, top: `${connector.y1}px`, width: `${Math.abs(connector.x2 - connector.x1)}px` }} />}
@@ -649,7 +659,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
       </Show>
       <Show when={!selectionSpacing() || !props.distance.edgeDistances?.length}>
         <Show when={props.distance.horizontal}>{(line) => <Show when={line().value > 0 && line().showLine !== false}><>
-          <div
+          <Show when={showPaint()}><div
             data-mesurer-distance-line="horizontal"
             data-mesurer-line-pattern={selectionSpacing() ? spacingStyle().pattern : undefined}
             data-mesurer-line-width={selectionSpacing() ? String(spacingStyle().width) : undefined}
@@ -659,7 +669,8 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
               ? { left: `${Math.min(line().x1, line().x2)}px`, width: `${Math.abs(line().x2 - line().x1)}px`, top: `${line().y - spacingStyle().width / 2}px`, height: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "horizontal") }
               : { left: `${Math.min(line().x1, line().x2)}px`, width: `${Math.abs(line().x2 - line().x1)}px`, top: `${line().y}px` }}
           />
-          <Show when={horizontalLineVisible(line().x1, line().x2, line().y, selectionSpacing() ? spacingStyle().width : 1)}>
+          </Show>
+          <Show when={showInteraction() && horizontalLineVisible(line().x1, line().x2, line().y, selectionSpacing() ? spacingStyle().width : 1)}>
             <Tag
               axis="x"
               left={labelLeft(visibleLabelMidpoint(line().x1, line().x2, ownerWindow()?.innerWidth))}
@@ -675,7 +686,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
           </Show>
         </></Show>}</Show>
         <Show when={props.distance.vertical}>{(line) => <Show when={line().value > 0 && line().showLine !== false}><>
-          <div
+          <Show when={showPaint()}><div
             data-mesurer-distance-line="vertical"
             data-mesurer-line-pattern={selectionSpacing() ? spacingStyle().pattern : undefined}
             data-mesurer-line-width={selectionSpacing() ? String(spacingStyle().width) : undefined}
@@ -685,7 +696,8 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
               ? { top: `${Math.min(line().y1, line().y2)}px`, height: `${Math.abs(line().y2 - line().y1)}px`, left: `${line().x - spacingStyle().width / 2}px`, width: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "vertical") }
               : { top: `${Math.min(line().y1, line().y2)}px`, height: `${Math.abs(line().y2 - line().y1)}px`, left: `${line().x}px` }}
           />
-          <Show when={verticalLineVisible(line().x, line().y1, line().y2, selectionSpacing() ? spacingStyle().width : 1)}>
+          </Show>
+          <Show when={showInteraction() && verticalLineVisible(line().x, line().y1, line().y2, selectionSpacing() ? spacingStyle().width : 1)}>
             <Tag
               axis="y"
               left={labelLeft(line().x + MEASURE_LABEL_OFFSET)}
@@ -710,7 +722,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
         const midpointY = () => (line().y1 + line().y2) / 2;
 
         return <Show when={line().value > 0 && line().showLine !== false && diagonalLineVisible(line().x1, line().y1, line().x2, line().y2)}><>
-          <div
+          <Show when={showPaint()}><div
             data-mesurer-distance-line="diagonal"
             data-mesurer-line-pattern="dotted"
             data-mesurer-line-width={String(spacingStyle().width)}
@@ -726,7 +738,8 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
               ...selectionLineStyle(spacingStyle(), "horizontal", "dotted"),
             }}
           />
-          <Tag
+          </Show>
+          <Show when={showInteraction()}><Tag
             axis="d"
             vectorX={vectorX()}
             vectorY={vectorY()}
@@ -739,14 +752,15 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
             primary={line().showLabel !== false}
             interactive
             spacingInteraction={props.spacingInteraction}
-          >{formatValue(line().value)}</Tag>
+          >{formatValue(line().value)}</Tag></Show>
         </></Show>;
       }}</Show>
       <Show when={selectionSpacing() && props.distance.edgeDistances?.length}>
         <For each={props.distance.edgeDistances}>{(edge) => edge.axis === "x"
           ? <Show when={edge.value > 0 && edge.showLine !== false}><>
-            <div data-mesurer-distance-line={`horizontal-${edge.side}`} data-mesurer-line-pattern={spacingStyle().pattern} data-mesurer-line-width={String(spacingStyle().width)} data-mesurer-line-color={spacingStyle().color} class="msr:absolute" style={{ left: `${Math.min(edge.x1, edge.x2)}px`, width: `${Math.abs(edge.x2 - edge.x1)}px`, top: `${edge.y - spacingStyle().width / 2}px`, height: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "horizontal") }} />
-            <Show when={horizontalLineVisible(edge.x1, edge.x2, edge.y, spacingStyle().width)}>
+            <Show when={showPaint()}><div data-mesurer-distance-line={`horizontal-${edge.side}`} data-mesurer-line-pattern={spacingStyle().pattern} data-mesurer-line-width={String(spacingStyle().width)} data-mesurer-line-color={spacingStyle().color} class="msr:absolute" style={{ left: `${Math.min(edge.x1, edge.x2)}px`, width: `${Math.abs(edge.x2 - edge.x1)}px`, top: `${edge.y - spacingStyle().width / 2}px`, height: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "horizontal") }} />
+            </Show>
+            <Show when={showInteraction() && horizontalLineVisible(edge.x1, edge.x2, edge.y, spacingStyle().width)}>
               <Tag
                 axis="x"
                 left={labelLeft(visibleLabelMidpoint(edge.x1, edge.x2, ownerWindow()?.innerWidth))}
@@ -762,8 +776,9 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
             </Show>
           </></Show>
           : <Show when={edge.value > 0 && edge.showLine !== false}><>
-            <div data-mesurer-distance-line={`vertical-${edge.side}`} data-mesurer-line-pattern={spacingStyle().pattern} data-mesurer-line-width={String(spacingStyle().width)} data-mesurer-line-color={spacingStyle().color} class="msr:absolute" style={{ top: `${Math.min(edge.y1, edge.y2)}px`, height: `${Math.abs(edge.y2 - edge.y1)}px`, left: `${edge.x - spacingStyle().width / 2}px`, width: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "vertical") }} />
-            <Show when={verticalLineVisible(edge.x, edge.y1, edge.y2, spacingStyle().width)}>
+            <Show when={showPaint()}><div data-mesurer-distance-line={`vertical-${edge.side}`} data-mesurer-line-pattern={spacingStyle().pattern} data-mesurer-line-width={String(spacingStyle().width)} data-mesurer-line-color={spacingStyle().color} class="msr:absolute" style={{ top: `${Math.min(edge.y1, edge.y2)}px`, height: `${Math.abs(edge.y2 - edge.y1)}px`, left: `${edge.x - spacingStyle().width / 2}px`, width: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "vertical") }} />
+            </Show>
+            <Show when={showInteraction() && verticalLineVisible(edge.x, edge.y1, edge.y2, spacingStyle().width)}>
               <Tag
                 axis="y"
                 left={labelLeft(edge.x + MEASURE_LABEL_OFFSET)}
