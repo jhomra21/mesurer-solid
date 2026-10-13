@@ -116,12 +116,16 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   // The multi-selection union, its per-target outlines, and pairwise spacing
   // share document coordinates. Keeping them inside the fixed interaction
   // overlay leaves old viewport pixels behind until the scroll-settle refresh.
-  const selectionDocumentOrigin = () => {
+  const selectionDocumentOrigin = createMemo(() => {
     selectedMeasurements();
     const ownerWindow = overlayElement?.ownerDocument.defaultView;
 
+    // These offsets describe the viewport where the selection rects were
+    // sampled, not the viewport when another render (e.g. Edit) happens.
+    // Cache them with the measurements so a mode switch between the scroll
+    // event and the deferred geometry refresh cannot move the entire layer.
     return { x: ownerWindow?.scrollX ?? 0, y: ownerWindow?.scrollY ?? 0 };
-  };
+  });
 
   const displayedMeasurements = createMemo(() => {
     const measurements = props.model.state.settings.multiMeasureEnabled && props.model.state.measurements.length > 0
