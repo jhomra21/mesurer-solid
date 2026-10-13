@@ -104,6 +104,7 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
   });
 
   const paintLabels = new Map<string, HTMLElement>();
+
   const scopeId = labels[0]?.closest<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')
     ?.getAttribute("data-mesurer-selection-scope");
 
@@ -206,6 +207,7 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
     setOffset(label, COLLISION_Y, offsetY, chosenY - inlineFanY);
 
     const root = label.closest<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]');
+
     const visual = paintLabels.get([
       root?.getAttribute("data-mesurer-distance-id"),
       label.getAttribute("data-mesurer-distance-label-key"),
