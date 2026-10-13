@@ -573,6 +573,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
           {(mount) => <Portal mount={mount()}>
             <div
               data-mesurer-multi-selection-document-layer="true"
+              data-mesurer-selection-scope={selectedSpacingIds()}
               data-mesurer-inspector-ui="true"
               data-theme={props.model.state.settings.theme}
               class="msr:pointer-events-none"
@@ -597,6 +598,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
             distance={distance}
             showRects={false}
             kind="selection-spacing"
+            spacingScopeId={selectedSpacingIds()}
             selectionSpacingStyle={props.selectionSpacingStyle}
             spacingInteraction={spacingInteraction}
           />
