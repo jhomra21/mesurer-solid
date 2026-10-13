@@ -548,6 +548,26 @@ try {
   });
 
   matchOutlines(settledMulti, "multi-selection after wheel settles");
+
+  const settledSpacing = await page.evaluate(() => {
+    const line = document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]');
+    const label = document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label]');
+
+    if (!line || !label) return null;
+    const a = line.getBoundingClientRect();
+    const b = label.getBoundingClientRect();
+
+    return { difference: (b.top + b.height / 2) - (a.top + a.height / 2) };
+  });
+
+  assert(settledSpacing, "spacing pill and line must still be visible after settling");
+  const beforeSpacing = selectScroll.before.spacingLabel.y + selectScroll.before.spacingLabel.height / 2
+    - (selectScroll.before.spacingLines[0].y + selectScroll.before.spacingLines[0].height / 2);
+
+  assert(
+    Math.abs(settledSpacing.difference - beforeSpacing) < 2,
+    `visible spacing pill must not snap to a different viewport-relative position after scrolling: ${JSON.stringify({ beforeSpacing, settledSpacing })}`,
+  );
   await page.screenshot({ path: `${multiArtifacts}/multi-selection-after.png` });
 
   // Edit owns the union drag hitbox. Switch back to Select before replacing
