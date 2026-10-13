@@ -283,8 +283,7 @@ try {
         '[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]',
       )].map((element) => element.getBoundingClientRect());
 
-      const spacingLabel = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root
-        ?.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]')
+      const spacingLabel = document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]')
         ?.getBoundingClientRect();
 
       return { targets, outlines, spacingLines, spacingLabel };
@@ -317,6 +316,26 @@ try {
       );
     }
   }
+
+  const selectLabels = await page.evaluate(() => {
+    const root = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root;
+    const proxy = root?.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]');
+    const visual = document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]');
+
+    return {
+      proxyOpacity: proxy ? getComputedStyle(proxy).opacity : null,
+      proxyPointerEvents: proxy ? getComputedStyle(proxy).pointerEvents : null,
+      visualOpacity: visual ? getComputedStyle(visual).opacity : null,
+      visualPointerEvents: visual ? getComputedStyle(visual).pointerEvents : null,
+    };
+  });
+
+  assert.deepEqual(selectLabels, {
+    proxyOpacity: "0",
+    proxyPointerEvents: "auto",
+    visualOpacity: "1",
+    visualPointerEvents: "none",
+  }, "the visible spacing pill must be document-backed, with an invisible interactive top-layer hitbox");
 
   assert(selectScroll.before.spacingLines.length > 0, "Select should show spacing paint between both selected targets");
   assert(selectScroll.before.spacingLabel && selectScroll.after.spacingLabel, "Select spacing value badge must remain visible");
@@ -397,8 +416,7 @@ try {
         '[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]',
       )].map(readRect);
 
-      const spacingLabel = readRect(window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root
-        ?.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]'));
+      const spacingLabel = readRect(document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]'));
 
       return { targets, outlines, groupOutline, groupLabel, spacingLines, spacingLabel, scrollY: window.scrollY };
     };
