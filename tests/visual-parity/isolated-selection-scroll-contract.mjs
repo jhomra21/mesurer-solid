@@ -305,7 +305,7 @@ try {
       assert(
         snapshot.outlines.some((outline) => ["x", "y", "width", "height"]
           .every((key) => Math.abs(outline[key] - targetRect[key]) < 2)),
-        `Select multi-selection target ${index} detached ${stage}`,
+        `Select multi-selection target ${index} detached ${stage}: ${JSON.stringify(snapshot)}`,
       );
     }
   }
