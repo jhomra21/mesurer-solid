@@ -247,10 +247,6 @@ try {
     "window scrolling must not write a Context JS compensation delta",
   );
 
-  const editModeButton = page.locator("button[data-mesurer-toolbar-mode='edit']");
-  await editModeButton.click();
-  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
-
   // A two-target selection was missing from the earlier scroll acceptance
   // tests. Its union readout, individual borders, and spacing lines used to
   // stay viewport-fixed inside the isolated overlay during real wheel input.
@@ -263,6 +259,10 @@ try {
   } finally {
     await page.keyboard.up("Shift");
   }
+
+  const editModeButton = page.locator("button[data-mesurer-toolbar-mode='edit']");
+  await editModeButton.click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
 
   const multiLayer = page.locator("body > [data-mesurer-multi-selection-document-layer='true']");
   await multiLayer.waitFor({ state: "attached" });
