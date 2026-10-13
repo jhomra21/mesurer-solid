@@ -296,10 +296,12 @@ try {
 
     const snapshot = () => {
       const layer = document.querySelector("[data-mesurer-multi-selection-document-layer='true']");
+
       const targets = [
         document.querySelector("#isolated-scroll-target"),
         document.querySelector("#isolated-edit-parent"),
       ].map(readRect);
+
       const outlines = [...(layer?.querySelectorAll("[data-mesurer-selection-spacing-target='true']") ?? [])].map(readRect);
       const groupLabel = readRect(layer?.querySelector("[data-mesurer-selection-group='true'] [data-mesurer-measurement-label='true']"));
       const spacingLines = [...(layer?.querySelectorAll("[data-mesurer-distance-kind='selection-spacing'] [data-mesurer-distance-line]") ?? [])].map(readRect);
@@ -328,6 +330,7 @@ try {
     for (const [i, targetRect] of state.targets.entries()) {
       const matched = state.outlines.some((outlineRect) => outlineRect
         && ["x", "y", "width", "height"].every((key) => Math.abs(outlineRect[key] - targetRect[key]) < 2));
+
       assert(matched, `${stage}: selected target ${i} has a detached scroll outline: ${JSON.stringify(state)}`);
     }
   };
@@ -345,6 +348,7 @@ try {
     ) < 2,
     "union readout must scroll with the selected elements instead of following the viewport",
   );
+
   for (const [index, line] of multiSample.before.spacingLines.entries()) {
     const after = multiSample.after.spacingLines[index];
 
@@ -357,6 +361,7 @@ try {
 
   await page.waitForTimeout(140);
   await settle();
+
   const settledMulti = await multiLayer.evaluate((layer) => {
     const rect = (element) => {
       if (!(element instanceof HTMLElement)) return null;
@@ -370,6 +375,7 @@ try {
       outlines: [...layer.querySelectorAll("[data-mesurer-selection-spacing-target='true']")].map(rect),
     };
   });
+
   matchOutlines(settledMulti, "multi-selection after wheel settles");
 
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
