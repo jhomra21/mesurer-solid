@@ -276,7 +276,9 @@ try {
     const targets = ["#isolated-scroll-target", "#isolated-edit-parent"]
       .map((selector) => document.querySelector(selector));
 
-    const hitbox = document.querySelector("[data-mesurer-arrange-box='true']");
+    const uiRoot = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root;
+    const hitbox = document.querySelector("[data-mesurer-arrange-box='true']")
+      ?? uiRoot?.querySelector("[data-mesurer-arrange-box='true']");
 
     return targets.every((element) =>
       element instanceof HTMLElement
