@@ -278,7 +278,9 @@ try {
 
     return targets.every((element) =>
       element instanceof HTMLElement
-      && element.style.getPropertyValue("outline") === "1px solid #0d99ff"
+      && getComputedStyle(element).outlineWidth === "1px"
+      && getComputedStyle(element).outlineStyle === "solid"
+      && getComputedStyle(element).outlineColor === "rgb(13, 153, 255)"
       && element.style.getPropertyPriority("outline") === "important")
       && hitbox instanceof HTMLElement
       && getComputedStyle(hitbox).borderColor === "rgba(0, 0, 0, 0)";
