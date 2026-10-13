@@ -12,6 +12,7 @@ export type DistanceOverlayItemProps = {
   kind?: "held" | "preview" | "selection-spacing";
   selectionSpacingStyle?: SelectionSpacingStyle;
   spacingInteraction?: SelectionSpacingInteraction;
+  spacingScopeId?: string;
 };
 
 type DistanceLabelProps = {
@@ -122,7 +123,22 @@ const setSelectionChromeFocus = (scope: HTMLElement, activeRoot: HTMLElement | n
     ? new Set([...activeRoot.querySelectorAll<HTMLElement>(HOVER_TARGET_SELECTOR)].map(geometryKey))
     : null;
 
-  for (const element of scope.querySelectorAll<HTMLElement>(SELECTED_CHROME_SELECTOR)) {
+  // The interactive spacing pills live in the protected top-layer island,
+  // while selected borders must scroll with the document. Link their two
+  // render trees by this selection's stable IDs, not a global document query
+  // that could dim another Mesurer instance.
+  const scopeId = scope.querySelector<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')
+    ?.getAttribute("data-mesurer-selection-scope");
+  const documentLayer = scopeId
+    ? [...scope.ownerDocument.querySelectorAll<HTMLElement>('[data-mesurer-multi-selection-document-layer="true"]')]
+      .find((layer) => layer.getAttribute("data-mesurer-selection-scope") === scopeId)
+    : null;
+  const selectedChrome = [
+    ...scope.querySelectorAll<HTMLElement>(SELECTED_CHROME_SELECTOR),
+    ...(documentLayer?.querySelectorAll<HTMLElement>(SELECTED_CHROME_SELECTOR) ?? []),
+  ];
+
+  for (const element of selectedChrome) {
     if (!activeGeometry) {
       const baseOpacity = element.getAttribute(BASE_OPACITY_ATTRIBUTE);
 
@@ -602,6 +618,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
     <div
       data-mesurer-distance="true"
       data-mesurer-distance-kind={props.kind}
+      data-mesurer-selection-scope={props.spacingScopeId}
       data-mesurer-distance-id={props.distance.id}
       class={props.onRemove ? "msr:pointer-events-auto" : "msr:pointer-events-none"}
       onClick={props.onRemove ? (event) => { event.stopPropagation(); props.onRemove?.(props.distance.id); } : undefined}
