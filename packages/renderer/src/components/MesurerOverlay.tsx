@@ -1,4 +1,4 @@
-import { For, Index, Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { Portal } from "@solidjs/web";
 import { GUIDE_DRAG_HOLD_MS, GUIDE_HITBOX_SIZE, MEASURE_LABEL_OFFSET } from "../core/constants";
 import { getSelectionSpacingOverlays } from "../core/distances";
@@ -552,9 +552,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
             }}
           />
         )}</For>
-        <Index each={selectionSpacingOverlays()}>{(distance) => (
+        <For each={selectionSpacingOverlays()}>{(distance) => (
           <DistanceOverlayItem
-            distance={distance()}
+            distance={distance}
             kind="selection-spacing"
             showRects={false}
             spacingScopeId={selectedSpacingIds()}
@@ -562,7 +562,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
             spacingInteraction={spacingInteraction}
             renderPart="paint"
           />
-        )}</Index>
+        )}</For>
       </Show>
     </>
   );
@@ -641,9 +641,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
           pointer plane intercepts all labels rendered below it in <body>. */}
       <Show when={selectionVisible() && selectedMeasurements().length > 1}>
         <div ref={(element) => { spacingInteractionLayer = element; }} data-mesurer-spacing-interaction-layer="true" class="msr:pointer-events-none">
-          <Index each={selectionSpacingOverlays()}>{(distance) => (
+          <For each={selectionSpacingOverlays()}>{(distance) => (
             <DistanceOverlayItem
-              distance={distance()}
+              distance={distance}
               showRects={false}
               kind="selection-spacing"
               spacingScopeId={selectedSpacingIds()}
@@ -651,7 +651,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
               spacingInteraction={spacingInteraction}
               renderPart={selectionDocumentTarget() ? "interaction" : "all"}
             />
-          )}</Index>
+          )}</For>
         </div>
       </Show>
 
