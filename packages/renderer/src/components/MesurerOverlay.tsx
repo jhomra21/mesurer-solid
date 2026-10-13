@@ -560,7 +560,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
       <Show when={selectionVisible()}>
         <Show
-          when={selectedMeasurements().length > 1 && selectionDocumentTarget()}
+          when={selectedMeasurements().length > 1 ? selectionDocumentTarget() : null}
           fallback={<SelectedPresentation />}
         >
           {(mount) => <Portal mount={mount()}>
