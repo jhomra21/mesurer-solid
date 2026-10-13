@@ -615,17 +615,25 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
     ?? props.distance.elementRefB?.ownerDocument.defaultView
     ?? globalThis.window;
 
+  // Selected distances belong to page elements, never to the viewport edge.
+  // Viewport clamping or midpoint clipping shifts their pills when the model
+  // resamples the same element pair after a scroll.
   const labelLeft = (value: number) => {
+    if (selectionSpacing()) return value;
     const width = ownerWindow()?.innerWidth;
 
     return width && width > 0 ? positionDistanceLabelAnchor(value, width) : value;
   };
 
   const labelTop = (value: number) => {
+    if (selectionSpacing()) return value;
     const height = ownerWindow()?.innerHeight;
 
     return height && height > 0 ? positionDistanceLabelAnchor(value, height) : value;
   };
+
+  const midpoint = (start: number, end: number, limit?: number) =>
+    selectionSpacing() ? (start + end) / 2 : visibleLabelMidpoint(start, end, limit);
 
   const horizontalLineVisible = (x1: number, x2: number, y: number, width: number) => {
     const viewport = ownerWindow();
@@ -704,7 +712,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
           <Show when={showLabel() && horizontalLineVisible(line().x1, line().x2, line().y, selectionSpacing() ? spacingStyle().width : 1)}>
             <Tag
               axis="x"
-              left={labelLeft(visibleLabelMidpoint(line().x1, line().x2, ownerWindow()?.innerWidth))}
+              left={labelLeft(midpoint(line().x1, line().x2, ownerWindow()?.innerWidth))}
               top={labelTop(line().y + MEASURE_LABEL_OFFSET)}
               distanceId={selectionSpacing() ? props.distance.id : undefined}
               labelKey={line().labelKey}
@@ -733,7 +741,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
             <Tag
               axis="y"
               left={labelLeft(line().x + MEASURE_LABEL_OFFSET)}
-              top={labelTop(visibleLabelMidpoint(line().y1, line().y2, ownerWindow()?.innerHeight))}
+              top={labelTop(midpoint(line().y1, line().y2, ownerWindow()?.innerHeight))}
               distanceId={selectionSpacing() ? props.distance.id : undefined}
               labelKey={line().labelKey}
               labelIndex={line().labelIndex}
@@ -797,7 +805,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
             <Show when={showLabel() && horizontalLineVisible(edge.x1, edge.x2, edge.y, spacingStyle().width)}>
               <Tag
                 axis="x"
-                left={labelLeft(visibleLabelMidpoint(edge.x1, edge.x2, ownerWindow()?.innerWidth))}
+                left={labelLeft(midpoint(edge.x1, edge.x2, ownerWindow()?.innerWidth))}
                 top={labelTop(edge.y + MEASURE_LABEL_OFFSET)}
                 distanceId={props.distance.id}
                 labelKey={edge.labelKey}
@@ -817,7 +825,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
               <Tag
                 axis="y"
                 left={labelLeft(edge.x + MEASURE_LABEL_OFFSET)}
-                top={labelTop(visibleLabelMidpoint(edge.y1, edge.y2, ownerWindow()?.innerHeight))}
+                top={labelTop(midpoint(edge.y1, edge.y2, ownerWindow()?.innerHeight))}
                 distanceId={props.distance.id}
                 labelKey={edge.labelKey}
                 labelIndex={edge.labelIndex}
