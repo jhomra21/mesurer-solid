@@ -278,6 +278,7 @@ try {
       const outlines = [...document.querySelectorAll(
         "body > [data-mesurer-multi-selection-document-layer='true'] [data-mesurer-selection-spacing-target='true']",
       )].map((element) => element.getBoundingClientRect());
+
       const spacingLines = [...document.querySelectorAll(
         '[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]',
       )].map((element) => element.getBoundingClientRect());
@@ -314,6 +315,7 @@ try {
   }
 
   assert(selectScroll.before.spacingLines.length > 0, "Select should show spacing paint between both selected targets");
+
   for (const [index, before] of selectScroll.before.spacingLines.entries()) {
     const after = selectScroll.after.spacingLines[index];
 
@@ -380,6 +382,7 @@ try {
       const outlines = [...(layer?.querySelectorAll("[data-mesurer-selection-spacing-target='true']") ?? [])].map(readRect);
       const groupOutline = readRect(layer?.querySelector("[data-mesurer-selection-group-outline='true']"));
       const groupLabel = readRect(layer?.querySelector("[data-mesurer-selection-group='true'] [data-mesurer-measurement-label='true']"));
+
       const spacingLines = [...document.querySelectorAll(
         '[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]',
       )].map(readRect);
