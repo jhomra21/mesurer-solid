@@ -95,6 +95,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const selectedOutline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 96%, transparent)`;
   const selectedFill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 15.36%, transparent)`;
   const selectedMeasurements = createMemo(() => props.model.state.selectedMeasurements);
+
   // The multi-selection union, its per-target outlines, and pairwise spacing
   // share document coordinates. Keeping them inside the fixed interaction
   // overlay leaves old viewport pixels behind until the scroll-settle refresh.
@@ -573,7 +574,6 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
                 position: "absolute",
                 left: `${selectionDocumentOrigin().x}px`,
                 top: `${selectionDocumentOrigin().y}px`,
-                "z-index": "2147482800",
                 "pointer-events": "none",
               }}
             >
