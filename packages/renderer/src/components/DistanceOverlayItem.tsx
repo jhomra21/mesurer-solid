@@ -197,16 +197,23 @@ const expandLabelGroup = (scope: HTMLElement, key: string, interaction?: Selecti
   scheduleSpacingLabelLayoutAfterRender(scope);
 };
 
-const setSpacingFocus = (scope: HTMLElement, distanceId: string | null) => {
-  const interactiveRoots = [...scope.querySelectorAll<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')];
-  const scopeId = interactiveRoots[0]?.getAttribute("data-mesurer-selection-scope");
+const linkedSpacingPaint = (scope: HTMLElement) => {
+  const scopeId = scope.querySelector<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')
+    ?.getAttribute("data-mesurer-selection-scope");
 
-  const paintRoots = scopeId
+  return scopeId
     ? [...scope.ownerDocument.querySelectorAll<HTMLElement>('[data-mesurer-spacing-paint="true"]')]
       .filter((root) => root.getAttribute("data-mesurer-selection-scope") === scopeId)
     : [];
+};
 
-  const roots = [...interactiveRoots, ...paintRoots];
+const setSpacingFocus = (scope: HTMLElement, distanceId: string | null) => {
+  const paintRoots = linkedSpacingPaint(scope);
+  const roots = [...scope.querySelectorAll<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]'), ...paintRoots];
+
+  if (!distanceId) {
+    for (const root of paintRoots) root.removeAttribute("data-mesurer-spacing-hover-axis");
+  }
 
   if (distanceId && !scope.hasAttribute("data-mesurer-spacing-focus")) {
     for (const root of roots) {
@@ -420,12 +427,24 @@ const Tag = (props: DistanceLabelProps) => {
     }
 
     setSpacingFocus(interaction.scope, interaction.distanceId);
+
+    for (const paint of linkedSpacingPaint(interaction.scope)) {
+      if (paint.dataset.mesurerDistanceId === interaction.distanceId) {
+        paint.setAttribute("data-mesurer-spacing-hover-axis", props.axis);
+      }
+    }
   };
 
   const handleLeave = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
 
-    if (!interaction || interaction.scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) return;
+    if (!interaction) return;
+
+    for (const paint of linkedSpacingPaint(interaction.scope)) {
+      paint.removeAttribute("data-mesurer-spacing-hover-axis");
+    }
+
+    if (interaction.scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) return;
     const next = event.relatedTarget;
 
     const nextLabel = next instanceof Element
