@@ -246,6 +246,119 @@ try {
     "window scrolling must not write a Context JS compensation delta",
   );
 
+  // A two-target selection was missing from the earlier scroll acceptance
+  // tests. Its union readout, individual borders, and spacing lines used to
+  // stay viewport-fixed inside the isolated overlay during real wheel input.
+  const companion = page.locator("#isolated-edit-parent");
+  const companionBox = await box(companion, "multi-selection companion");
+  await page.keyboard.down("Shift");
+
+  try {
+    await page.mouse.click(companionBox.x + 8, companionBox.y + 8);
+  } finally {
+    await page.keyboard.up("Shift");
+  }
+
+  const multiLayer = page.locator("body > [data-mesurer-multi-selection-document-layer='true']");
+  await multiLayer.waitFor({ state: "attached" });
+  await page.waitForFunction(() =>
+    document.querySelectorAll(
+      "body > [data-mesurer-multi-selection-document-layer='true'] [data-mesurer-selection-spacing-target='true']",
+    ).length === 2,
+  );
+
+  const multiSamplePromise = page.evaluate(() => new Promise((resolve, reject) => {
+    const readRect = (element) => {
+      if (!(element instanceof HTMLElement)) return null;
+      const rect = element.getBoundingClientRect();
+
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+
+    const snapshot = () => {
+      const layer = document.querySelector("[data-mesurer-multi-selection-document-layer='true']");
+      const targets = [
+        document.querySelector("#isolated-scroll-target"),
+        document.querySelector("#isolated-edit-parent"),
+      ].map(readRect);
+      const outlines = [...(layer?.querySelectorAll("[data-mesurer-selection-spacing-target='true']") ?? [])].map(readRect);
+      const groupLabel = readRect(layer?.querySelector("[data-mesurer-selection-group='true'] [data-mesurer-measurement-label='true']"));
+      const spacingLines = [...(layer?.querySelectorAll("[data-mesurer-distance-kind='selection-spacing'] [data-mesurer-distance-line]") ?? [])].map(readRect);
+
+      return { targets, outlines, groupLabel, spacingLines, scrollY: window.scrollY };
+    };
+
+    const before = snapshot();
+
+    if (before.targets.some((rect) => !rect) || before.outlines.length !== 2 || !before.groupLabel) {
+      return reject(new Error(`multi-selection surfaces missing before wheel: ${JSON.stringify(before)}`));
+    }
+
+    const timer = window.setTimeout(() => reject(new Error("multi-selection real wheel did not scroll")), 3000);
+    window.addEventListener("scroll", () => {
+      window.clearTimeout(timer);
+      resolve({ before, after: snapshot() });
+    }, { capture: true, once: true });
+  }));
+
+  await page.mouse.move(1220, 840);
+  await page.mouse.wheel(0, 84);
+  const multiSample = await multiSamplePromise;
+
+  const matchOutlines = (state, stage) => {
+    for (const [i, targetRect] of state.targets.entries()) {
+      const matched = state.outlines.some((outlineRect) => outlineRect
+        && ["x", "y", "width", "height"].every((key) => Math.abs(outlineRect[key] - targetRect[key]) < 2));
+      assert(matched, `${stage}: selected target ${i} has a detached scroll outline: ${JSON.stringify(state)}`);
+    }
+  };
+
+  matchOutlines(multiSample.before, "multi-selection before physical wheel");
+  matchOutlines(multiSample.after, "multi-selection inside physical wheel event");
+  assert(
+    Math.abs(multiSample.after.targets[0].y - multiSample.before.targets[0].y) > 15,
+    "multi-selection scroll must move the host page target",
+  );
+  assert(
+    Math.abs(
+      (multiSample.after.groupLabel.y - multiSample.before.groupLabel.y)
+      - (multiSample.after.targets[0].y - multiSample.before.targets[0].y),
+    ) < 2,
+    "union readout must scroll with the selected elements instead of following the viewport",
+  );
+  for (const [index, line] of multiSample.before.spacingLines.entries()) {
+    const after = multiSample.after.spacingLines[index];
+
+    assert(after, `spacing line ${index} disappeared during scroll`);
+    assert(
+      Math.abs((after.y - line.y) - (multiSample.after.targets[0].y - multiSample.before.targets[0].y)) < 2,
+      `spacing line ${index} must stay in the document scroll layer`,
+    );
+  }
+
+  await page.waitForTimeout(140);
+  await settle();
+  const settledMulti = await multiLayer.evaluate((layer) => {
+    const rect = (element) => {
+      if (!(element instanceof HTMLElement)) return null;
+      const bounds = element.getBoundingClientRect();
+
+      return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+    };
+
+    return {
+      targets: ["#isolated-scroll-target", "#isolated-edit-parent"].map((selector) => rect(document.querySelector(selector))),
+      outlines: [...layer.querySelectorAll("[data-mesurer-selection-spacing-target='true']")].map(rect),
+    };
+  });
+  matchOutlines(settledMulti, "multi-selection after wheel settles");
+
+  await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  await settle();
+  targetBox = await box(target, "single-selection restore");
+  await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+  await page.waitForFunction(() => !document.querySelector("[data-mesurer-multi-selection-document-layer='true']"));
+
   const nestedScroller = page.locator("#nested-scroll-shell");
   const nestedTarget = page.locator("#isolated-nested-scroll-target");
   await nestedScroller.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
