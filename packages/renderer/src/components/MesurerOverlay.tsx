@@ -299,6 +299,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     if (!overlay || !ownerWindow || !ownerDocument) return;
 
+    spacingOriginX = ownerWindow.scrollX;
+    spacingOriginY = ownerWindow.scrollY;
+
     // A document-backed multi-selection paints in the same native scroll tree
     // as the page. Only the toolbar and pointer input remain viewport-fixed.
     if (ownerDocument.body) {
