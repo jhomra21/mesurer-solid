@@ -246,6 +246,10 @@ try {
     "window scrolling must not write a Context JS compensation delta",
   );
 
+  const editModeButton = page.locator("button[data-mesurer-toolbar-mode='edit']");
+  await editModeButton.click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+
   // A two-target selection was missing from the earlier scroll acceptance
   // tests. Its union readout, individual borders, and spacing lines used to
   // stay viewport-fixed inside the isolated overlay during real wheel input.
@@ -266,6 +270,19 @@ try {
       "body > [data-mesurer-multi-selection-document-layer='true'] [data-mesurer-selection-spacing-target='true']",
     ).length === 2,
   );
+
+  await page.waitForFunction(() => {
+    const targets = ["#isolated-scroll-target", "#isolated-edit-parent"]
+      .map((selector) => document.querySelector(selector));
+    const hitbox = document.querySelector("[data-mesurer-arrange-box='true']");
+
+    return targets.every((element) =>
+      element instanceof HTMLElement
+      && element.style.getPropertyValue("outline") === "1px solid #0d99ff"
+      && element.style.getPropertyPriority("outline") === "important")
+      && hitbox instanceof HTMLElement
+      && getComputedStyle(hitbox).borderColor === "rgba(0, 0, 0, 0)";
+  });
 
   const multiSamplePromise = page.evaluate(() => new Promise((resolve, reject) => {
     const readRect = (element) => {
@@ -358,6 +375,8 @@ try {
   targetBox = await box(target, "single-selection restore");
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
   await page.waitForFunction(() => !document.querySelector("[data-mesurer-multi-selection-document-layer='true']"));
+  await editModeButton.click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='select']").waitFor({ state: "visible" });
 
   const nestedScroller = page.locator("#nested-scroll-shell");
   const nestedTarget = page.locator("#isolated-nested-scroll-target");
