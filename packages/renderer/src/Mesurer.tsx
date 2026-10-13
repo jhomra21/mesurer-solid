@@ -530,13 +530,17 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   // scroll anchoring owns the paint. A later Shift-click can therefore combine
   // a fresh second target with an older first target's viewport coordinates.
   // Resample at the selection gesture boundary, not on the scroll hot path.
-  const refreshSelectedGeometry = (items: InspectMeasurement[]) => items
-    .filter((item) => item.elementRef?.isConnected)
-    .map((item) => ({
-      ...getInspectMeasurement(item.elementRef!, ownerWindow),
+  const refreshSelectedGeometry = (items: InspectMeasurement[]) => items.flatMap((item) => {
+    const element = item.elementRef;
+
+    if (!element?.isConnected) return [];
+
+    return [{
+      ...getInspectMeasurement(element, ownerWindow),
       id: item.id,
       originRect: item.originRect,
-    }));
+    }];
+  });
 
   const pointerUp = (event: MesurerPointerInput) => {
     if (!model.current.enabled) return;
