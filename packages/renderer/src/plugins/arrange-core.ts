@@ -555,11 +555,13 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-multi-selection-docu
         else element.style.removeProperty("outline");
         if (previous.offset) element.style.setProperty("outline-offset", previous.offset, previous.offsetPriority);
         else element.style.removeProperty("outline-offset");
+
         multiSourceStrokes.delete(element);
       }
 
       for (const element of next) {
         if (multiSourceStrokes.has(element)) continue;
+
         multiSourceStrokes.set(element, {
           outline: element.style.getPropertyValue("outline"),
           outlinePriority: element.style.getPropertyPriority("outline"),
@@ -1358,7 +1360,9 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-multi-selection-docu
       const sourcePaint = selected.length > 1 && !isEditingText;
 
       syncMultiSourceStrokes(sourcePaint ? selected : []);
+
       if (sourcePaint) clearNativeStrokes();
+
       const nativeDocumentSelection = sourcePaint || syncNativeStrokes(selected);
 
       // Direct text edit owns the visible ring and contextual controls.
