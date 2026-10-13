@@ -371,8 +371,37 @@ try {
     return ["x", "y", "width", "height"].every((key) => Math.abs(a[key] - b[key]) < 2);
   });
 
-  const editModeButton = page.locator("button[data-mesurer-toolbar-mode='edit']");
-  await editModeButton.click();
+  // Force the exact macOS regression: the second scroll arrives, then Edit
+  // re-renders the document layer before the deferred 80ms measurement refresh.
+  // The scroll origin must remain paired with the old measured rects.
+  const modeSwitchGeometry = await page.evaluate(async () => {
+    const root = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root;
+    const editButton = root?.querySelector('button[data-mesurer-toolbar-mode="edit"]');
+
+    if (!(editButton instanceof HTMLElement)) throw new Error("Edit mode button missing");
+
+    window.scrollBy(0, 32);
+    editButton.click();
+    await Promise.resolve();
+
+    const targets = ["#isolated-scroll-target", "#isolated-edit-parent"]
+      .map((selector) => document.querySelector(selector)?.getBoundingClientRect());
+
+    const outlines = [...document.querySelectorAll(
+      "body > [data-mesurer-multi-selection-document-layer='true'] [data-mesurer-selection-spacing-target='true']",
+    )].map((element) => element.getBoundingClientRect());
+
+    return { targets, outlines, scrollY: window.scrollY };
+  });
+
+  for (const target of modeSwitchGeometry.targets) {
+    assert(
+      modeSwitchGeometry.outlines.some((outline) => ["x", "y", "width", "height"]
+        .every((key) => Math.abs(outline[key] - target[key]) < 2)),
+      `Edit immediately after scrolling must not rebase stale geometry: ${JSON.stringify(modeSwitchGeometry)}`,
+    );
+  }
+
   await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
 
   await page.waitForFunction(() => {
