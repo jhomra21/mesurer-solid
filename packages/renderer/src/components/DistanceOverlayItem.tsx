@@ -200,10 +200,12 @@ const expandLabelGroup = (scope: HTMLElement, key: string, interaction?: Selecti
 const setSpacingFocus = (scope: HTMLElement, distanceId: string | null) => {
   const interactiveRoots = [...scope.querySelectorAll<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')];
   const scopeId = interactiveRoots[0]?.getAttribute("data-mesurer-selection-scope");
+
   const paintRoots = scopeId
     ? [...scope.ownerDocument.querySelectorAll<HTMLElement>('[data-mesurer-spacing-paint="true"]')]
       .filter((root) => root.getAttribute("data-mesurer-selection-scope") === scopeId)
     : [];
+
   const roots = [...interactiveRoots, ...paintRoots];
 
   if (distanceId && !scope.hasAttribute("data-mesurer-spacing-focus")) {
@@ -238,6 +240,7 @@ const setSpacingFocus = (scope: HTMLElement, distanceId: string | null) => {
 
     if (active) {
       root.setAttribute("data-mesurer-distance-active", "true");
+
       if (root.dataset.mesurerDistanceKind === "selection-spacing") activeRoot = root;
     } else {
       root.removeAttribute("data-mesurer-distance-active");
