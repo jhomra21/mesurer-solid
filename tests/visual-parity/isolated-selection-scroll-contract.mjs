@@ -283,7 +283,8 @@ try {
         '[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]',
       )].map((element) => element.getBoundingClientRect());
 
-      const spacingLabel = document.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]')
+      const spacingLabel = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root
+        ?.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]')
         ?.getBoundingClientRect();
 
       return { targets, outlines, spacingLines, spacingLabel };
@@ -396,7 +397,8 @@ try {
         '[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]',
       )].map(readRect);
 
-      const spacingLabel = readRect(document.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]'));
+      const spacingLabel = readRect(window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root
+        ?.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]'));
 
       return { targets, outlines, groupOutline, groupLabel, spacingLines, spacingLabel, scrollY: window.scrollY };
     };
