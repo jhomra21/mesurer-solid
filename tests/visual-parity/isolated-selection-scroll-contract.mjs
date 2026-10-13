@@ -310,7 +310,7 @@ try {
     }
   }
 
-  const editModeButton = page.locator("button[data-mesurer-toolbar-mode='edit'");
+  const editModeButton = page.locator("button[data-mesurer-toolbar-mode='edit']");
   await editModeButton.click();
   await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
 
