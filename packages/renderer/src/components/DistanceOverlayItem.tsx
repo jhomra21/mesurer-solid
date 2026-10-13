@@ -129,10 +129,12 @@ const setSelectionChromeFocus = (scope: HTMLElement, activeRoot: HTMLElement | n
   // that could dim another Mesurer instance.
   const scopeId = scope.querySelector<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')
     ?.getAttribute("data-mesurer-selection-scope");
+
   const documentLayer = scopeId
     ? [...scope.ownerDocument.querySelectorAll<HTMLElement>('[data-mesurer-multi-selection-document-layer="true"]')]
       .find((layer) => layer.getAttribute("data-mesurer-selection-scope") === scopeId)
     : null;
+
   const selectedChrome = [
     ...scope.querySelectorAll<HTMLElement>(SELECTED_CHROME_SELECTOR),
     ...(documentLayer?.querySelectorAll<HTMLElement>(SELECTED_CHROME_SELECTOR) ?? []),
