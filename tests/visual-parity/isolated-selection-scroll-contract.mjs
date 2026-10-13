@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import { chromium } from "playwright";
 
 const url = process.env.ISOLATED_SELECTION_SCROLL_URL ?? "http://127.0.0.1:4174/isolated-scroll.html";
@@ -287,6 +288,10 @@ try {
       && getComputedStyle(hitbox).borderColor === "rgba(0, 0, 0, 0)";
   });
 
+  const multiArtifacts = process.env.ISOLATED_SCROLL_ARTIFACT_DIR ?? "isolated-scroll-artifacts";
+  await fs.mkdir(multiArtifacts, { recursive: true });
+  await page.screenshot({ path: `${multiArtifacts}/multi-selection-before.png` });
+
   const multiSamplePromise = page.evaluate(() => new Promise((resolve, reject) => {
     const readRect = (element) => {
       if (!(element instanceof HTMLElement)) return null;
@@ -378,6 +383,7 @@ try {
   });
 
   matchOutlines(settledMulti, "multi-selection after wheel settles");
+  await page.screenshot({ path: `${multiArtifacts}/multi-selection-after.png` });
 
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settle();
