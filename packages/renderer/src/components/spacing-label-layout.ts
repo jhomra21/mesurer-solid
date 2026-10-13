@@ -103,6 +103,25 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
     return firstDiagonal - secondDiagonal;
   });
 
+  const paintLabels = new Map<string, HTMLElement>();
+  const scopeId = labels[0]?.closest<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')
+    ?.getAttribute("data-mesurer-selection-scope");
+
+  if (scopeId) {
+    for (const root of scope.ownerDocument.querySelectorAll<HTMLElement>('[data-mesurer-spacing-paint="true"]')) {
+      if (root.getAttribute("data-mesurer-selection-scope") !== scopeId) continue;
+
+      for (const label of root.querySelectorAll<HTMLElement>('[data-mesurer-spacing-visual-label="true"]')) {
+        paintLabels.set([
+          root.getAttribute("data-mesurer-distance-id"),
+          label.getAttribute("data-mesurer-distance-label-key"),
+          label.getAttribute("data-mesurer-distance-label-index"),
+          label.getAttribute("data-mesurer-distance-label-axis"),
+        ].join("|"), label);
+      }
+    }
+  }
+
   const placed: Box[] = [];
 
   for (const label of labels) {
@@ -185,6 +204,24 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
 
     setOffset(label, COLLISION_X, offsetX, chosenX - inlineFanX);
     setOffset(label, COLLISION_Y, offsetY, chosenY - inlineFanY);
+
+    const root = label.closest<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]');
+    const visual = paintLabels.get([
+      root?.getAttribute("data-mesurer-distance-id"),
+      label.getAttribute("data-mesurer-distance-label-key"),
+      label.getAttribute("data-mesurer-distance-label-index"),
+      label.getAttribute("data-mesurer-distance-label-axis"),
+    ].join("|"));
+
+    if (visual) {
+      for (const property of [COLLISION_X, COLLISION_Y]) {
+        const value = label.style.getPropertyValue(property);
+
+        if (value) visual.style.setProperty(property, value);
+        else visual.style.removeProperty(property);
+      }
+    }
+
     placed.push(chosen);
   }
 };
