@@ -210,7 +210,7 @@ try {
       spacingOverlayCount: spacingRoots.length,
       spacingLabels,
       groupChildCount: group?.children.length ?? 0,
-      lineCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]').length,
+      lineCount: document.querySelectorAll('[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]').length,
     };
   });
 
@@ -237,7 +237,7 @@ try {
   await page.waitForFunction(() =>
     document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]').length === 4
     && document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"]').length === 6
-    && document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]').length === 4,
+    && document.querySelectorAll('[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]').length === 4,
   );
 
   const evidence = await page.evaluate(async () => {
@@ -270,7 +270,7 @@ try {
       spacingLabels,
       selectionTargetCount: document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]').length,
       spacingOverlayCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"]').length,
-      lineCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]').length,
+      lineCount: document.querySelectorAll('[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]').length,
       diagonalLineCount: document.querySelectorAll('[data-mesurer-distance-line="diagonal"]').length,
     };
   });
@@ -301,7 +301,7 @@ try {
 
   const directHoverEvidence = await page.evaluate(() => {
     const targets = [...document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]')];
-    const activeRoot = document.querySelector('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]');
+    const activeRoot = document.querySelector('[data-mesurer-spacing-paint="true"][data-mesurer-distance-active="true"]');
 
     return {
       fullTargets: targets.filter((target) => Number.parseFloat(getComputedStyle(target).opacity) > 0.9).length,
@@ -333,7 +333,7 @@ try {
   );
 
   const diagonalEvidence = await page.evaluate(() => ({
-    lineCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]').length,
+    lineCount: document.querySelectorAll('[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]').length,
     diagonalLines: [...document.querySelectorAll('[data-mesurer-distance-line="diagonal"]')].map((line) => ({
       pattern: line.getAttribute("data-mesurer-line-pattern"),
       width: line.getAttribute("data-mesurer-line-width"),
@@ -351,12 +351,12 @@ try {
   const diagonalLabel = page.locator('[data-mesurer-distance-label-axis="d"][data-mesurer-distance-label="true"]').first();
   await diagonalLabel.hover();
   await page.waitForFunction(() =>
-    document.querySelector('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"] [data-mesurer-distance-line="diagonal"]') !== null,
+    document.querySelector('[data-mesurer-spacing-paint="true"][data-mesurer-distance-active="true"] [data-mesurer-distance-line="diagonal"]') !== null,
   );
 
   const diagonalHoverEvidence = await page.evaluate(() => {
     const targets = [...document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]')];
-    const activeRoot = document.querySelector('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]');
+    const activeRoot = document.querySelector('[data-mesurer-spacing-paint="true"][data-mesurer-distance-active="true"]');
 
     return {
       fullTargets: targets.filter((target) => Number.parseFloat(getComputedStyle(target).opacity) > 0.9).length,
@@ -433,7 +433,7 @@ try {
   await closeSettings();
   await page.waitForFunction(() =>
     document.querySelectorAll('[data-mesurer-distance-line="diagonal"]').length === 0
-    && document.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]')?.getAttribute("data-mesurer-line-pattern") === "dashed",
+    && document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]')?.getAttribute("data-mesurer-line-pattern") === "dashed",
   );
 
   assert.equal(strictReadWarnings.length, 0, `Spacing interaction should not emit STRICT_READ_UNTRACKED warnings: ${strictReadWarnings.join("\n")}`);
