@@ -553,6 +553,7 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-multi-selection-docu
 
         if (previous.outline) element.style.setProperty("outline", previous.outline, previous.outlinePriority);
         else element.style.removeProperty("outline");
+
         if (previous.offset) element.style.setProperty("outline-offset", previous.offset, previous.offsetPriority);
         else element.style.removeProperty("outline-offset");
 
