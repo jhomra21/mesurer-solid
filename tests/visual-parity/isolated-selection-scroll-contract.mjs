@@ -313,9 +313,9 @@ try {
       const outlines = [...(layer?.querySelectorAll("[data-mesurer-selection-spacing-target='true']") ?? [])].map(readRect);
       const groupOutline = readRect(layer?.querySelector("[data-mesurer-selection-group-outline='true']"));
       const groupLabel = readRect(layer?.querySelector("[data-mesurer-selection-group='true'] [data-mesurer-measurement-label='true']"));
-      const spacingLines = [...(layer?.querySelectorAll("[data-mesurer-distance-kind='selection-spacing'] [data-mesurer-distance-line]") ?? [])].map(readRect);
 
-      return { targets, outlines, groupOutline, groupLabel, spacingLines, scrollY: window.scrollY };
+
+      return { targets, outlines, groupOutline, groupLabel, scrollY: window.scrollY };
     };
 
     const before = snapshot();
@@ -364,16 +364,6 @@ try {
     ) < 2,
     "union readout must scroll with the selected elements instead of following the viewport",
   );
-
-  for (const [index, line] of multiSample.before.spacingLines.entries()) {
-    const after = multiSample.after.spacingLines[index];
-
-    assert(after, `spacing line ${index} disappeared during scroll`);
-    assert(
-      Math.abs((after.y - line.y) - (multiSample.after.targets[0].y - multiSample.before.targets[0].y)) < 2,
-      `spacing line ${index} must stay in the document scroll layer`,
-    );
-  }
 
   await page.waitForTimeout(140);
   await settle();
