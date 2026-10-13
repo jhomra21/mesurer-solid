@@ -274,6 +274,7 @@ try {
   await page.waitForFunction(() => {
     const targets = ["#isolated-scroll-target", "#isolated-edit-parent"]
       .map((selector) => document.querySelector(selector));
+
     const hitbox = document.querySelector("[data-mesurer-arrange-box='true']");
 
     return targets.every((element) =>
