@@ -309,15 +309,16 @@ try {
       ].map(readRect);
 
       const outlines = [...(layer?.querySelectorAll("[data-mesurer-selection-spacing-target='true']") ?? [])].map(readRect);
+      const groupOutline = readRect(layer?.querySelector("[data-mesurer-selection-group-outline='true']"));
       const groupLabel = readRect(layer?.querySelector("[data-mesurer-selection-group='true'] [data-mesurer-measurement-label='true']"));
       const spacingLines = [...(layer?.querySelectorAll("[data-mesurer-distance-kind='selection-spacing'] [data-mesurer-distance-line]") ?? [])].map(readRect);
 
-      return { targets, outlines, groupLabel, spacingLines, scrollY: window.scrollY };
+      return { targets, outlines, groupOutline, groupLabel, spacingLines, scrollY: window.scrollY };
     };
 
     const before = snapshot();
 
-    if (before.targets.some((rect) => !rect) || before.outlines.length !== 2 || !before.groupLabel) {
+    if (before.targets.some((rect) => !rect) || before.outlines.length !== 2 || !before.groupLabel || !before.groupOutline) {
       return reject(new Error(`multi-selection surfaces missing before wheel: ${JSON.stringify(before)}`));
     }
 
@@ -346,6 +347,13 @@ try {
   assert(
     Math.abs(multiSample.after.targets[0].y - multiSample.before.targets[0].y) > 15,
     "multi-selection scroll must move the host page target",
+  );
+  assert(
+    Math.abs(
+      (multiSample.after.groupOutline.y - multiSample.before.groupOutline.y)
+      - (multiSample.after.targets[0].y - multiSample.before.targets[0].y),
+    ) < 2,
+    "Edit group outline must scroll with the selected elements",
   );
   assert(
     Math.abs(
