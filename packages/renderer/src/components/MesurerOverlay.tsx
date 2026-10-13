@@ -43,6 +43,9 @@ const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any 
 export function MesurerOverlay(props: MesurerOverlayProps) {
   let overlayElement: HTMLDivElement | undefined;
   let hoverChromeElement: HTMLDivElement | undefined;
+  let spacingInteractionLayer: HTMLDivElement | undefined;
+  let spacingOriginX = 0;
+  let spacingOriginY = 0;
 
   let passiveGuideDrag: {
     id: string;
@@ -95,6 +98,20 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const selectedOutline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 96%, transparent)`;
   const selectedFill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 15.36%, transparent)`;
   const selectedMeasurements = createMemo(() => props.model.state.selectedMeasurements);
+
+  // Spacing pills remain interactive inside the protected top layer. The
+  // dotted strokes themselves move with the document's native scroll tree.
+  createEffect(
+    () => selectedMeasurements(),
+    () => {
+      const ownerWindow = overlayElement?.ownerDocument.defaultView;
+
+      if (!ownerWindow) return;
+      spacingOriginX = ownerWindow.scrollX;
+      spacingOriginY = ownerWindow.scrollY;
+      spacingInteractionLayer?.style.removeProperty("transform");
+    },
+  );
 
   // The multi-selection union, its per-target outlines, and pairwise spacing
   // share document coordinates. Keeping them inside the fixed interaction
@@ -291,6 +308,17 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     const handleOverlayPointerMove = (event: PointerEvent) => props.onPointerMove(event);
 
+    const syncSpacingInteractionScroll = () => {
+      const layer = spacingInteractionLayer;
+
+      if (!layer?.isConnected) return;
+      const dx = spacingOriginX - ownerWindow.scrollX;
+      const dy = spacingOriginY - ownerWindow.scrollY;
+
+      if (dx === 0 && dy === 0) layer.style.removeProperty("transform");
+      else layer.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+    };
+
     const handleEditWindowPointerMove = (event: PointerEvent) => {
       if (!props.editSelectionHover() || props.model.current.toolMode !== "select") return;
       const path = event.composedPath();
@@ -445,6 +473,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     overlay.addEventListener("pointermove", handleOverlayPointerMove);
     ownerWindow.addEventListener("pointermove", handleEditWindowPointerMove, true);
     ownerWindow.addEventListener("scroll", handleScroll, { capture: true, passive: true });
+    ownerWindow.addEventListener("scroll", syncSpacingInteractionScroll, { capture: true, passive: true });
     ownerWindow.addEventListener("resize", syncHoverGeometry, true);
     ownerWindow.addEventListener("pointerdown", handlePassiveGuideDown, true);
     ownerWindow.addEventListener("pointermove", handlePassiveGuideMove, true);
@@ -455,6 +484,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       overlay.removeEventListener("pointermove", handleOverlayPointerMove);
       ownerWindow.removeEventListener("pointermove", handleEditWindowPointerMove, true);
       ownerWindow.removeEventListener("scroll", handleScroll, true);
+      ownerWindow.removeEventListener("scroll", syncSpacingInteractionScroll, true);
       ownerWindow.removeEventListener("resize", syncHoverGeometry, true);
       ownerWindow.removeEventListener("pointerdown", handlePassiveGuideDown, true);
       ownerWindow.removeEventListener("pointermove", handlePassiveGuideMove, true);
@@ -602,8 +632,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       {/* Interactive spacing labels must remain in the top-layer host. Its
           pointer plane intercepts all labels rendered below it in <body>. */}
       <Show when={selectionVisible() && selectedMeasurements().length > 1}>
-        <For each={selectionSpacingOverlays()}>{(distance) => (
-          <DistanceOverlayItem
+        <div ref={(element) => { spacingInteractionLayer = element; }} data-mesurer-spacing-interaction-layer="true" class="msr:pointer-events-none">
+          <For each={selectionSpacingOverlays()}>{(distance) => (
+            <DistanceOverlayItem
             distance={distance}
             showRects={false}
             kind="selection-spacing"
@@ -611,8 +642,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
             selectionSpacingStyle={props.selectionSpacingStyle}
             spacingInteraction={spacingInteraction}
             renderPart={selectionDocumentTarget() ? "interaction" : "all"}
-          />
-        )}</For>
+            />
+          )}</For>
+        </div>
       </Show>
 
       <For each={heldDistances()}>{(distance) => <DistanceOverlayItem distance={distance} onRemove={props.model.removeHeldDistance} kind="held" />}</For>
