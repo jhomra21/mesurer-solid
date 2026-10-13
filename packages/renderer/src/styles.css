@@ -349,7 +349,15 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
    so a diagonal pair never reads as an L-shaped or diagonal distance. */
 [data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis="x"]:hover) [data-mesurer-distance-line^="vertical"],
 [data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis="y"]:hover) [data-mesurer-distance-line^="horizontal"],
-[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis]:hover) [data-mesurer-distance-connector="true"] {
+[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis]:hover) [data-mesurer-distance-connector="true"],
+[data-mesurer-spacing-paint="true"][data-mesurer-distance-active="true"][data-mesurer-spacing-hover-axis] [data-mesurer-distance-connector="true"] {
+  opacity: 0.16 !important;
+}
+
+/* The active spacing pills remain in the top-layer host for clicks. Their
+   passive stroke paint is document-backed, so mirror axis-only hover emphasis. */
+[data-mesurer-spacing-paint="true"][data-mesurer-distance-active="true"][data-mesurer-spacing-hover-axis="x"] [data-mesurer-distance-line^="vertical"],
+[data-mesurer-spacing-paint="true"][data-mesurer-distance-active="true"][data-mesurer-spacing-hover-axis="y"] [data-mesurer-distance-line^="horizontal"] {
   opacity: 0.16 !important;
 }
 
