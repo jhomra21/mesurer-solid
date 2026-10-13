@@ -472,10 +472,7 @@ const Tag = (props: DistanceLabelProps) => {
         "pointer-events": interactive() && visible() ? "auto" : "none",
         "margin-left": `calc(var(--mesurer-spacing-label-collision-x, 0px) + ${expanded() && props.axis === "y" ? (props.labelIndex ?? 0) * 22 : 0}px)`,
         "margin-top": `calc(var(--mesurer-spacing-label-collision-y, 0px) + ${expanded() && props.axis === "x" ? (props.labelIndex ?? 0) * 16 : 0}px)`,
-        // Spacing labels remain interactive when the distance layer lives in
-        // <body>, above the viewport-fixed selection hit plane. Other distance
-        // paint stays in the ordinary page scroll layer.
-        "z-index": interactive() ? String(2147483001 + (expanded() ? (props.labelIndex ?? 0) : 0)) : expanded() ? String(10 + (props.labelIndex ?? 0)) : undefined,
+        "z-index": expanded() ? String(10 + (props.labelIndex ?? 0)) : undefined,
       }}
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
