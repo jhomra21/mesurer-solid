@@ -555,6 +555,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
             showRects={false}
             spacingScopeId={selectedSpacingIds()}
             selectionSpacingStyle={props.selectionSpacingStyle}
+            spacingInteraction={spacingInteraction}
             renderPart="paint"
           />
         )}</For>
@@ -638,13 +639,13 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         <div ref={(element) => { spacingInteractionLayer = element; }} data-mesurer-spacing-interaction-layer="true" class="msr:pointer-events-none">
           <For each={selectionSpacingOverlays()}>{(distance) => (
             <DistanceOverlayItem
-            distance={distance}
-            showRects={false}
-            kind="selection-spacing"
-            spacingScopeId={selectedSpacingIds()}
-            selectionSpacingStyle={props.selectionSpacingStyle}
-            spacingInteraction={spacingInteraction}
-            renderPart={selectionDocumentTarget() ? "interaction" : "all"}
+              distance={distance}
+              showRects={false}
+              kind="selection-spacing"
+              spacingScopeId={selectedSpacingIds()}
+              selectionSpacingStyle={props.selectionSpacingStyle}
+              spacingInteraction={spacingInteraction}
+              renderPart={selectionDocumentTarget() ? "interaction" : "all"}
             />
           )}</For>
         </div>
