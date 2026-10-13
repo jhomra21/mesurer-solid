@@ -128,6 +128,15 @@ jobs:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
         run: bun tests/visual-parity/isolated-selection-scroll-contract.mjs
 
+      - name: Save multi-selection wheel evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-multi-selection-scroll
+          path: isolated-scroll-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Exercise single selected paint ownership
         timeout-minutes: 2
         env:
