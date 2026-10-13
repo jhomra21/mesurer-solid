@@ -355,6 +355,21 @@ try {
     );
   }
 
+  // The visible document pill and the invisible pointer target must overlap
+  // after scrolling settles. A portal-only visual can look right in a rect
+  // assertion and still visibly chase the page compositor in a screen capture.
+  await page.waitForFunction(() => {
+    const visual = document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]');
+    const hit = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root
+      ?.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]');
+
+    if (!visual || !hit) return false;
+    const a = visual.getBoundingClientRect();
+    const b = hit.getBoundingClientRect();
+
+    return ["x", "y", "width", "height"].every((key) => Math.abs(a[key] - b[key]) < 2);
+  });
+
   const editModeButton = page.locator("button[data-mesurer-toolbar-mode='edit']");
   await editModeButton.click();
   await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
