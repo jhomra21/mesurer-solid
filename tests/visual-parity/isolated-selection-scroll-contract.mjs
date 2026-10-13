@@ -278,8 +278,11 @@ try {
       const outlines = [...document.querySelectorAll(
         "body > [data-mesurer-multi-selection-document-layer='true'] [data-mesurer-selection-spacing-target='true']",
       )].map((element) => element.getBoundingClientRect());
+      const spacingLines = [...document.querySelectorAll(
+        '[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]',
+      )].map((element) => element.getBoundingClientRect());
 
-      return { targets, outlines };
+      return { targets, outlines, spacingLines };
     };
 
     const before = sample();
@@ -308,6 +311,17 @@ try {
         `Select multi-selection target ${index} detached ${stage}: ${JSON.stringify(snapshot)}`,
       );
     }
+  }
+
+  assert(selectScroll.before.spacingLines.length > 0, "Select should show spacing paint between both selected targets");
+  for (const [index, before] of selectScroll.before.spacingLines.entries()) {
+    const after = selectScroll.after.spacingLines[index];
+
+    assert(after, `Select spacing paint ${index} disappeared on scroll`);
+    assert(
+      Math.abs((after.y - before.y) - (selectScroll.after.targets[0].y - selectScroll.before.targets[0].y)) < 2,
+      `Select spacing paint ${index} must scroll with its source element`,
+    );
   }
 
   const editModeButton = page.locator("button[data-mesurer-toolbar-mode='edit']");
@@ -366,14 +380,16 @@ try {
       const outlines = [...(layer?.querySelectorAll("[data-mesurer-selection-spacing-target='true']") ?? [])].map(readRect);
       const groupOutline = readRect(layer?.querySelector("[data-mesurer-selection-group-outline='true']"));
       const groupLabel = readRect(layer?.querySelector("[data-mesurer-selection-group='true'] [data-mesurer-measurement-label='true']"));
+      const spacingLines = [...document.querySelectorAll(
+        '[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]',
+      )].map(readRect);
 
-
-      return { targets, outlines, groupOutline, groupLabel, scrollY: window.scrollY };
+      return { targets, outlines, groupOutline, groupLabel, spacingLines, scrollY: window.scrollY };
     };
 
     const before = snapshot();
 
-    if (before.targets.some((rect) => !rect) || before.outlines.length !== 2 || !before.groupLabel || !before.groupOutline) {
+    if (before.targets.some((rect) => !rect) || before.outlines.length !== 2 || !before.groupLabel || !before.groupOutline || before.spacingLines.length === 0) {
       return reject(new Error(`multi-selection surfaces missing before wheel: ${JSON.stringify(before)}`));
     }
 
@@ -417,6 +433,16 @@ try {
     ) < 2,
     "union readout must scroll with the selected elements instead of following the viewport",
   );
+
+  for (const [index, before] of multiSample.before.spacingLines.entries()) {
+    const after = multiSample.after.spacingLines[index];
+
+    assert(after, `Edit spacing paint ${index} disappeared on scroll`);
+    assert(
+      Math.abs((after.y - before.y) - (multiSample.after.targets[0].y - multiSample.before.targets[0].y)) < 2,
+      `Edit spacing paint ${index} must scroll with its source element`,
+    );
+  }
 
   await page.waitForTimeout(140);
   await settle();
