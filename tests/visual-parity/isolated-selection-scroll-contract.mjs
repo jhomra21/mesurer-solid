@@ -283,7 +283,10 @@ try {
         '[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]',
       )].map((element) => element.getBoundingClientRect());
 
-      return { targets, outlines, spacingLines };
+      const spacingLabel = document.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]')
+        ?.getBoundingClientRect();
+
+      return { targets, outlines, spacingLines, spacingLabel };
     };
 
     const before = sample();
@@ -315,6 +318,12 @@ try {
   }
 
   assert(selectScroll.before.spacingLines.length > 0, "Select should show spacing paint between both selected targets");
+  assert(selectScroll.before.spacingLabel && selectScroll.after.spacingLabel, "Select spacing value badge must remain visible");
+  assert(
+    Math.abs((selectScroll.after.spacingLabel.y - selectScroll.before.spacingLabel.y)
+      - (selectScroll.after.targets[0].y - selectScroll.before.targets[0].y)) < 2,
+    "Select spacing value must scroll with its dotted line",
+  );
 
   for (const [index, before] of selectScroll.before.spacingLines.entries()) {
     const after = selectScroll.after.spacingLines[index];
@@ -387,12 +396,14 @@ try {
         '[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]',
       )].map(readRect);
 
-      return { targets, outlines, groupOutline, groupLabel, spacingLines, scrollY: window.scrollY };
+      const spacingLabel = readRect(document.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]'));
+
+      return { targets, outlines, groupOutline, groupLabel, spacingLines, spacingLabel, scrollY: window.scrollY };
     };
 
     const before = snapshot();
 
-    if (before.targets.some((rect) => !rect) || before.outlines.length !== 2 || !before.groupLabel || !before.groupOutline || before.spacingLines.length === 0) {
+    if (before.targets.some((rect) => !rect) || before.outlines.length !== 2 || !before.groupLabel || !before.groupOutline || before.spacingLines.length === 0 || !before.spacingLabel) {
       return reject(new Error(`multi-selection surfaces missing before wheel: ${JSON.stringify(before)}`));
     }
 
@@ -435,6 +446,13 @@ try {
       - (multiSample.after.targets[0].y - multiSample.before.targets[0].y),
     ) < 2,
     "union readout must scroll with the selected elements instead of following the viewport",
+  );
+
+  assert(multiSample.after.spacingLabel, "Edit spacing value badge disappeared");
+  assert(
+    Math.abs((multiSample.after.spacingLabel.y - multiSample.before.spacingLabel.y)
+      - (multiSample.after.targets[0].y - multiSample.before.targets[0].y)) < 2,
+    "Edit spacing value must scroll with its dotted line",
   );
 
   for (const [index, before] of multiSample.before.spacingLines.entries()) {
