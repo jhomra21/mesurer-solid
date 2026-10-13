@@ -46,7 +46,11 @@ concurrency:
 
 jobs:
   isolated-scroll:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
       - name: Checkout Mesurer Solid
@@ -67,7 +71,11 @@ jobs:
         run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
 
       - name: Install Chromium
-        run: bunx playwright install --with-deps chromium
+        run: bunx playwright install chromium
+
+      - name: Install Linux browser dependencies
+        if: runner.os == 'Linux'
+        run: bunx playwright install-deps chromium
 
       - name: Start public fixtures
         shell: bash
@@ -94,30 +102,35 @@ jobs:
           done
 
       - name: Reproduce rejected manual inspector and annotation cases
+        if: runner.os == 'Linux'
         timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
         run: bun tests/visual-parity/rejected-manual-regressions.mjs
 
       - name: Exercise direct-edit annotation ownership
+        if: runner.os == 'Linux'
         timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
         run: bun tests/visual-parity/direct-edit-annotation-trigger-contract.mjs
 
       - name: Exercise isolated annotation draft handoff
+        if: runner.os == 'Linux'
         timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
         run: bun tests/visual-parity/isolated-annotation-draft-handoff-contract.mjs
 
       - name: Keep Select hover below document-backed inspectors
+        if: runner.os == 'Linux'
         timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
         run: bun tests/visual-parity/isolated-hover-document-layer-contract.mjs
 
       - name: Occlude Select hover behind top-layer Context cards
+        if: runner.os == 'Linux'
         timeout-minutes: 2
         env:
           TOP_LAYER_CONTEXT_URL: http://127.0.0.1:4174/top-layer-context.html
@@ -132,18 +145,20 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: mesurer-multi-selection-scroll
+          name: mesurer-multi-selection-scroll-${{ matrix.os }}
           path: isolated-scroll-artifacts/
           if-no-files-found: ignore
           retention-days: 14
 
       - name: Exercise single selected paint ownership
+        if: runner.os == 'Linux'
         timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
         run: bun tests/visual-parity/selection-single-paint-contract.mjs
 
       - name: Exercise native scroll settle stability
+        if: runner.os == 'Linux'
         timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
