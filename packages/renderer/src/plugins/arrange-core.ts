@@ -532,6 +532,44 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-strok
       nativeStrokes.clear();
     };
 
+    // A multi-selection is rendered as one aggregate MeasurementBox, so it
+    // has no individual CSS anchors for Edit's native stroke path. The fixed
+    // drag hitbox was consequently left with a visible border that lagged the
+    // page during scrolling. Paint outlines on the selected source elements
+    // instead; each border then scrolls in the element's own compositor layer.
+    const multiSourceStrokes = new Map<HTMLElement, {
+      outline: string;
+      outlinePriority: string;
+      offset: string;
+      offsetPriority: string;
+    }>();
+
+    const syncMultiSourceStrokes = (elements: HTMLElement[]) => {
+      const next = new Set(elements);
+
+      for (const [element, previous] of multiSourceStrokes) {
+        if (next.has(element) && element.isConnected) continue;
+
+        if (previous.outline) element.style.setProperty("outline", previous.outline, previous.outlinePriority);
+        else element.style.removeProperty("outline");
+        if (previous.offset) element.style.setProperty("outline-offset", previous.offset, previous.offsetPriority);
+        else element.style.removeProperty("outline-offset");
+        multiSourceStrokes.delete(element);
+      }
+
+      for (const element of next) {
+        if (multiSourceStrokes.has(element)) continue;
+        multiSourceStrokes.set(element, {
+          outline: element.style.getPropertyValue("outline"),
+          outlinePriority: element.style.getPropertyPriority("outline"),
+          offset: element.style.getPropertyValue("outline-offset"),
+          offsetPriority: element.style.getPropertyPriority("outline-offset"),
+        });
+        element.style.setProperty("outline", "1px solid #0d99ff", "important");
+        element.style.setProperty("outline-offset", "-1px", "important");
+      }
+    };
+
     const syncNativeStrokes = (elements: HTMLElement[]) => {
       const body = ownerDocument.body;
 
@@ -1307,13 +1345,20 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-strok
       // to support dragging without a scroll-following border.
       if (!active()) {
         clearNativeStrokes();
+        syncMultiSourceStrokes([]);
         box.style.display = "none";
         clearResetButtons();
 
         return;
       }
 
-      const nativeDocumentSelection = syncNativeStrokes(selectedElements());
+      const selected = selectedElements();
+      const isEditingText = directTextEditActive();
+      const sourcePaint = selected.length > 1 && !isEditingText;
+
+      syncMultiSourceStrokes(sourcePaint ? selected : []);
+      if (sourcePaint) clearNativeStrokes();
+      const nativeDocumentSelection = sourcePaint || syncNativeStrokes(selected);
 
       // Direct text edit owns the visible ring and contextual controls.
       // Paint neither the Edit hitbox nor its native selection strokes.
@@ -2114,6 +2159,7 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-strok
       hideSnapLines();
       restoreMeasurementOverlays();
       clearNativeStrokes();
+      syncMultiSourceStrokes([]);
       nativePaintGuard.remove();
       workspace.dispose();
       inspectorMount.dispose();
