@@ -260,10 +260,6 @@ try {
     await page.keyboard.up("Shift");
   }
 
-  const editModeButton = page.locator("button[data-mesurer-toolbar-mode='edit']");
-  await editModeButton.click();
-  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
-
   const multiLayer = page.locator("body > [data-mesurer-multi-selection-document-layer='true']");
   await multiLayer.waitFor({ state: "attached" });
   await page.waitForFunction(() =>
@@ -271,6 +267,51 @@ try {
       "body > [data-mesurer-multi-selection-document-layer='true'] [data-mesurer-selection-spacing-target='true']",
     ).length === 2,
   );
+
+  // Select itself must stay attached to both source elements. Check the
+  // first compositor scroll event, not only the settled state 80 ms later.
+  const selectScrollPromise = page.evaluate(() => new Promise((resolve, reject) => {
+    const sample = () => {
+      const targets = ["#isolated-scroll-target", "#isolated-edit-parent"]
+        .map((selector) => document.querySelector(selector)?.getBoundingClientRect());
+      const outlines = [...document.querySelectorAll(
+        "body > [data-mesurer-multi-selection-document-layer='true'] [data-mesurer-selection-spacing-target='true']",
+      )].map((element) => element.getBoundingClientRect());
+
+      return { targets, outlines };
+    };
+
+    const before = sample();
+    const timeout = window.setTimeout(() => reject(new Error("Select multi-selection did not scroll")), 3000);
+
+    window.addEventListener("scroll", () => {
+      window.clearTimeout(timeout);
+      resolve({ before, after: sample() });
+    }, { capture: true, once: true });
+  }));
+
+  await page.mouse.move(1220, 840);
+  await page.mouse.wheel(0, 32);
+  const selectScroll = await selectScrollPromise;
+
+  assert(
+    Math.abs(selectScroll.after.targets[0].y - selectScroll.before.targets[0].y) > 10,
+    "Select multi-selection must move during physical wheel scrolling",
+  );
+
+  for (const [stage, snapshot] of [["before", selectScroll.before], ["inside wheel", selectScroll.after]]) {
+    for (const [index, targetRect] of snapshot.targets.entries()) {
+      assert(
+        snapshot.outlines.some((outline) => ["x", "y", "width", "height"]
+          .every((key) => Math.abs(outline[key] - targetRect[key]) < 2)),
+        `Select multi-selection target ${index} detached ${stage}`,
+      );
+    }
+  }
+
+  const editModeButton = page.locator("button[data-mesurer-toolbar-mode='edit'");
+  await editModeButton.click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
 
   await page.waitForFunction(() => {
     const targets = ["#isolated-scroll-target", "#isolated-edit-parent"]
@@ -293,6 +334,14 @@ try {
 
   const multiArtifacts = process.env.ISOLATED_SCROLL_ARTIFACT_DIR ?? "isolated-scroll-artifacts";
   await fs.mkdir(multiArtifacts, { recursive: true });
+  const dimensionsBadge = multiLayer.locator("[data-mesurer-selection-group='true'] [data-mesurer-measurement-label='true']");
+  const badgeStyle = await dimensionsBadge.evaluate((element) => ({
+    whiteSpace: getComputedStyle(element).whiteSpace,
+    height: element.getBoundingClientRect().height,
+  }));
+
+  assert.equal(badgeStyle.whiteSpace, "nowrap", "group dimensions badge must stay on one line");
+  assert(badgeStyle.height < 24, `group dimensions badge wrapped into multiple lines: ${JSON.stringify(badgeStyle)}`);
   await page.screenshot({ path: `${multiArtifacts}/multi-selection-before.png` });
 
   const multiSamplePromise = page.evaluate(() => new Promise((resolve, reject) => {
