@@ -377,7 +377,7 @@ try {
   targetBox = await box(target, "single-selection restore");
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
   await page.waitForFunction(() => !document.querySelector("[data-mesurer-multi-selection-document-layer='true']"));
-  await editModeButton.click();
+  await page.locator("button[data-mesurer-toolbar-mode='select']").click();
   await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='select']").waitFor({ state: "visible" });
 
   const nestedScroller = page.locator("#nested-scroll-shell");
