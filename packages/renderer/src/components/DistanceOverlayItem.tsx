@@ -605,8 +605,10 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
   const showPaint = () => props.renderPart !== "interaction";
   const showInteraction = () => props.renderPart !== "paint";
   const showLabel = () => showPaint() || showInteraction();
+
   const labelAppearance = (): "visual" | "proxy" | "normal" =>
     props.renderPart === "paint" ? "visual" : props.renderPart === "interaction" ? "proxy" : "normal";
+
   const spacingStyle = () => props.selectionSpacingStyle ?? DEFAULT_SELECTION_SPACING_STYLE;
 
   const ownerWindow = () => props.distance.elementRefA?.ownerDocument.defaultView
