@@ -561,6 +561,7 @@ try {
   });
 
   assert(settledSpacing, "spacing pill and line must still be visible after settling");
+
   const beforeSpacing = selectScroll.before.spacingLabel.y + selectScroll.before.spacingLabel.height / 2
     - (selectScroll.before.spacingLines[0].y + selectScroll.before.spacingLines[0].height / 2);
 
