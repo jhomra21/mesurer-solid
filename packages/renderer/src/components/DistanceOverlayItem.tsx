@@ -503,7 +503,7 @@ const Tag = (props: DistanceLabelProps) => {
   return (
     <div
       ref={(element) => {
-        if (!visual()) scheduleLabelLayoutAfterMount(element);
+        scheduleLabelLayoutAfterMount(element);
       }}
       data-mesurer-distance-label={!visual() ? (visible() ? "true" : "hidden") : undefined}
       data-mesurer-spacing-visual-label={visual() ? "true" : undefined}
