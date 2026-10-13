@@ -488,6 +488,20 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
           theme={props.model.state.settings.theme}
         />
       )}</For>
+      <Show when={props.editSelectionHover() && displayedSelectedMeasurements()[0]?.id.startsWith("group-")}>
+        <div
+          data-mesurer-selection-group-outline="true"
+          class="msr:pointer-events-none msr:absolute"
+          style={{
+            left: `${displayedSelectedMeasurements()[0]!.rect.left}px`,
+            top: `${displayedSelectedMeasurements()[0]!.rect.top}px`,
+            width: `${displayedSelectedMeasurements()[0]!.rect.width}px`,
+            height: `${displayedSelectedMeasurements()[0]!.rect.height}px`,
+            "box-sizing": "border-box",
+            border: "1px solid #0d99ff",
+          }}
+        />
+      </Show>
       <Show when={selectedMeasurements().length > 1}>
         <For each={selectedMeasurements()}>{(measurement) => (
           <div
