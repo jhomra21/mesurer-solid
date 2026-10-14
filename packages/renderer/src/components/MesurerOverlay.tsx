@@ -167,6 +167,12 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     return ownerWindow ? getSelectionSpacingOverlays(selected, ownerWindow) : [];
   });
 
+  // Preserve each distance's rendered DOM across scroll-settle refreshes.
+  // Solid's For keys by object identity; every recomputation produces new
+  // DistanceOverlay objects although the measured pair is unchanged.
+  const selectionSpacingPairIds = createMemo(() => selectionSpacingOverlays().map((distance) => distance.id));
+  const selectionSpacingForId = (id: string) => selectionSpacingOverlays().find((distance) => distance.id === id)!;
+
   const selectedSpacingIds = createMemo(() => selectedMeasurements().map((measurement) => measurement.id).join("|"));
   createEffect(
     () => selectedSpacingIds(),
@@ -555,9 +561,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
             }}
           />
         )}</For>
-        <For each={selectionSpacingOverlays()}>{(distance) => (
+        <For each={selectionSpacingPairIds()}>{(distanceId) => (
           <DistanceOverlayItem
-            distance={distance}
+            distance={selectionSpacingForId(distanceId)}
             kind="selection-spacing"
             showRects={false}
             spacingScopeId={selectedSpacingIds()}
@@ -644,9 +650,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
           pointer plane intercepts all labels rendered below it in <body>. */}
       <Show when={selectionVisible() && selectedMeasurements().length > 1}>
         <div ref={(element) => { spacingInteractionLayer = element; }} data-mesurer-spacing-interaction-layer="true" class="msr:pointer-events-none">
-          <For each={selectionSpacingOverlays()}>{(distance) => (
+          <For each={selectionSpacingPairIds()}>{(distanceId) => (
             <DistanceOverlayItem
-              distance={distance}
+              distance={selectionSpacingForId(distanceId)}
               showRects={false}
               kind="selection-spacing"
               spacingScopeId={selectedSpacingIds()}
