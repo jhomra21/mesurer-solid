@@ -257,7 +257,9 @@ export function Toolbar(props: ToolbarProps) {
     if (!anchor) return 0;
     const viewportWidth = props.ownerWindow.innerWidth || SETTINGS_MENU_WIDTH + VIEWPORT_PADDING * 2;
     const width = Math.min(SETTINGS_MENU_WIDTH, Math.max(0, viewportWidth - VIEWPORT_PADDING * 2));
-    const idealViewportLeft = anchor.right + 4 - width;
+    // The expanded tool lane has its own one-pixel group boundary. Keep the
+    // Settings card aligned to the same viewport edge as the upstream layout.
+    const idealViewportLeft = anchor.right + (compact() ? 4 : 3) - width;
     const maxViewportLeft = Math.max(VIEWPORT_PADDING, viewportWidth - VIEWPORT_PADDING - width);
     const viewportLeft = Math.min(maxViewportLeft, Math.max(VIEWPORT_PADDING, idealViewportLeft));
 
