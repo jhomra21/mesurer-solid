@@ -664,6 +664,7 @@ export function Toolbar(props: ToolbarProps) {
     if (next) {
       setGuideMenuOpen(false);
       setPluginMenuOpenId(null);
+
       // A hidden toolbar cannot own an open floating settings panel.
       if (props.model.current.settingsOpen) props.model.setTransient({ settingsOpen: false });
     }
