@@ -596,6 +596,15 @@ try {
 
   assert(originalSpacingPositions.length > 0, "multi-selection must have document-backed spacing pills");
 
+  // A label can hold its geometric coordinates and still visibly blink when
+  // keyed-by-object For loops replace its DOM during scroll-settle resampling.
+  // Preserve actual DOM identity, not just the numerical final position.
+  await page.evaluate(() => {
+    window.__mesurerScrollPillNodes = [...document.querySelectorAll(
+      '[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]',
+    )];
+  });
+
   await page.mouse.move(1220, 840);
 
   for (const delta of [32, 64, -32, -64]) {
@@ -604,6 +613,16 @@ try {
 
     const current = await spacingDocumentPositions();
 
+    const labelIdentity = await page.evaluate(() => {
+      const previous = window.__mesurerScrollPillNodes ?? [];
+      const now = [...document.querySelectorAll(
+        '[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]',
+      )];
+
+      return previous.length > 0 && previous.every((node) => node.isConnected && now.includes(node));
+    });
+
+    assert(labelIdentity, `scroll ${delta}px must not unmount/remount numeric spacing pills`);
     assert.equal(current.length, originalSpacingPositions.length, "scroll must preserve the visible spacing pills");
 
     for (const initial of originalSpacingPositions) {
