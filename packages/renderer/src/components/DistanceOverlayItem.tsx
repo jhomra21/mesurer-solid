@@ -804,46 +804,87 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
         </></Show>;
       }}</Show>
       <Show when={selectionSpacing() && props.distance.edgeDistances?.length}>
-        <For each={props.distance.edgeDistances}>{(edge) => edge.axis === "x"
-          ? <Show when={edge.value > 0 && edge.showLine !== false}><>
-            <Show when={showPaint()}><div data-mesurer-distance-line={`horizontal-${edge.side}`} data-mesurer-line-pattern={spacingStyle().pattern} data-mesurer-line-width={String(spacingStyle().width)} data-mesurer-line-color={spacingStyle().color} class="msr:absolute" style={{ left: `${Math.min(edge.x1, edge.x2)}px`, width: `${Math.abs(edge.x2 - edge.x1)}px`, top: `${edge.y - spacingStyle().width / 2}px`, height: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "horizontal") }} />
-            </Show>
-            <Show when={showLabel() && horizontalLineVisible(edge.x1, edge.x2, edge.y, spacingStyle().width)}>
-              <Tag
-                axis="x"
-                left={labelLeft(midpoint(edge.x1, edge.x2, ownerWindow()?.innerWidth))}
-                top={labelTop(edge.y + MEASURE_LABEL_OFFSET)}
-                distanceId={props.distance.id}
-                labelKey={edge.labelKey}
-                labelIndex={edge.labelIndex}
-                labelCount={edge.labelCount}
-                primary={edge.showLabel !== false}
-                interactive
-                appearance={labelAppearance()}
-                spacingInteraction={props.spacingInteraction}
-              >{formatValue(edge.value)}</Tag>
-            </Show>
-          </></Show>
-          : <Show when={edge.value > 0 && edge.showLine !== false}><>
-            <Show when={showPaint()}><div data-mesurer-distance-line={`vertical-${edge.side}`} data-mesurer-line-pattern={spacingStyle().pattern} data-mesurer-line-width={String(spacingStyle().width)} data-mesurer-line-color={spacingStyle().color} class="msr:absolute" style={{ top: `${Math.min(edge.y1, edge.y2)}px`, height: `${Math.abs(edge.y2 - edge.y1)}px`, left: `${edge.x - spacingStyle().width / 2}px`, width: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "vertical") }} />
-            </Show>
-            <Show when={showLabel() && verticalLineVisible(edge.x, edge.y1, edge.y2, spacingStyle().width)}>
-              <Tag
-                axis="y"
-                left={labelLeft(edge.x + MEASURE_LABEL_OFFSET)}
-                top={labelTop(midpoint(edge.y1, edge.y2, ownerWindow()?.innerHeight))}
-                distanceId={props.distance.id}
-                labelKey={edge.labelKey}
-                labelIndex={edge.labelIndex}
-                labelCount={edge.labelCount}
-                primary={edge.showLabel !== false}
-                interactive
-                appearance={labelAppearance()}
-                spacingInteraction={props.spacingInteraction}
-              >{formatValue(edge.value)}</Tag>
-            </Show>
-          </></Show>}
-        </For>
+        {/* Pair identities are stable across scroll, but each resampling creates
+            fresh edge objects. Index the fixed edge slots so their visual pills
+            stay mounted instead of flickering on every new array. */}
+        <For each={props.distance.edgeDistances?.map((_, index) => index)}>{(index) => {
+          const horizontal = () => {
+            const line = props.distance.edgeDistances?.[index];
+
+            return line?.axis === "x" && line.value > 0 && line.showLine !== false ? line : null;
+          };
+
+          const vertical = () => {
+            const line = props.distance.edgeDistances?.[index];
+
+            return line?.axis === "y" && line.value > 0 && line.showLine !== false ? line : null;
+          };
+
+          return <>
+            <Show when={horizontal()}>{(line) => <>
+              <Show when={showPaint()}><div
+                data-mesurer-distance-line={`horizontal-${line().side}`}
+                data-mesurer-line-pattern={spacingStyle().pattern}
+                data-mesurer-line-width={String(spacingStyle().width)}
+                data-mesurer-line-color={spacingStyle().color}
+                class="msr:absolute"
+                style={{
+                  left: `${Math.min(line().x1, line().x2)}px`,
+                  width: `${Math.abs(line().x2 - line().x1)}px`,
+                  top: `${line().y - spacingStyle().width / 2}px`,
+                  height: `${spacingStyle().width}px`,
+                  ...selectionLineStyle(spacingStyle(), "horizontal"),
+                }}
+              /></Show>
+              <Show when={showLabel() && horizontalLineVisible(line().x1, line().x2, line().y, spacingStyle().width)}>
+                <Tag
+                  axis="x"
+                  left={labelLeft(midpoint(line().x1, line().x2, ownerWindow()?.innerWidth))}
+                  top={labelTop(line().y + MEASURE_LABEL_OFFSET)}
+                  distanceId={props.distance.id}
+                  labelKey={line().labelKey}
+                  labelIndex={line().labelIndex}
+                  labelCount={line().labelCount}
+                  primary={line().showLabel !== false}
+                  interactive
+                  appearance={labelAppearance()}
+                  spacingInteraction={props.spacingInteraction}
+                >{formatValue(line().value)}</Tag>
+              </Show>
+            </>}</Show>
+            <Show when={vertical()}>{(line) => <>
+              <Show when={showPaint()}><div
+                data-mesurer-distance-line={`vertical-${line().side}`}
+                data-mesurer-line-pattern={spacingStyle().pattern}
+                data-mesurer-line-width={String(spacingStyle().width)}
+                data-mesurer-line-color={spacingStyle().color}
+                class="msr:absolute"
+                style={{
+                  top: `${Math.min(line().y1, line().y2)}px`,
+                  height: `${Math.abs(line().y2 - line().y1)}px`,
+                  left: `${line().x - spacingStyle().width / 2}px`,
+                  width: `${spacingStyle().width}px`,
+                  ...selectionLineStyle(spacingStyle(), "vertical"),
+                }}
+              /></Show>
+              <Show when={showLabel() && verticalLineVisible(line().x, line().y1, line().y2, spacingStyle().width)}>
+                <Tag
+                  axis="y"
+                  left={labelLeft(line().x + MEASURE_LABEL_OFFSET)}
+                  top={labelTop(midpoint(line().y1, line().y2, ownerWindow()?.innerHeight))}
+                  distanceId={props.distance.id}
+                  labelKey={line().labelKey}
+                  labelIndex={line().labelIndex}
+                  labelCount={line().labelCount}
+                  primary={line().showLabel !== false}
+                  interactive
+                  appearance={labelAppearance()}
+                  spacingInteraction={props.spacingInteraction}
+                >{formatValue(line().value)}</Tag>
+              </Show>
+            </>}</Show>
+          </>;
+        }}</For>
       </Show>
     </div>
   );
