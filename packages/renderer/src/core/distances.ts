@@ -280,20 +280,26 @@ type DistanceLine = NonNullable<DistanceOverlay["horizontal"]>
   | NonNullable<DistanceOverlay["diagonal"]>
   | NonNullable<DistanceOverlay["edgeDistances"]>[number];
 
-const labelKey = (line: DistanceLine) => {
+const labelKey = (line: DistanceLine, scroll: { x: number; y: number }) => {
+  // The grouping key describes a measured document segment, not its current
+  // viewport coordinates. Otherwise moving the window creates a new key for
+  // the same line and flickers any expanded/hovered spacing label group.
+  const x = (value: number) => Math.round((value + scroll.x) * 100) / 100;
+  const y = (value: number) => Math.round((value + scroll.y) * 100) / 100;
+
   if ("axis" in line && line.axis === "d") {
-    const forward = `${line.x1}:${line.y1}:${line.x2}:${line.y2}`;
-    const reverse = `${line.x2}:${line.y2}:${line.x1}:${line.y1}`;
+    const forward = `${x(line.x1)}:${y(line.y1)}:${x(line.x2)}:${y(line.y2)}`;
+    const reverse = `${x(line.x2)}:${y(line.y2)}:${x(line.x1)}:${y(line.y1)}`;
 
     return `d:${forward < reverse ? forward : reverse}:${line.value}`;
   }
 
   return "x1" in line
-    ? `x:${Math.min(line.x1, line.x2)}:${Math.max(line.x1, line.x2)}:${line.y}:${line.value}`
-    : `y:${Math.min(line.y1, line.y2)}:${Math.max(line.y1, line.y2)}:${line.x}:${line.value}`;
+    ? `x:${Math.min(x(line.x1), x(line.x2))}:${Math.max(x(line.x1), x(line.x2))}:${y(line.y)}:${line.value}`
+    : `y:${Math.min(y(line.y1), y(line.y2))}:${Math.max(y(line.y1), y(line.y2))}:${x(line.x)}:${line.value}`;
 };
 
-const groupSelectionSpacingLabels = (overlays: DistanceOverlay[]) => {
+const groupSelectionSpacingLabels = (overlays: DistanceOverlay[], scroll: { x: number; y: number }) => {
   const groups = new Map<string, DistanceLine[]>();
 
   for (const overlay of overlays) {
@@ -306,7 +312,7 @@ const groupSelectionSpacingLabels = (overlays: DistanceOverlay[]) => {
         ];
 
     for (const line of lines) {
-      const key = labelKey(line);
+      const key = labelKey(line, scroll);
       const group = groups.get(key) ?? [];
       group.push(line);
       groups.set(key, group);
@@ -523,7 +529,7 @@ export const getSelectionSpacingOverlays = (
     }
   }
 
-  groupSelectionSpacingLabels(overlays);
+  groupSelectionSpacingLabels(overlays, selected[0]?.documentScroll ?? { x: ownerWindow.scrollX, y: ownerWindow.scrollY });
   const anchor = selected[0];
 
   if (anchor) {
