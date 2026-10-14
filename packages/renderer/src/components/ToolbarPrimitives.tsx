@@ -86,6 +86,7 @@ export function ToolbarDivider(props: { visible?: boolean; marker?: string }) {
 
 export function ToolbarModeSwitch(props: {
   value: "select" | "edit";
+  compact: boolean;
   editDisabled: boolean;
   editToolId?: string;
   editOptionsAvailable: boolean;
@@ -108,11 +109,13 @@ export function ToolbarModeSwitch(props: {
       class="mesurer-toolbar-mode-switch msr:flex msr:flex-none msr:self-center msr:items-center msr:gap-[2px] msr:p-[2px]"
       data-mesurer-toolbar-mode-switch="true"
       data-value={props.value}
+      data-compact={props.compact ? "true" : "false"}
       role="group"
       aria-label="Toolbar mode"
     >
       <span class="mesurer-toolbar-mode-switch-pill" aria-hidden="true" />
       <div
+        data-mesurer-toolbar-mode-select-control="true"
         class="msr:relative"
         onMouseEnter={() => props.onTooltipEnter("toolbar-mode-select")}
         onMouseLeave={() => props.onTooltipLeave()}
