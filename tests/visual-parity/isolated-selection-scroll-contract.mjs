@@ -571,6 +571,52 @@ try {
   );
   await page.screenshot({ path: `${multiArtifacts}/multi-selection-after.png` });
 
+  // Changing the visible viewport must never change a label's position in
+  // document space. The earlier pill fix failed this during repeated wheel
+  // events: the viewport-bound collision lane moved the label, and the CSS
+  // margin transition made that jump alternate between smooth and abrupt.
+  const spacingDocumentPositions = () => page.evaluate(() => [...document.querySelectorAll(
+    '[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]',
+  )].map((label) => {
+    const root = label.closest('[data-mesurer-spacing-paint="true"]');
+    const rect = label.getBoundingClientRect();
+
+    return {
+      key: [
+        root?.getAttribute("data-mesurer-distance-id"),
+        label.getAttribute("data-mesurer-distance-label-axis"),
+        label.getAttribute("data-mesurer-distance-label-index"),
+      ].join("|"),
+      x: rect.x + window.scrollX,
+      y: rect.y + window.scrollY,
+    };
+  }));
+
+  const originalSpacingPositions = await spacingDocumentPositions();
+
+  assert(originalSpacingPositions.length > 0, "multi-selection must have document-backed spacing pills");
+
+  await page.mouse.move(1220, 840);
+
+  for (const delta of [32, 64, -32, -64]) {
+    await page.mouse.wheel(0, delta);
+    await page.waitForTimeout(220);
+
+    const current = await spacingDocumentPositions();
+
+    assert.equal(current.length, originalSpacingPositions.length, "scroll must preserve the visible spacing pills");
+
+    for (const initial of originalSpacingPositions) {
+      const present = current.find((label) => label.key === initial.key);
+
+      assert(present, `missing distance pill after ${delta}px wheel: ${initial.key}`);
+      assert(
+        Math.abs(present.x - initial.x) < 2 && Math.abs(present.y - initial.y) < 2,
+        `distance pill moved independently of its document after ${delta}px wheel: ${JSON.stringify({ initial, present })}`,
+      );
+    }
+  }
+
   // Edit owns the union drag hitbox. Switch back to Select before replacing
   // the selection; clicking through an Edit group deliberately starts a drag.
   await page.locator("button[data-mesurer-toolbar-mode='select']").click();
