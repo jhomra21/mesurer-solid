@@ -101,7 +101,6 @@ export function Toolbar(props: ToolbarProps) {
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
   const [menuAlign, setMenuAlign] = createSignal<"left" | "right">("right");
   const [compact, setCompact] = createSignal(false);
-  const [expandedToolsWidth, setExpandedToolsWidth] = createSignal(0);
   const [viewportRevision, setViewportRevision] = createSignal(0);
   const tooltip = createTooltip(props.ownerWindow);
   let toolbarElement: HTMLDivElement | undefined;
@@ -111,7 +110,6 @@ export function Toolbar(props: ToolbarProps) {
   let settingsElement: HTMLDivElement | undefined;
   let guideMenuElement: HTMLDivElement | undefined;
   let modeStageElement: HTMLDivElement | undefined;
-  let expandedToolsTrackElement: HTMLDivElement | undefined;
   let selectModePanelElement: HTMLDivElement | undefined;
   let editModePanelElement: HTMLDivElement | undefined;
   let pluginMenuAnchorElement: HTMLElement | undefined;
@@ -947,27 +945,6 @@ export function Toolbar(props: ToolbarProps) {
     };
   });
 
-  onSettled(() => {
-    const track = expandedToolsTrackElement;
-
-    if (!track) return;
-
-    // The expanded toolbar retains its natural measured width while closed.
-    // Animate only the containing lane rather than selectively leaving active
-    // or pinned tools behind in a supposedly collapsed toolbar.
-    const syncWidth = () => {
-      if (compact()) return;
-      setExpandedToolsWidth(track.getBoundingClientRect().width);
-    };
-
-    syncWidth();
-    const Resize = (props.ownerWindow as Window & typeof globalThis).ResizeObserver;
-    const observer = Resize ? new Resize(syncWidth) : null;
-
-    observer?.observe(track);
-
-    return () => observer?.disconnect();
-  });
 
   return (
     <>
@@ -1067,9 +1044,9 @@ export function Toolbar(props: ToolbarProps) {
         aria-hidden={compact() ? "true" : undefined}
         inert={compact() ? true : undefined}
         class="mesurer-toolbar-expanded-tools"
-        style={{ width: compact() ? "0px" : expandedToolsWidth() ? `${expandedToolsWidth()}px` : "auto" }}
+        style={{ width: compact() ? "0px" : "max-content" }}
       >
-      <div ref={(element) => { expandedToolsTrackElement = element; }} class="mesurer-toolbar-expanded-track">
+      <div class="mesurer-toolbar-expanded-track">
       <ToolbarDivider marker="mode" />
 
       <div
