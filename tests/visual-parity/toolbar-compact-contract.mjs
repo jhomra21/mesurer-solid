@@ -281,6 +281,19 @@ try {
   assert.equal(await codexButton.count(), 1, "Compacting must not unmount Codex");
   assert.equal(await compactItemVisible(rulersButton), true, "Compact must preserve the previously active Rulers state internally");
 
+  // Compact hides the Settings tool button, not keyboard access to Settings.
+  // Its floating dialog must mount outside the clipped and inert tool lane.
+  await page.keyboard.press("Control+,");
+  await settingsDialog.waitFor({ state: "visible" });
+  assert.equal(await expandedTools.getAttribute("aria-hidden"), "true", "Opening Settings must not re-expand the tool lane");
+  assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true");
+  assert(
+    await settingsDialog.evaluate((dialog) => !dialog.closest('[data-mesurer-toolbar-expanded-tools="true"]')),
+    "Compact Settings dialog must not be clipped or inert inside the collapsed lane",
+  );
+  await page.keyboard.press("Control+,");
+  await settingsDialog.waitFor({ state: "hidden" });
+
   await page.getByRole("button", { name: "Expand toolbar", exact: true }).click();
   await waitForSettledMotion();
   const expandedAgainBox = await toolbar.boundingBox();
