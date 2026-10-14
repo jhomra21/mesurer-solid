@@ -636,6 +636,10 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
     selectionSpacing() ? (start + end) / 2 : visibleLabelMidpoint(start, end, limit);
 
   const horizontalLineVisible = (x1: number, x2: number, y: number, width: number) => {
+    // Document-backed pills are clipped by the browser's native scroll tree.
+    // Viewport tests against cached rectangle coordinates cause labels to
+    // repeatedly unmount/remount while the document is still scrolling.
+    if (selectionSpacing() && props.renderPart && props.renderPart !== "all") return true;
     const viewport = ownerWindow();
 
     if (!viewport) return true;
@@ -645,6 +649,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
   };
 
   const verticalLineVisible = (x: number, y1: number, y2: number, width: number) => {
+    if (selectionSpacing() && props.renderPart && props.renderPart !== "all") return true;
     const viewport = ownerWindow();
 
     if (!viewport) return true;
@@ -654,6 +659,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
   };
 
   const diagonalLineVisible = (x1: number, y1: number, x2: number, y2: number) => {
+    if (selectionSpacing() && props.renderPart && props.renderPart !== "all") return true;
     const viewport = ownerWindow();
 
     if (!viewport) return true;
