@@ -749,6 +749,8 @@ body.mesurer-solid-xray .mesurer-ti-close {
   flex: none;
   min-width: 0;
   overflow: visible;
+  /* Natural-width tool groups must keep reflowing when plugins come and go. */
+  interpolate-size: allow-keywords;
   transition: width 150ms ease, opacity 150ms ease;
 }
 
