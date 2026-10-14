@@ -127,6 +127,7 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
 
   for (const label of labels) {
     const root = label.closest<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]');
+
     const visual = paintLabels.get([
       root?.getAttribute("data-mesurer-distance-id"),
       label.getAttribute("data-mesurer-distance-label-key"),
