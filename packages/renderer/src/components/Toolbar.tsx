@@ -257,9 +257,7 @@ export function Toolbar(props: ToolbarProps) {
     if (!anchor) return 0;
     const viewportWidth = props.ownerWindow.innerWidth || SETTINGS_MENU_WIDTH + VIEWPORT_PADDING * 2;
     const width = Math.min(SETTINGS_MENU_WIDTH, Math.max(0, viewportWidth - VIEWPORT_PADDING * 2));
-    // The expanded tool lane has its own one-pixel group boundary. Keep the
-    // Settings card aligned to the same viewport edge as the upstream layout.
-    const idealViewportLeft = anchor.right + (compact() ? 4 : 3) - width;
+    const idealViewportLeft = anchor.right + 4 - width;
     const maxViewportLeft = Math.max(VIEWPORT_PADDING, viewportWidth - VIEWPORT_PADDING - width);
     const viewportLeft = Math.min(maxViewportLeft, Math.max(VIEWPORT_PADDING, idealViewportLeft));
 
@@ -1041,6 +1039,8 @@ export function Toolbar(props: ToolbarProps) {
         }}
       />
 
+      <ToolbarDivider visible={!compact()} marker="mode" />
+
       <div
         data-mesurer-toolbar-expanded-tools="true"
         data-open={compact() ? "false" : "true"}
@@ -1050,8 +1050,6 @@ export function Toolbar(props: ToolbarProps) {
         style={{ width: compact() ? "0px" : "max-content" }}
       >
       <div class="mesurer-toolbar-expanded-track">
-      <ToolbarDivider marker="mode" />
-
       <div
         ref={(element) => { modeStageElement = element; }}
         class="mesurer-toolbar-mode-stage"
