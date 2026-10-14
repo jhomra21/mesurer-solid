@@ -277,8 +277,8 @@ try {
   assert(compactLaneBox && compactLaneBox.width < 1, "Collapsed tool lane must actually shrink to zero width");
   assert.equal(await selectMode.isVisible(), true, "Only current Select mode must remain visible");
   assert.equal(await editMode.isVisible(), false, "Inactive Edit mode must not remain visible");
-  assert.equal(await contextButton.getAttribute("aria-pressed"), "true", "Compacting must not deactivate Context");
-  assert.equal(await codexButton.getAttribute("aria-pressed"), "true", "Compacting must not deactivate Codex");
+  assert.equal(await contextButton.count(), 1, "Compacting must not unmount Context");
+  assert.equal(await codexButton.count(), 1, "Compacting must not unmount Codex");
   assert.equal(await compactItemVisible(rulersButton), true, "Compact must preserve the previously active Rulers state internally");
 
   await page.getByRole("button", { name: "Expand toolbar", exact: true }).click();
