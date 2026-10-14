@@ -615,6 +615,7 @@ try {
 
     const labelIdentity = await page.evaluate(() => {
       const previous = window.__mesurerScrollPillNodes ?? [];
+
       const now = [...document.querySelectorAll(
         '[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]',
       )];
