@@ -742,6 +742,49 @@ body.mesurer-solid-xray .mesurer-ti-close {
   background: transparent;
 }
 
+/* Compact means one current mode, not "every activated or pinned tool".
+   Keep the full tool lane mounted and animate its measured width to zero;
+   this preserves plugin state, mode-stage geometry, and quick expansion. */
+.mesurer-toolbar-expanded-tools {
+  flex: none;
+  min-width: 0;
+  overflow: visible;
+  transition: width 150ms ease, opacity 150ms ease;
+}
+
+.mesurer-toolbar-expanded-tools[data-open="false"] {
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mesurer-toolbar-expanded-track {
+  display: flex;
+  width: max-content;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.mesurer-toolbar-mode-switch[data-compact="true"][data-value="select"]
+  [data-mesurer-toolbar-edit-control="true"],
+.mesurer-toolbar-mode-switch[data-compact="true"][data-value="edit"]
+  [data-mesurer-toolbar-mode-select-control="true"],
+.mesurer-toolbar-mode-switch[data-compact="true"]
+  [data-mesurer-tool-menu-trigger] {
+  display: none;
+}
+
+.mesurer-toolbar-mode-switch[data-compact="true"][data-value="edit"]
+  .mesurer-toolbar-mode-switch-pill {
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mesurer-toolbar-expanded-tools {
+    transition: none;
+  }
+}
+
 /* Select/Edit mode switch and 150ms toolbar transition. */
 .mesurer-toolbar-mode-switch {
   position: relative;
