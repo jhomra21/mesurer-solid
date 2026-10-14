@@ -354,16 +354,9 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   opacity: 0.16 !important;
 }
 
-/* Keep a selected distance visually attached to its measured gap. When
-   several expanded labels genuinely need a new collision lane, soften only
-   that adjustment; never animate the scroll position or native page anchor. */
-@media (prefers-reduced-motion: no-preference) {
-  [data-mesurer-spacing-visual-label="true"] {
-    transition: margin-left 160ms cubic-bezier(0.22, 1, 0.36, 1),
-      margin-top 160ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-}
-
+/* Spacing values are part of the measured document geometry. Never tween
+   their coordinates: when scrolling, a transform/margin transition makes
+   the pill appear to lag behind or wander along its ruler. */
 /* The active spacing pills remain in the top-layer host for clicks. Their
    passive stroke paint is document-backed, so mirror axis-only hover emphasis. */
 [data-mesurer-spacing-paint="true"][data-mesurer-distance-active="true"][data-mesurer-spacing-hover-axis="x"] [data-mesurer-distance-line^="vertical"],
