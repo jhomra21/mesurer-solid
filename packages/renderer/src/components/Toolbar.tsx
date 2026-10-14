@@ -254,7 +254,7 @@ export function Toolbar(props: ToolbarProps) {
     compact();
     settingsActive();
     viewportRevision();
-    const anchor = settingsElement?.getBoundingClientRect();
+    const anchor = (compact() ? toolbarElement : settingsElement)?.getBoundingClientRect();
 
     if (!anchor) return 0;
     const viewportWidth = props.ownerWindow.innerWidth || SETTINGS_MENU_WIDTH + VIEWPORT_PADDING * 2;
@@ -846,7 +846,11 @@ export function Toolbar(props: ToolbarProps) {
 
       if (pluginMenuOpenId() && !insidePluginMenu) setPluginMenuOpenId(null);
 
-      if (props.model.current.settingsOpen && settingsElement && !path.includes(settingsElement)) props.model.setTransient({ settingsOpen: false });
+      const insideSettings = (settingsElement && path.includes(settingsElement))
+        || path.some((entry) => entry instanceof Element
+          && entry.getAttribute("data-mesurer-toolbar-compact-settings") === "true");
+
+      if (props.model.current.settingsOpen && !insideSettings) props.model.setTransient({ settingsOpen: false });
     };
 
     const handleClickCapture = (event: MouseEvent) => {
@@ -1183,7 +1187,7 @@ export function Toolbar(props: ToolbarProps) {
         <CompactItem visible={visibleInToolbar(settingsActive())}>
           <div data-mesurer-builtin="settings" ref={(element) => { settingsElement = element; }} class="msr:relative msr:flex">
             <ToolbarButton id="settings" builtin="settings" active={settingsActive()} label="Settings" shortcut="⌘/Ctrl+," onClick={() => props.onBuiltinAction("settings")} {...buttonProps("settings")}><GearIcon size={20} /></ToolbarButton>
-            <Show when={props.model.state.settingsOpen}>
+            <Show when={props.model.state.settingsOpen && !compact()}>
               <div
                 class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:max-h-[calc(100vh-16px)] msr:overflow-y-auto msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
                 style={{ left: `${settingsMenuLeft()}px`, right: "auto" }}
@@ -1204,6 +1208,24 @@ export function Toolbar(props: ToolbarProps) {
       <ToolbarDivider visible={compactDividerVisible()} marker="compact" />
       </div>
       </div>
+      {/* A Settings shortcut remains available when the toolbar is collapsed.
+          Its surface is outside the zero-width tool lane so it cannot be clipped
+          or made inert along with the hidden Settings button. */}
+      <Show when={compact() && props.model.state.settingsOpen}>
+        <div
+          data-mesurer-toolbar-compact-settings="true"
+          data-mesurer-inspector-ui="true"
+          role="dialog"
+          aria-label="Settings"
+          class={`mesurer-menu-surface msr:pointer-events-auto msr:absolute msr:z-[110] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:max-h-[calc(100vh-16px)] msr:overflow-y-auto msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
+          style={{ left: `${settingsMenuLeft()}px`, right: "auto" }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <SettingsPanel model={props.model} ownerWindow={props.ownerWindow} onResetSettings={props.onResetSettings} onClearWorkspace={props.onClearWorkspace} selectionSpacingStyle={props.selectionSpacingStyle} onSelectionSpacingStyleChange={props.onSelectionSpacingStyleChange} />
+        </div>
+      </Show>
       <div class="msr:flex msr:items-center msr:p-1">
         <button
           type="button"
