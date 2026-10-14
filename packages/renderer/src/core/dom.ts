@@ -115,6 +115,7 @@ export const getInspectMeasurement = (
     rect: projectRect(measurement.rect, element.ownerDocument),
     paddingRect: projectRect(measurement.paddingRect, element.ownerDocument),
     marginRect: projectRect(measurement.marginRect, element.ownerDocument),
+    documentScroll: { x: ownerWindow.scrollX, y: ownerWindow.scrollY },
   };
 };
 
