@@ -218,16 +218,17 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
       }
     }
 
-    setOffset(label, COLLISION_X, offsetX, chosenX - inlineFanX);
-    setOffset(label, COLLISION_Y, offsetY, chosenY - inlineFanY);
+    const finalX = chosenX - inlineFanX;
+    const finalY = chosenY - inlineFanY;
+
+    // Keep the transparent click proxy aligned with its visible document
+    // label, even when a previously cached proxy has a different lane.
+    setOffset(label, COLLISION_X, currentOffset(label, COLLISION_X), finalX);
+    setOffset(label, COLLISION_Y, currentOffset(label, COLLISION_Y), finalY);
 
     if (visual) {
-      for (const property of [COLLISION_X, COLLISION_Y]) {
-        const value = label.style.getPropertyValue(property);
-
-        if (value) visual.style.setProperty(property, value);
-        else visual.style.removeProperty(property);
-      }
+      setOffset(visual, COLLISION_X, offsetX, finalX);
+      setOffset(visual, COLLISION_Y, offsetY, finalY);
     }
 
     placed.push(chosen);
