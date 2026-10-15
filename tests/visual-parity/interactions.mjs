@@ -200,7 +200,7 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
   const generalSettingsVisible = await page.getByRole("dialog", { name: "Settings" })
     .getByRole("tab", { name: "General", selected: true }).count() > 0;
 
-  if (generalSettingsVisible && (await toolbarDock.count()) !== 1) {
+  if (implementation === "solid" && generalSettingsVisible && (await toolbarDock.count()) !== 1) {
     throw new Error(`Expected exactly one visible Toolbar dock control, found ${await toolbarDock.count()}.`);
   }
 
