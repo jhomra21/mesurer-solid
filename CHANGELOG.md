@@ -6,6 +6,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Keep multi-selection chrome attached to the page while scrolling in Select and Edit. The group outline and its dimensions label, the dotted spacing lines, and the distance pills now scroll with their elements instead of lagging, jumping, or flashing after the scroll settles.
+- Keep Edit's selection stroke attached to nested selected elements during wheel scrolling, and move multi-selection outlines and spacing with elements dragged in Edit without needing a scroll.
+- Collapse the toolbar to the current Select/Edit mode, the tools that are currently active (shown in their pressed blue state), and the expand control. The Settings shortcut still opens Settings while the toolbar is collapsed.
+
 ## 0.2.2-beta.7 - 2026-10-12
 
 - Render selected page outlines and their translucent tint directly on the selected element's own scroll/compositor layer, rather than painting a second, lagging border in the document portal. Keep portaled measurement geometry and labels, and restore the host's original styling when the selection clears.
