@@ -525,9 +525,12 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
   const SelectedPresentation = () => (
     <>
-      <For each={displayedSelectedMeasurements()}>{(measurement, index) => (
+      <For
+        each={displayedSelectedMeasurements()}
+        keyed={(measurement) => measurement.id}
+      >{(measurement, index) => (
         <MeasurementBox
-          measurement={measurement}
+          measurement={measurement()}
           edgeVisibility={selectedEdges()[index()]}
           outlineColor={selectedOutline()}
           fillColor={selectedFill()}
