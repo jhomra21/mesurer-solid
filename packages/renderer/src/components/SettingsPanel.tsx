@@ -82,6 +82,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
       clampFrame = 0;
 
       if (!dialog?.isConnected || !anchor?.isConnected) return;
+
+      if (toolbar?.dataset.orientation === "vertical") return;
       const viewportWidth = ownerWindow.innerWidth;
 
       if (viewportWidth <= 0) return;
@@ -152,6 +154,16 @@ export function SettingsPanel(props: SettingsPanelProps) {
             class="msr:col-span-2 msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-1"
             style={{ order: "-1" }}
           >
+            <label class="msr:col-span-2 msr:grid msr:h-8 msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-[12px]">
+              <span>Dock</span>
+              <select aria-label="Toolbar dock" value={props.model.state.settings.toolbarDock} class="msr:h-6 msr:rounded msr:border msr:border-ink-200 msr:bg-white msr:px-1.5 msr:text-[11px]" onChange={(event) => props.model.updateSettings({ toolbarDock: event.currentTarget.value === "snap" ? "snap" : "free" })}>
+                <option value="free">Free</option>
+                <option value="snap">Snap to edges</option>
+              </select>
+            </label>
+            <Show when={props.model.state.settings.toolbarDock === "snap"}>
+              <PresentationSwitch id="toolbar-auto-hide" label="Auto-hide" checked={props.model.state.settings.toolbarAutoHide} onChange={(toolbarAutoHide) => props.model.updateSettings({ toolbarAutoHide })} />
+            </Show>
             <For each={pluginSettings?.generalSections?.() ?? []}>{(section) => (
               <For each={section.controls ?? []}>{(control) => (
                 <PresentationSwitch

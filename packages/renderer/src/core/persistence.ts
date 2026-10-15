@@ -26,6 +26,7 @@ export type RulerSettings = { opacity: number; edgeReveal: boolean };
 export const DEFAULT_RULER_SETTINGS: RulerSettings = { opacity: 1, edgeReveal: false };
 
 export type MesurerStoredSettings = {
+  toolbarDock?: "free" | "snap"; toolbarAutoHide?: boolean;
   highlightColor?: string; guideColor?: string; hoverHighlightEnabled?: boolean;
   colorPickerFormats?: ColorPickerFormat[]; colorPickerClickFormat?: ColorPickerFormat;
   snapEnabled?: boolean; snapGuidesEnabled?: boolean; selectNewGuideEnabled?: boolean;
@@ -187,6 +188,10 @@ export const normalizeStoredSettings = (value: PersistedValue | undefined): Mesu
   if (isBoolean(value.shortcutsEnabled)) settings.shortcutsEnabled = value.shortcutsEnabled;
 
   if (isTheme(value.theme)) settings.theme = value.theme;
+
+  if (value.toolbarDock === "free" || value.toolbarDock === "snap") settings.toolbarDock = value.toolbarDock;
+
+  if (isBoolean(value.toolbarAutoHide)) settings.toolbarAutoHide = value.toolbarAutoHide;
   const guideStyle = normalizeGuideStyle(value.guideStyle);
 
   if (guideStyle) settings.guideStyle = guideStyle;

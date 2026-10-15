@@ -9,6 +9,14 @@ const explicitEditableState = (element: HTMLElement): boolean | null => {
   return null;
 };
 
+// jsdom does not lay out elements. Real resize geometry is covered by browser
+// contracts; supporting renderer tests only need the observer lifecycle.
+globalThis.ResizeObserver ??= class implements ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
 const inheritedEditableState = (element: HTMLElement): boolean => {
   const state = explicitEditableState(element);
 

@@ -5,6 +5,7 @@ import {
   createMemo,
   createSignal,
   onCleanup,
+  untrack,
 } from "solid-js";
 import {
   controlMotion,
@@ -269,7 +270,7 @@ export function MotionPlayer(props: {
   createEffect(
     () => props.suspended?.() ?? false,
     (suspended) => {
-      if (!suspended) previewWakeRef.current?.();
+      if (!suspended) untrack(() => previewWakeRef.current?.());
     },
   );
 
@@ -370,7 +371,7 @@ export function MotionPlayer(props: {
 
   createEffect(
     () => [props.ownerWindow, ready(), controllable(), duration()] as const,
-    ([ownerWindow, motionReady, canControl]) => {
+    ([ownerWindow, motionReady, canControl, motionDurationValue]) => {
       if (!motionReady || !canControl) return;
 
       let timer = 0;
@@ -388,7 +389,7 @@ export function MotionPlayer(props: {
           return;
         }
 
-        const playback = motionPlaybackState(animations, duration());
+        const playback = motionPlaybackState(animations, motionDurationValue);
 
         setProgress(playback.progress);
         setPlaying(playback.playing);
@@ -402,7 +403,7 @@ export function MotionPlayer(props: {
         }
       };
 
-      update();
+      untrack(update);
 
       onCleanup(() => {
         disposed = true;

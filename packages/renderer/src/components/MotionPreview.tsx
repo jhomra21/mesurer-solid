@@ -1,4 +1,4 @@
-import { createEffect, onCleanup } from "solid-js";
+import { createEffect, onCleanup, untrack } from "solid-js";
 import { scopedMotionAnimations, motionCssProperty } from "../core/motion";
 import { createMotionDependencies, cssVariables } from "../core/motion-dependencies";
 import { fitMotionPreview } from "../core/motion-preview";
@@ -469,7 +469,7 @@ export function MotionPreview(props: {
       };
     }
 
-    scan();
+    untrack(scan);
     size(false);
     needsSize = effects.length > 0 && !observedTargets.length;
     lastSize = ownerWindow.performance.now();

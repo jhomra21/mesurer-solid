@@ -39,6 +39,8 @@ export const DEFAULT_MESURER_SETTINGS: MesurerSettings = {
   persistOnReload: false,
   shortcutsEnabled: true,
   theme: "system",
+  toolbarDock: "free",
+  toolbarAutoHide: false,
   colorPickerFormats: ["hex", "rgb", "oklch"],
   colorPickerClickFormat: "hex",
   snapEnabled: true,
@@ -441,6 +443,10 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
 
     if (stored.theme !== undefined) patch.theme = stored.theme;
 
+    if (stored.toolbarDock !== undefined) patch.toolbarDock = stored.toolbarDock;
+
+    if (stored.toolbarAutoHide !== undefined) patch.toolbarAutoHide = stored.toolbarAutoHide;
+
     if (stored.colorPickerFormats !== undefined) patch.colorPickerFormats = stored.colorPickerFormats;
 
     if (stored.colorPickerClickFormat !== undefined) patch.colorPickerClickFormat = stored.colorPickerClickFormat;
@@ -485,6 +491,8 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
     persistOnReload: current.settings.persistOnReload,
     shortcutsEnabled: current.settings.shortcutsEnabled,
     theme: current.settings.theme,
+    toolbarDock: current.settings.toolbarDock,
+    toolbarAutoHide: current.settings.toolbarAutoHide,
     guideStyle: { ...current.settings.guideStyle },
     rulerSettings: { ...current.settings.rulerSettings },
   });

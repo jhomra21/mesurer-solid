@@ -1,4 +1,9 @@
-export type ToolbarPosition = { x: number; y: number };
+export type ToolbarPosition = {
+  x: number; y: number;
+  edge?: "top" | "bottom" | "left" | "right" | null;
+  align?: "start" | "center" | "end";
+  vertical?: boolean;
+};
 
 export const DEFAULT_TOOLBAR_POSITION: ToolbarPosition = { x: 16, y: 16 };
 
@@ -39,7 +44,7 @@ type NativeControlsRect = { x: number; y: number; width: number; height: number 
 
 const DEFAULT_CONTROLS: NativeControlsRect = { x: 0, y: 0, width: 84, height: 48 };
 
-const getWindowControls = (ownerWindow: ToolbarHostEnvironment): NativeControlsRect | null => {
+export const getWindowControls = (ownerWindow: ToolbarHostEnvironment): NativeControlsRect | null => {
   if (!isMacOSElectronToolbarHost(ownerWindow)) return null;
 
   // A desktop host with custom chrome can expose its actual traffic-light
