@@ -814,9 +814,11 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-multi-selection-docu
     };
 
     const clearPresentationStyles = () => {
+      const hadPreviews = previews.size > 0;
       clearPreviewStyles();
       restoreAllTransformTransitions();
-      syncSelectionGeometry();
+
+      if (hadPreviews) syncSelectionGeometry();
     };
 
     const hideSnapLines = () => {
@@ -1037,6 +1039,7 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-multi-selection-docu
       const activeElements = new Set(next.map(({ element }) => element));
 
       for (const { element } of next) suppressTransformTransition(element);
+      const previousTransforms = new Map([...previews].map(([element, preview]) => [element, preview.appliedTransform]));
       clearPreviewStyles();
 
       for (const { element, offset } of next) {
@@ -1056,7 +1059,13 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-multi-selection-docu
       }
 
       restoreUnusedTransformTransitions(activeElements);
-      syncSelectionGeometry();
+
+      // Scroll-driven refreshes re-apply identical transforms; re-measuring then
+      // would replace the selection roots mid-scroll for no geometry change.
+      const moved = previousTransforms.size !== previews.size
+        || [...previews].some(([element, preview]) => previousTransforms.get(element) !== preview.appliedTransform);
+
+      if (moved) syncSelectionGeometry();
     };
 
     const applyPresentation = () => applyOffsets(presentationOffsets());
