@@ -526,6 +526,22 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     model.setTransient({ end: point, isDragging });
   };
 
+  // Scroll events deliberately defer model measurement refresh while CSS
+  // scroll anchoring owns the paint. A later Shift-click can therefore combine
+  // a fresh second target with an older first target's viewport coordinates.
+  // Resample at the selection gesture boundary, not on the scroll hot path.
+  const refreshSelectedGeometry = (items: InspectMeasurement[]) => items.flatMap((item) => {
+    const element = item.elementRef;
+
+    if (!element?.isConnected) return [];
+
+    return [{
+      ...getInspectMeasurement(element, ownerWindow),
+      id: item.id,
+      originRect: item.originRect,
+    }];
+  });
+
   const pointerUp = (event: MesurerPointerInput) => {
     if (!model.current.enabled) return;
 
@@ -565,7 +581,9 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       }
 
       model.checkpoint();
-      model.setSelectedMeasurements(merged, merged.at(-1) ?? null);
+      const liveMerged = refreshSelectedGeometry(merged);
+
+      model.setSelectedMeasurements(liveMerged, liveMerged.at(-1) ?? null);
       model.setTransient({ selectionOriginRect: rect });
       resetDrag();
 
@@ -579,7 +597,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     if ((event.shiftKey || !model.current.settings.hoverHighlightEnabled) && selectedHit) {
       clickCycle = null;
       model.checkpoint();
-      const next = model.current.selectedMeasurements.filter((item) => item.elementRef !== selectedHit.elementRef);
+      const next = refreshSelectedGeometry(model.current.selectedMeasurements.filter((item) => item.elementRef !== selectedHit.elementRef));
+
       model.setSelectedMeasurements(next, next.at(-1) ?? null);
       resetDrag();
 
@@ -632,7 +651,9 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           ? model.current.selectedMeasurements.filter((item) => item.elementRef !== target)
           : [...model.current.selectedMeasurements, measurement];
 
-        model.setSelectedMeasurements(next, next.at(-1) ?? null);
+        const liveNext = refreshSelectedGeometry(next);
+
+        model.setSelectedMeasurements(liveNext, liveNext.at(-1) ?? null);
       } else {
         model.setSelectedMeasurements([measurement], measurement);
       }

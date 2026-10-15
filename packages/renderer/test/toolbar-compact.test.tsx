@@ -38,7 +38,7 @@ const compactItem = (button: HTMLButtonElement) =>
   button.closest<HTMLElement>('[data-mesurer-toolbar-compact-item="true"]');
 
 describe("compact toolbar", () => {
-  it("hides only inactive tools and never changes active tool/plugin state", async () => {
+  it("collapses to the selected mode and keeps active tools visible without changing tool or plugin state", async () => {
     const host = document.createElement("div");
     document.body.append(host);
 
@@ -63,12 +63,13 @@ describe("compact toolbar", () => {
     const toolbar = document.querySelector<HTMLElement>('[data-mesurer-toolbar="true"]')!;
     await waitFor(() => toolbar.dataset.mesurerToolbarCompact === "true");
 
-    expect(compactItem(selectButton)?.getAttribute("aria-hidden")).toBeNull();
+    expect(toolbar.querySelector('[data-mesurer-toolbar-mode-switch]')?.getAttribute("data-compact")).toBe("true");
+    expect(selectButton.getAttribute("aria-pressed")).toBe("true");
+    expect(pluginButton.getAttribute("aria-pressed")).toBe("true");
+    // Active tools stay in the collapsed toolbar; idle ones are hidden.
     expect(compactItem(pluginButton)?.getAttribute("aria-hidden")).toBeNull();
     expect(compactItem(xrayButton)?.getAttribute("aria-hidden")).toBe("true");
     expect(compactItem(typographyButton)?.getAttribute("aria-hidden")).toBe("true");
-    expect(selectButton.getAttribute("aria-pressed")).toBe("true");
-    expect(pluginButton.getAttribute("aria-pressed")).toBe("true");
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true }));
     await waitFor(() => xrayButton.getAttribute("aria-pressed") === "true");

@@ -39,6 +39,8 @@ export type InspectMeasurement = {
   label: string;
   elementRef?: Element | null;
   originRect?: Rect;
+  /** Window scroll at the moment this viewport rectangle was sampled. */
+  documentScroll?: { x: number; y: number };
 };
 
 export type Guide = {

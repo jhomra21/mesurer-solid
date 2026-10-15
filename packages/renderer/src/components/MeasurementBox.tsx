@@ -190,6 +190,10 @@ export function MeasurementBox(props: MeasurementBoxProps) {
         left: `${measurement().rect.left + selectedPortalOffset().x + measurement().rect.width / 2}px`,
         top: `${measurement().rect.top + selectedPortalOffset().y + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
         "z-index": isSelectedMeasurement() ? SELECTED_CHROME_Z_INDEX : undefined,
+        // Document-backed virtual groups have no intrinsic containing-block width.
+        // Preserve a compact one-line dimensions badge instead of wrapping
+        // width, x, and height into separate lines.
+        "white-space": "nowrap",
         transition: labelTransition(),
         "transition-property": isSelectedMeasurement() ? "none" : "left, top",
         "transition-duration": isSelectedMeasurement() ? "0s" : `${MEASURE_TRANSITION_MS}ms`,

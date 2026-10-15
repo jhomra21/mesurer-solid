@@ -59,6 +59,13 @@ export type MesurerWorkspaceRuntime = {
   snapshot(): MesurerWorkspaceSnapshot;
   elementRect(element: Element): Rect;
   currentSelection(): { elements: Element[]; region: Rect | null };
+  /**
+   * Re-measure the selected elements after something other than scroll or
+   * resize moved them (for example Edit's transform previews). Stored rects
+   * feed the group outline and spacing overlays, which are not anchored to the
+   * live element. Notifies only when a rect actually changed.
+   */
+  refreshSelectionGeometry(): void;
   clearSelection(): void;
   toggleSelection(element: Element): void;
   selectGestureActive(): boolean;
@@ -686,6 +693,45 @@ export function createMesurerWorkspaceRuntime(options: {
           ? cloneMesurerRect(model.current.selectionOriginRect)
           : null,
       };
+    },
+    refreshSelectionGeometry() {
+      const current = model.current.selectedMeasurements;
+
+      if (!current.length) return;
+
+      const sameRect = (left: Rect, right: Rect) =>
+        left.left === right.left
+        && left.top === right.top
+        && left.width === right.width
+        && left.height === right.height;
+
+      let changed = false;
+
+      const next = current.flatMap((item) => {
+        if (!item.elementRef?.isConnected) return [];
+
+        const measured = {
+          ...getProjectedInspectMeasurement(item.elementRef, ownerWindow),
+          id: item.id,
+          originRect: item.originRect,
+        };
+
+        if (
+          !sameRect(measured.rect, item.rect)
+          || !sameRect(measured.paddingRect, item.paddingRect)
+          || !sameRect(measured.marginRect, item.marginRect)
+        ) changed = true;
+
+        return [measured];
+      });
+
+      if (next.length !== current.length) changed = true;
+
+      if (!changed) return;
+
+      const primaryId = model.current.selectedMeasurement?.id;
+
+      model.setSelectedMeasurements(next, next.find((item) => item.id === primaryId) ?? next.at(-1) ?? null);
     },
     clearSelection() {
       model.checkpoint();

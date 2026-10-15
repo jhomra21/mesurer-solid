@@ -349,7 +349,18 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
    so a diagonal pair never reads as an L-shaped or diagonal distance. */
 [data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis="x"]:hover) [data-mesurer-distance-line^="vertical"],
 [data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis="y"]:hover) [data-mesurer-distance-line^="horizontal"],
-[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis]:hover) [data-mesurer-distance-connector="true"] {
+[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis]:hover) [data-mesurer-distance-connector="true"],
+[data-mesurer-spacing-paint="true"][data-mesurer-distance-active="true"][data-mesurer-spacing-hover-axis] [data-mesurer-distance-connector="true"] {
+  opacity: 0.16 !important;
+}
+
+/* Spacing values are part of the measured document geometry. Never tween
+   their coordinates: when scrolling, a transform/margin transition makes
+   the pill appear to lag behind or wander along its ruler. */
+/* The active spacing pills remain in the top-layer host for clicks. Their
+   passive stroke paint is document-backed, so mirror axis-only hover emphasis. */
+[data-mesurer-spacing-paint="true"][data-mesurer-distance-active="true"][data-mesurer-spacing-hover-axis="x"] [data-mesurer-distance-line^="vertical"],
+[data-mesurer-spacing-paint="true"][data-mesurer-distance-active="true"][data-mesurer-spacing-hover-axis="y"] [data-mesurer-distance-line^="horizontal"] {
   opacity: 0.16 !important;
 }
 
@@ -375,11 +386,11 @@ body.mesurer-solid-xray .mesurer-ti-close {
    contributing horizontal padding once every item in that group is hidden.
    Otherwise invisible built-in/plugin/settings groups leave a phantom gap
    immediately before the compact/expand chevron. */
-[data-mesurer-toolbar="true"] > div:has(> [data-mesurer-toolbar-compact-item]) {
+[data-mesurer-toolbar="true"] div:has(> [data-mesurer-toolbar-compact-item]) {
   transition: padding-inline 150ms ease;
 }
 
-[data-mesurer-toolbar="true"][data-mesurer-toolbar-compact="true"] > div:has(> [data-mesurer-toolbar-compact-item]):not(:has(> [data-mesurer-toolbar-compact-item][data-visible="true"])) {
+[data-mesurer-toolbar="true"][data-mesurer-toolbar-compact="true"] div:has(> [data-mesurer-toolbar-compact-item]):not(:has(> [data-mesurer-toolbar-compact-item][data-visible="true"])) {
   padding-inline: 0;
 }
 
@@ -393,7 +404,7 @@ body.mesurer-solid-xray .mesurer-ti-close {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-mesurer-toolbar="true"] > div:has(> [data-mesurer-toolbar-compact-item]) {
+  [data-mesurer-toolbar="true"] div:has(> [data-mesurer-toolbar-compact-item]) {
     transition: none;
   }
 
@@ -729,6 +740,23 @@ body.mesurer-solid-xray .mesurer-ti-close {
 
 .mesurer-thin-scrollbar::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Compact shows the current mode and every active tool. Idle tools animate
+   to zero width through their compact items, so plugin state, mode-stage
+   geometry, and quick expansion are preserved. */
+.mesurer-toolbar-mode-switch[data-compact="true"][data-value="select"]
+  [data-mesurer-toolbar-edit-control="true"],
+.mesurer-toolbar-mode-switch[data-compact="true"][data-value="edit"]
+  [data-mesurer-toolbar-mode-select-control="true"],
+.mesurer-toolbar-mode-switch[data-compact="true"]
+  [data-mesurer-tool-menu-trigger] {
+  display: none;
+}
+
+.mesurer-toolbar-mode-switch[data-compact="true"][data-value="edit"]
+  .mesurer-toolbar-mode-switch-pill {
+  transform: translateX(0);
 }
 
 /* Select/Edit mode switch and 150ms toolbar transition. */

@@ -103,18 +103,51 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
     return firstDiagonal - secondDiagonal;
   });
 
+  const paintLabels = new Map<string, HTMLElement>();
+
+  const scopeId = labels[0]?.closest<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')
+    ?.getAttribute("data-mesurer-selection-scope");
+
+  if (scopeId) {
+    for (const root of scope.ownerDocument.querySelectorAll<HTMLElement>('[data-mesurer-spacing-paint="true"]')) {
+      if (root.getAttribute("data-mesurer-selection-scope") !== scopeId) continue;
+
+      for (const label of root.querySelectorAll<HTMLElement>('[data-mesurer-spacing-visual-label="true"]')) {
+        paintLabels.set([
+          root.getAttribute("data-mesurer-distance-id"),
+          label.getAttribute("data-mesurer-distance-label-key"),
+          label.getAttribute("data-mesurer-distance-label-index"),
+          label.getAttribute("data-mesurer-distance-label-axis"),
+        ].join("|"), label);
+      }
+    }
+  }
+
   const placed: Box[] = [];
 
   for (const label of labels) {
-    const offsetX = currentOffset(label, COLLISION_X);
-    const offsetY = currentOffset(label, COLLISION_Y);
+    const root = label.closest<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]');
+
+    const visual = paintLabels.get([
+      root?.getAttribute("data-mesurer-distance-id"),
+      label.getAttribute("data-mesurer-distance-label-key"),
+      label.getAttribute("data-mesurer-distance-label-index"),
+      label.getAttribute("data-mesurer-distance-label-axis"),
+    ].join("|"));
+
+    // The visible document pill, not its fixed-layer pointer proxy, owns
+    // selected-spacing layout. Measuring the proxy during native scrolling
+    // produces transient viewport coordinates and reassigns collision lanes.
+    const source = visual ?? label;
+    const offsetX = currentOffset(source, COLLISION_X);
+    const offsetY = currentOffset(source, COLLISION_Y);
     const axis = label.getAttribute("data-mesurer-distance-label-axis");
     const vector = labelVector(label);
     const perpendicular = { x: -vector.y, y: vector.x };
     const index = labelIndex(label);
     const inlineFanX = axis === "y" ? index * INLINE_FAN_X_STEP : 0;
     const inlineFanY = axis === "x" ? index * INLINE_FAN_Y_STEP : 0;
-    const rendered = label.getBoundingClientRect();
+    const rendered = source.getBoundingClientRect();
 
     const baseBox: Box = {
       left: rendered.left - offsetX - inlineFanX,
@@ -148,7 +181,10 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
       const y = vector.y * amount;
       const candidate = movedBox(baseBox, x, y);
 
-      if (!insideViewport(candidate, ownerWindow.innerWidth, ownerWindow.innerHeight)) continue;
+      // Document-backed labels have stable positions along their measured
+      // lines. Do not move them just because the viewport edge crosses a
+      // candidate lane; they should scroll out naturally with the line.
+      if (!visual && !insideViewport(candidate, ownerWindow.innerWidth, ownerWindow.innerHeight)) continue;
 
       if (placed.some((other) => overlaps(candidate, other))) continue;
       chosen = candidate;
@@ -183,8 +219,19 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
       }
     }
 
-    setOffset(label, COLLISION_X, offsetX, chosenX - inlineFanX);
-    setOffset(label, COLLISION_Y, offsetY, chosenY - inlineFanY);
+    const finalX = chosenX - inlineFanX;
+    const finalY = chosenY - inlineFanY;
+
+    // Keep the transparent click proxy aligned with its visible document
+    // label, even when a previously cached proxy has a different lane.
+    setOffset(label, COLLISION_X, currentOffset(label, COLLISION_X), finalX);
+    setOffset(label, COLLISION_Y, currentOffset(label, COLLISION_Y), finalY);
+
+    if (visual) {
+      setOffset(visual, COLLISION_X, offsetX, finalX);
+      setOffset(visual, COLLISION_Y, offsetY, finalY);
+    }
+
     placed.push(chosen);
   }
 };

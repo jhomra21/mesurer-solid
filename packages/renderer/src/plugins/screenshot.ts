@@ -46,7 +46,7 @@ const MEASUREMENT_MARKER_SELECTOR = [
   "[data-mesurer-distance='true']",
 ].join(",");
 
-const MEASUREMENT_PRESENTATION_SELECTOR = `${MEASUREMENT_MARKER_SELECTOR},[data-mesurer-rulers='true']`;
+const MEASUREMENT_PRESENTATION_SELECTOR = `${MEASUREMENT_MARKER_SELECTOR},[data-mesurer-rulers='true'],[data-mesurer-multi-selection-document-layer='true']`;
 
 export type MesurerScreenshotSettings = {
   toolEnabled: boolean;

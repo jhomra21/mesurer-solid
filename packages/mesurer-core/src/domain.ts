@@ -33,6 +33,8 @@ export type InspectMeasurement<ElementRef = unknown> = {
   label: string;
   elementRef?: ElementRef | null;
   originRect?: Rect;
+  /** Window scroll at the moment the viewport rect was measured. */
+  documentScroll?: { x: number; y: number };
 };
 
 export type Guide = { id: string; orientation: "vertical" | "horizontal"; position: number };

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import { chromium } from "playwright";
 
 const url = process.env.ISOLATED_SELECTION_SCROLL_URL ?? "http://127.0.0.1:4174/isolated-scroll.html";
@@ -245,6 +246,406 @@ try {
     "",
     "window scrolling must not write a Context JS compensation delta",
   );
+
+  // A two-target selection was missing from the earlier scroll acceptance
+  // tests. Its union readout, individual borders, and spacing lines used to
+  // stay viewport-fixed inside the isolated overlay during real wheel input.
+  const companion = page.locator("#isolated-edit-parent");
+  const companionBox = await box(companion, "multi-selection companion");
+  await page.keyboard.down("Shift");
+
+  try {
+    await page.mouse.click(companionBox.x + 8, companionBox.y + 8);
+  } finally {
+    await page.keyboard.up("Shift");
+  }
+
+  const multiLayer = page.locator("body > [data-mesurer-multi-selection-document-layer='true']");
+  await multiLayer.waitFor({ state: "attached" });
+  await page.waitForFunction(() =>
+    document.querySelectorAll(
+      "body > [data-mesurer-multi-selection-document-layer='true'] [data-mesurer-selection-spacing-target='true']",
+    ).length === 2,
+  );
+
+  // Select itself must stay attached to both source elements. Check the
+  // first compositor scroll event, not only the settled state 80 ms later.
+  const selectScrollPromise = page.evaluate(() => new Promise((resolve, reject) => {
+    const sample = () => {
+      const targets = ["#isolated-scroll-target", "#isolated-edit-parent"]
+        .map((selector) => document.querySelector(selector)?.getBoundingClientRect());
+
+      const outlines = [...document.querySelectorAll(
+        "body > [data-mesurer-multi-selection-document-layer='true'] [data-mesurer-selection-spacing-target='true']",
+      )].map((element) => element.getBoundingClientRect());
+
+      const spacingLines = [...document.querySelectorAll(
+        '[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]',
+      )].map((element) => element.getBoundingClientRect());
+
+      const spacingLabel = document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]')
+        ?.getBoundingClientRect();
+
+      return { targets, outlines, spacingLines, spacingLabel };
+    };
+
+    const before = sample();
+    const timeout = window.setTimeout(() => reject(new Error("Select multi-selection did not scroll")), 3000);
+
+    window.addEventListener("scroll", () => {
+      window.clearTimeout(timeout);
+      resolve({ before, after: sample() });
+    }, { capture: true, once: true });
+  }));
+
+  await page.mouse.move(1220, 840);
+  await page.mouse.wheel(0, 32);
+  const selectScroll = await selectScrollPromise;
+
+  assert(
+    Math.abs(selectScroll.after.targets[0].y - selectScroll.before.targets[0].y) > 10,
+    "Select multi-selection must move during physical wheel scrolling",
+  );
+
+  for (const [stage, snapshot] of [["before", selectScroll.before], ["inside wheel", selectScroll.after]]) {
+    for (const [index, targetRect] of snapshot.targets.entries()) {
+      assert(
+        snapshot.outlines.some((outline) => ["x", "y", "width", "height"]
+          .every((key) => Math.abs(outline[key] - targetRect[key]) < 2)),
+        `Select multi-selection target ${index} detached ${stage}: ${JSON.stringify(snapshot)}`,
+      );
+    }
+  }
+
+  const selectLabels = await page.evaluate(() => {
+    const root = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root;
+    const proxy = root?.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]');
+    const visual = document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]');
+
+    return {
+      proxyOpacity: proxy ? getComputedStyle(proxy).opacity : null,
+      proxyPointerEvents: proxy ? getComputedStyle(proxy).pointerEvents : null,
+      visualOpacity: visual ? getComputedStyle(visual).opacity : null,
+      visualPointerEvents: visual ? getComputedStyle(visual).pointerEvents : null,
+    };
+  });
+
+  assert.deepEqual(selectLabels, {
+    proxyOpacity: "0",
+    proxyPointerEvents: "auto",
+    visualOpacity: "1",
+    visualPointerEvents: "none",
+  }, "the visible spacing pill must be document-backed, with an invisible interactive top-layer hitbox");
+
+  assert(selectScroll.before.spacingLines.length > 0, "Select should show spacing paint between both selected targets");
+  assert(selectScroll.before.spacingLabel && selectScroll.after.spacingLabel, "Select spacing value badge must remain visible");
+  assert(
+    Math.abs((selectScroll.after.spacingLabel.y - selectScroll.before.spacingLabel.y)
+      - (selectScroll.after.targets[0].y - selectScroll.before.targets[0].y)) < 2,
+    "Select spacing value must scroll with its dotted line",
+  );
+
+  for (const [index, before] of selectScroll.before.spacingLines.entries()) {
+    const after = selectScroll.after.spacingLines[index];
+
+    assert(after, `Select spacing paint ${index} disappeared on scroll`);
+    assert(
+      Math.abs((after.y - before.y) - (selectScroll.after.targets[0].y - selectScroll.before.targets[0].y)) < 2,
+      `Select spacing paint ${index} must scroll with its source element`,
+    );
+  }
+
+  // The visible document pill and the invisible pointer target must overlap
+  // after scrolling settles. A portal-only visual can look right in a rect
+  // assertion and still visibly chase the page compositor in a screen capture.
+  await page.waitForFunction(() => {
+    const visual = document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]');
+
+    const hit = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root
+      ?.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]');
+
+    if (!visual || !hit) return false;
+    const a = visual.getBoundingClientRect();
+    const b = hit.getBoundingClientRect();
+
+    return ["x", "y", "width", "height"].every((key) => Math.abs(a[key] - b[key]) < 2);
+  });
+
+  // Force the exact macOS regression: the second scroll arrives, then Edit
+  // re-renders the document layer before the deferred 80ms measurement refresh.
+  // The scroll origin must remain paired with the old measured rects.
+  const modeSwitchGeometry = await page.evaluate(async () => {
+    const root = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root;
+    const editButton = root?.querySelector('button[data-mesurer-toolbar-mode="edit"]');
+
+    if (!(editButton instanceof HTMLElement)) throw new Error("Edit mode button missing");
+
+    window.scrollBy(0, 32);
+    editButton.click();
+    await Promise.resolve();
+
+    const targets = ["#isolated-scroll-target", "#isolated-edit-parent"]
+      .map((selector) => document.querySelector(selector)?.getBoundingClientRect());
+
+    const outlines = [...document.querySelectorAll(
+      "body > [data-mesurer-multi-selection-document-layer='true'] [data-mesurer-selection-spacing-target='true']",
+    )].map((element) => element.getBoundingClientRect());
+
+    return { targets, outlines, scrollY: window.scrollY };
+  });
+
+  for (const target of modeSwitchGeometry.targets) {
+    assert(
+      modeSwitchGeometry.outlines.some((outline) => ["x", "y", "width", "height"]
+        .every((key) => Math.abs(outline[key] - target[key]) < 2)),
+      `Edit immediately after scrolling must not rebase stale geometry: ${JSON.stringify(modeSwitchGeometry)}`,
+    );
+  }
+
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+
+  await page.waitForFunction(() => {
+    const targets = ["#isolated-scroll-target", "#isolated-edit-parent"]
+      .map((selector) => document.querySelector(selector));
+
+    const uiRoot = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root;
+
+    const hitbox = document.querySelector("[data-mesurer-arrange-box='true']")
+      ?? uiRoot?.querySelector("[data-mesurer-arrange-box='true']");
+
+    return targets.every((element) =>
+      element instanceof HTMLElement
+      && getComputedStyle(element).outlineWidth === "1px"
+      && getComputedStyle(element).outlineStyle === "solid"
+      && getComputedStyle(element).outlineColor === "rgb(13, 153, 255)"
+      && element.style.getPropertyPriority("outline") === "important")
+      && hitbox instanceof HTMLElement
+      && getComputedStyle(hitbox).borderColor === "rgba(0, 0, 0, 0)";
+  });
+
+  const multiArtifacts = process.env.ISOLATED_SCROLL_ARTIFACT_DIR ?? "isolated-scroll-artifacts";
+  await fs.mkdir(multiArtifacts, { recursive: true });
+
+  const dimensionsBadge = multiLayer.locator("[data-mesurer-selection-group='true'] [data-mesurer-measurement-label='true']");
+
+  const badgeStyle = await dimensionsBadge.evaluate((element) => ({
+    whiteSpace: getComputedStyle(element).whiteSpace,
+    height: element.getBoundingClientRect().height,
+  }));
+
+  assert.equal(badgeStyle.whiteSpace, "nowrap", "group dimensions badge must stay on one line");
+  assert(badgeStyle.height < 24, `group dimensions badge wrapped into multiple lines: ${JSON.stringify(badgeStyle)}`);
+  await page.screenshot({ path: `${multiArtifacts}/multi-selection-before.png` });
+
+  const multiSamplePromise = page.evaluate(() => new Promise((resolve, reject) => {
+    const readRect = (element) => {
+      if (!(element instanceof HTMLElement)) return null;
+      const rect = element.getBoundingClientRect();
+
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+
+    const snapshot = () => {
+      const layer = document.querySelector("[data-mesurer-multi-selection-document-layer='true']");
+
+      const targets = [
+        document.querySelector("#isolated-scroll-target"),
+        document.querySelector("#isolated-edit-parent"),
+      ].map(readRect);
+
+      const outlines = [...(layer?.querySelectorAll("[data-mesurer-selection-spacing-target='true']") ?? [])].map(readRect);
+      const groupOutline = readRect(layer?.querySelector("[data-mesurer-selection-group-outline='true']"));
+      const groupLabel = readRect(layer?.querySelector("[data-mesurer-selection-group='true'] [data-mesurer-measurement-label='true']"));
+
+      const spacingLines = [...document.querySelectorAll(
+        '[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]',
+      )].map(readRect);
+
+      const spacingLabel = readRect(document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]'));
+
+      return { targets, outlines, groupOutline, groupLabel, spacingLines, spacingLabel, scrollY: window.scrollY };
+    };
+
+    const before = snapshot();
+
+    if (before.targets.some((rect) => !rect) || before.outlines.length !== 2 || !before.groupLabel || !before.groupOutline || before.spacingLines.length === 0 || !before.spacingLabel) {
+      return reject(new Error(`multi-selection surfaces missing before wheel: ${JSON.stringify(before)}`));
+    }
+
+    const timer = window.setTimeout(() => reject(new Error("multi-selection real wheel did not scroll")), 3000);
+    window.addEventListener("scroll", () => {
+      window.clearTimeout(timer);
+      resolve({ before, after: snapshot() });
+    }, { capture: true, once: true });
+  }));
+
+  await page.mouse.move(1220, 840);
+  await page.mouse.wheel(0, 84);
+  const multiSample = await multiSamplePromise;
+
+  const matchOutlines = (state, stage) => {
+    for (const [i, targetRect] of state.targets.entries()) {
+      const matched = state.outlines.some((outlineRect) => outlineRect
+        && ["x", "y", "width", "height"].every((key) => Math.abs(outlineRect[key] - targetRect[key]) < 2));
+
+      assert(matched, `${stage}: selected target ${i} has a detached scroll outline: ${JSON.stringify(state)}`);
+    }
+  };
+
+  matchOutlines(multiSample.before, "multi-selection before physical wheel");
+  matchOutlines(multiSample.after, "multi-selection inside physical wheel event");
+  assert(
+    Math.abs(multiSample.after.targets[0].y - multiSample.before.targets[0].y) > 15,
+    "multi-selection scroll must move the host page target",
+  );
+  assert(
+    Math.abs(
+      (multiSample.after.groupOutline.y - multiSample.before.groupOutline.y)
+      - (multiSample.after.targets[0].y - multiSample.before.targets[0].y),
+    ) < 2,
+    "Edit group outline must scroll with the selected elements",
+  );
+  assert(
+    Math.abs(
+      (multiSample.after.groupLabel.y - multiSample.before.groupLabel.y)
+      - (multiSample.after.targets[0].y - multiSample.before.targets[0].y),
+    ) < 2,
+    "union readout must scroll with the selected elements instead of following the viewport",
+  );
+
+  assert(multiSample.after.spacingLabel, "Edit spacing value badge disappeared");
+  assert(
+    Math.abs((multiSample.after.spacingLabel.y - multiSample.before.spacingLabel.y)
+      - (multiSample.after.targets[0].y - multiSample.before.targets[0].y)) < 2,
+    "Edit spacing value must scroll with its dotted line",
+  );
+
+  for (const [index, before] of multiSample.before.spacingLines.entries()) {
+    const after = multiSample.after.spacingLines[index];
+
+    assert(after, `Edit spacing paint ${index} disappeared on scroll`);
+    assert(
+      Math.abs((after.y - before.y) - (multiSample.after.targets[0].y - multiSample.before.targets[0].y)) < 2,
+      `Edit spacing paint ${index} must scroll with its source element`,
+    );
+  }
+
+  await page.waitForTimeout(140);
+  await settle();
+
+  const settledMulti = await multiLayer.evaluate((layer) => {
+    const rect = (element) => {
+      if (!(element instanceof HTMLElement)) return null;
+      const bounds = element.getBoundingClientRect();
+
+      return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+    };
+
+    return {
+      targets: ["#isolated-scroll-target", "#isolated-edit-parent"].map((selector) => rect(document.querySelector(selector))),
+      outlines: [...layer.querySelectorAll("[data-mesurer-selection-spacing-target='true']")].map(rect),
+    };
+  });
+
+  matchOutlines(settledMulti, "multi-selection after wheel settles");
+
+  const settledSpacing = await page.evaluate(() => {
+    const line = document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-distance-line]');
+    const label = document.querySelector('[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label]');
+
+    if (!line || !label) return null;
+    const a = line.getBoundingClientRect();
+    const b = label.getBoundingClientRect();
+
+    return { difference: (b.top + b.height / 2) - (a.top + a.height / 2) };
+  });
+
+  assert(settledSpacing, "spacing pill and line must still be visible after settling");
+
+  const beforeSpacing = selectScroll.before.spacingLabel.y + selectScroll.before.spacingLabel.height / 2
+    - (selectScroll.before.spacingLines[0].y + selectScroll.before.spacingLines[0].height / 2);
+
+  assert(
+    Math.abs(settledSpacing.difference - beforeSpacing) < 2,
+    `visible spacing pill must not snap to a different viewport-relative position after scrolling: ${JSON.stringify({ beforeSpacing, settledSpacing })}`,
+  );
+  await page.screenshot({ path: `${multiArtifacts}/multi-selection-after.png` });
+
+  // Changing the visible viewport must never change a label's position in
+  // document space. The earlier pill fix failed this during repeated wheel
+  // events: the viewport-bound collision lane moved the label, and the CSS
+  // margin transition made that jump alternate between smooth and abrupt.
+  const spacingDocumentPositions = () => page.evaluate(() => [...document.querySelectorAll(
+    '[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]',
+  )].map((label) => {
+    const root = label.closest('[data-mesurer-spacing-paint="true"]');
+    const rect = label.getBoundingClientRect();
+
+    return {
+      key: [
+        root?.getAttribute("data-mesurer-distance-id"),
+        label.getAttribute("data-mesurer-distance-label-axis"),
+        label.getAttribute("data-mesurer-distance-label-index"),
+      ].join("|"),
+      x: rect.x + window.scrollX,
+      y: rect.y + window.scrollY,
+    };
+  }));
+
+  const originalSpacingPositions = await spacingDocumentPositions();
+
+  assert(originalSpacingPositions.length > 0, "multi-selection must have document-backed spacing pills");
+
+  // A label can hold its geometric coordinates and still visibly blink when
+  // keyed-by-object For loops replace its DOM during scroll-settle resampling.
+  // Preserve actual DOM identity, not just the numerical final position.
+  await page.evaluate(() => {
+    window.__mesurerScrollPillNodes = [...document.querySelectorAll(
+      '[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]',
+    )];
+  });
+
+  await page.mouse.move(1220, 840);
+
+  for (const delta of [32, 64, -32, -64]) {
+    await page.mouse.wheel(0, delta);
+    await page.waitForTimeout(220);
+
+    const current = await spacingDocumentPositions();
+
+    const labelIdentity = await page.evaluate(() => {
+      const previous = window.__mesurerScrollPillNodes ?? [];
+
+      const now = [...document.querySelectorAll(
+        '[data-mesurer-spacing-paint="true"] [data-mesurer-spacing-visual-label="true"]',
+      )];
+
+      return previous.length > 0 && previous.every((node) => node.isConnected && now.includes(node));
+    });
+
+    assert(labelIdentity, `scroll ${delta}px must not unmount/remount numeric spacing pills`);
+    assert.equal(current.length, originalSpacingPositions.length, "scroll must preserve the visible spacing pills");
+
+    for (const initial of originalSpacingPositions) {
+      const present = current.find((label) => label.key === initial.key);
+
+      assert(present, `missing distance pill after ${delta}px wheel: ${initial.key}`);
+      assert(
+        Math.abs(present.x - initial.x) < 2 && Math.abs(present.y - initial.y) < 2,
+        `distance pill moved independently of its document after ${delta}px wheel: ${JSON.stringify({ initial, present })}`,
+      );
+    }
+  }
+
+  // Edit owns the union drag hitbox. Switch back to Select before replacing
+  // the selection; clicking through an Edit group deliberately starts a drag.
+  await page.locator("button[data-mesurer-toolbar-mode='select']").click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='select']").waitFor({ state: "visible" });
+  await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  await settle();
+  targetBox = await box(target, "single-selection restore");
+  await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+  await page.waitForFunction(() => !document.querySelector("[data-mesurer-multi-selection-document-layer='true']"));
 
   const nestedScroller = page.locator("#nested-scroll-shell");
   const nestedTarget = page.locator("#isolated-nested-scroll-target");

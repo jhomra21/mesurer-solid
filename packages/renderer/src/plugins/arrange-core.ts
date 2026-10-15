@@ -17,6 +17,7 @@ import {
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { GUIDE_SNAP_DISTANCE } from "../core/constants";
 import { getTargetElement } from "../core/selection";
+import { onSelectionAnchorsChanged } from "../runtime/native-scroll-registry";
 
 export const MESURER_ARRANGE_PLUGIN_ID = "mesurer.arrange";
 
@@ -521,7 +522,8 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     nativePaintGuard.dataset.mesurerArrangeNativePaintGuard = "true";
     nativePaintGuard.textContent = `
-body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-stroke="true"] {
+body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-stroke="true"],
+body:has([data-mesurer-text-editor="true"]) > [data-mesurer-multi-selection-document-layer="true"] {
   display: none !important;
 }
 `;
@@ -530,6 +532,47 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-strok
     const clearNativeStrokes = () => {
       for (const stroke of nativeStrokes.values()) stroke.remove();
       nativeStrokes.clear();
+    };
+
+    // A multi-selection is rendered as one aggregate MeasurementBox, so it
+    // has no individual CSS anchors for Edit's native stroke path. The fixed
+    // drag hitbox was consequently left with a visible border that lagged the
+    // page during scrolling. Paint outlines on the selected source elements
+    // instead; each border then scrolls in the element's own compositor layer.
+    const multiSourceStrokes = new Map<HTMLElement, {
+      outline: string;
+      outlinePriority: string;
+      offset: string;
+      offsetPriority: string;
+    }>();
+
+    const syncMultiSourceStrokes = (elements: HTMLElement[]) => {
+      const next = new Set(elements);
+
+      for (const [element, previous] of multiSourceStrokes) {
+        if (next.has(element) && element.isConnected) continue;
+
+        if (previous.outline) element.style.setProperty("outline", previous.outline, previous.outlinePriority);
+        else element.style.removeProperty("outline");
+
+        if (previous.offset) element.style.setProperty("outline-offset", previous.offset, previous.offsetPriority);
+        else element.style.removeProperty("outline-offset");
+
+        multiSourceStrokes.delete(element);
+      }
+
+      for (const element of next) {
+        if (multiSourceStrokes.has(element)) continue;
+
+        multiSourceStrokes.set(element, {
+          outline: element.style.getPropertyValue("outline"),
+          outlinePriority: element.style.getPropertyPriority("outline"),
+          offset: element.style.getPropertyValue("outline-offset"),
+          offsetPriority: element.style.getPropertyPriority("outline-offset"),
+        });
+        element.style.setProperty("outline", "1px solid #0d99ff", "important");
+        element.style.setProperty("outline-offset", "-1px", "important");
+      }
     };
 
     const syncNativeStrokes = (elements: HTMLElement[]) => {
@@ -763,9 +806,19 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-strok
       previews.clear();
     };
 
+    // Transform previews move page elements without a scroll or resize, so the
+    // stored selection rects behind the group outline and spacing overlays must
+    // be re-measured explicitly or they stay at the pre-move position.
+    const syncSelectionGeometry = () => {
+      if (!disposed) workspace.refreshSelectionGeometry();
+    };
+
     const clearPresentationStyles = () => {
+      const hadPreviews = previews.size > 0;
       clearPreviewStyles();
       restoreAllTransformTransitions();
+
+      if (hadPreviews) syncSelectionGeometry();
     };
 
     const hideSnapLines = () => {
@@ -986,6 +1039,7 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-strok
       const activeElements = new Set(next.map(({ element }) => element));
 
       for (const { element } of next) suppressTransformTransition(element);
+      const previousTransforms = new Map([...previews].map(([element, preview]) => [element, preview.appliedTransform]));
       clearPreviewStyles();
 
       for (const { element, offset } of next) {
@@ -1005,6 +1059,13 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-strok
       }
 
       restoreUnusedTransformTransitions(activeElements);
+
+      // Scroll-driven refreshes re-apply identical transforms; re-measuring then
+      // would replace the selection roots mid-scroll for no geometry change.
+      const moved = previousTransforms.size !== previews.size
+        || [...previews].some(([element, preview]) => previousTransforms.get(element) !== preview.appliedTransform);
+
+      if (moved) syncSelectionGeometry();
     };
 
     const applyPresentation = () => applyOffsets(presentationOffsets());
@@ -1307,13 +1368,22 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-strok
       // to support dragging without a scroll-following border.
       if (!active()) {
         clearNativeStrokes();
+        syncMultiSourceStrokes([]);
         box.style.display = "none";
         clearResetButtons();
 
         return;
       }
 
-      const nativeDocumentSelection = syncNativeStrokes(selectedElements());
+      const selected = selectedElements();
+      const isEditingText = directTextEditActive();
+      const sourcePaint = selected.length > 1 && !isEditingText;
+
+      syncMultiSourceStrokes(sourcePaint ? selected : []);
+
+      if (sourcePaint) clearNativeStrokes();
+
+      const nativeDocumentSelection = sourcePaint || syncNativeStrokes(selected);
 
       // Direct text edit owns the visible ring and contextual controls.
       // Paint neither the Edit hitbox nor its native selection strokes.
@@ -1781,6 +1851,13 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-strok
 
     const stateSubscription = ctx.state.subscribe(scheduleRefresh);
 
+    // The native stroke is anchored by name to the selection chrome. A rebind
+    // mints a new name, so repaint the stroke in the same task rather than
+    // leaving a stale anchor until the next animation frame.
+    const selectionAnchorsUnsubscribe = onSelectionAnchorsChanged(ownerDocument, () => {
+      if (!disposed && active() && !drag) renderBox();
+    });
+
     const findIntent = (id: string) => state().intents.find((intent) => intent.id === id) ?? null;
 
     const focusRect = (intent: ArrangeIntentValue, stateValue: ArrangePresentation) => {
@@ -2108,12 +2185,14 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-arrange-native-strok
       ownerWindow.removeEventListener("scroll", scheduleRefresh, true);
       pageTarget.removeEventListener("scroll", scheduleRefresh, true);
       workspaceUnsubscribe();
+      selectionAnchorsUnsubscribe();
       stateSubscription.dispose();
       clearPresentationStyles();
       clearResetButtons();
       hideSnapLines();
       restoreMeasurementOverlays();
       clearNativeStrokes();
+      syncMultiSourceStrokes([]);
       nativePaintGuard.remove();
       workspace.dispose();
       inspectorMount.dispose();

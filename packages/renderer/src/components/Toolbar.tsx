@@ -200,17 +200,29 @@ export function Toolbar(props: ToolbarProps) {
     (tool) => tool.toolbarMode === "always" || tool.toolbarMode === undefined,
   );
 
-  const pluginActive = () => alwaysPluginTools().some((tool) => tool.active?.() ?? false);
+  const toolActive = (tool: ToolContribution) => tool.active?.() ?? false;
+  const pluginActive = () => alwaysPluginTools().some(toolActive);
+  const selectPluginActive = () => selectPluginTools().some(toolActive);
+  const editPluginActive = () => editPluginTools().some(toolActive);
 
-  const builtinActive = () => selectActive() || xrayActive() || colorPickerActive() || rulersActive() || typographyActive() || guidesActive();
-  const visibleInToolbar = (active: boolean, pinned = false) => pinned || !compact() || active;
+  // The Select and Edit mode controls already show their own state, so the
+  // Select tool (the mode's default targeting) is not repeated when compact.
+  const modeToolsActive = () => toolbarMode() === "select"
+    ? xrayActive() || colorPickerActive() || typographyActive() || selectPluginActive()
+    : editPluginActive();
+
+  const sharedGuideToolsActive = () => rulersActive() || guidesActive();
+
+  // Compact keeps every active tool visible and hides the rest. A tool's
+  // `compactPinned` hint does not apply: pinned-but-idle tools are hidden too.
+  const visibleInToolbar = (active: boolean) => !compact() || active;
 
   const alwaysPluginDividerVisible = () =>
     alwaysPluginTools().length > 0
-    && (!compact() || builtinActive() || pluginActive());
+    && (!compact() || modeToolsActive() || sharedGuideToolsActive() || pluginActive());
 
   const compactDividerVisible = () =>
-    !compact() || builtinActive() || pluginActive() || settingsActive();
+    !compact() || modeToolsActive() || sharedGuideToolsActive() || pluginActive() || settingsActive();
 
   const tooltipsEnabled = () => !guideMenuOpen() && !pluginMenuOpenId() && !props.model.state.settingsOpen;
 
@@ -252,7 +264,7 @@ export function Toolbar(props: ToolbarProps) {
     compact();
     settingsActive();
     viewportRevision();
-    const anchor = settingsElement?.getBoundingClientRect();
+    const anchor = (compact() ? toolbarElement : settingsElement)?.getBoundingClientRect();
 
     if (!anchor) return 0;
     const viewportWidth = props.ownerWindow.innerWidth || SETTINGS_MENU_WIDTH + VIEWPORT_PADDING * 2;
@@ -664,6 +676,9 @@ export function Toolbar(props: ToolbarProps) {
     if (next) {
       setGuideMenuOpen(false);
       setPluginMenuOpenId(null);
+
+      // A hidden toolbar cannot own an open floating settings panel.
+      if (props.model.current.settingsOpen) props.model.setTransient({ settingsOpen: false });
     }
 
     if (compactMotionTimer) props.ownerWindow.clearTimeout(compactMotionTimer);
@@ -764,8 +779,8 @@ export function Toolbar(props: ToolbarProps) {
   );
 
 
-  const renderPluginTool = (tool: ToolContribution, pinned = false) => (
-    <CompactItem visible={visibleInToolbar(tool.active?.() ?? false, pinned)}>
+  const renderPluginTool = (tool: ToolContribution) => (
+    <CompactItem visible={visibleInToolbar(toolActive(tool))}>
       <Show
         when={(tool.menu?.items.length ?? 0) > 0}
         fallback={
@@ -842,7 +857,11 @@ export function Toolbar(props: ToolbarProps) {
 
       if (pluginMenuOpenId() && !insidePluginMenu) setPluginMenuOpenId(null);
 
-      if (props.model.current.settingsOpen && settingsElement && !path.includes(settingsElement)) props.model.setTransient({ settingsOpen: false });
+      const insideSettings = (settingsElement && path.includes(settingsElement))
+        || path.some((entry) => entry instanceof Element
+          && entry.getAttribute("data-mesurer-toolbar-compact-settings") === "true");
+
+      if (props.model.current.settingsOpen && !insideSettings) props.model.setTransient({ settingsOpen: false });
     };
 
     const handleClickCapture = (event: MouseEvent) => {
@@ -939,6 +958,7 @@ export function Toolbar(props: ToolbarProps) {
     };
   });
 
+
   return (
     <>
       {(() => {
@@ -1009,6 +1029,7 @@ export function Toolbar(props: ToolbarProps) {
     >
       <ToolbarModeSwitch
         value={toolbarMode()}
+        compact={compact()}
         editDisabled={!editModeTool() || (editModeTool()?.disabled?.() ?? false)}
         editToolId={editModeTool()?.id}
         editOptionsAvailable={(editModeTool()?.menu?.items.length ?? 0) > 0}
@@ -1030,7 +1051,7 @@ export function Toolbar(props: ToolbarProps) {
         }}
       />
 
-      <ToolbarDivider marker="mode" />
+      <ToolbarDivider visible={compactDividerVisible()} marker="mode" />
 
       <div
         ref={(element) => { modeStageElement = element; }}
@@ -1047,7 +1068,7 @@ export function Toolbar(props: ToolbarProps) {
           >
             <div ref={(element) => { selectModePanelElement = element; }} class="mesurer-toolbar-mode-panel">
               <div role="group" aria-label="Select tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
-                <CompactItem visible={visibleInToolbar(selectActive())}>
+                <CompactItem visible={!compact()}>
                   <ToolbarButton id="select" builtin="select" active={selectActive()} label="Select" shortcut="S" onClick={() => props.onBuiltinAction("select")} {...buttonProps("select")}><CursorIcon size={20} /></ToolbarButton>
                 </CompactItem>
                 <CompactItem visible={visibleInToolbar(xrayActive())}>
@@ -1064,9 +1085,9 @@ export function Toolbar(props: ToolbarProps) {
               </div>
 
               <Show when={selectPluginTools().length > 0}>
-                <ToolbarDivider marker="select-plugins" />
+                <ToolbarDivider visible={!compact() || (selectPluginActive() && (xrayActive() || colorPickerActive() || typographyActive()))} marker="select-plugins" />
                 <div role="group" aria-label="Select plugin tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
-                  <For each={selectPluginTools()}>{(tool) => renderPluginTool(tool, tool.compactPinned ?? false)}</For>
+                  <For each={selectPluginTools()}>{(tool) => renderPluginTool(tool)}</For>
                 </div>
               </Show>
             </div>
@@ -1091,10 +1112,10 @@ export function Toolbar(props: ToolbarProps) {
       </div>
 
       <div role="group" aria-label="Shared guide tools" class="msr:flex msr:items-stretch msr:py-1">
-        <CompactItem visible={visibleInToolbar(rulersActive(), true)}>
+        <CompactItem visible={visibleInToolbar(rulersActive())}>
           <ToolbarButton id="rulers" builtin="rulers" active={rulersActive()} label="Rulers" shortcut="R" onClick={() => props.onBuiltinAction("rulers")} {...buttonProps("rulers")}><RulersIcon size={20} /></ToolbarButton>
         </CompactItem>
-        <CompactItem visible={visibleInToolbar(guidesActive(), true)}>
+        <CompactItem visible={visibleInToolbar(guidesActive())}>
           <ToolbarButton id="guides" builtin="guides" active={guidesActive()} disabled={builtinDisabled("guides")} label="Guides" shortcut="G" onClick={() => props.onBuiltinAction("guides")} {...buttonProps("guides")}><RulerIcon size={20} class={props.model.state.guideOrientation === "vertical" ? "msr:rotate-[135deg]" : "msr:rotate-[45deg]"} /></ToolbarButton>
           <div data-mesurer-builtin="guides-menu" ref={(element) => { guideMenuElement = element; }} class="msr:group msr:relative msr:-ml-1 msr:flex msr:items-stretch" onMouseEnter={() => tooltip.onTooltipEnter("guide-menu")} onMouseLeave={tooltip.onTooltipLeave}>
             <button
@@ -1139,7 +1160,7 @@ export function Toolbar(props: ToolbarProps) {
       <Show when={alwaysPluginTools().length > 0}>
         <ToolbarDivider visible={alwaysPluginDividerVisible()} marker="plugins" />
         <div role="group" aria-label="Always available tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
-          <For each={alwaysPluginTools()}>{(tool) => renderPluginTool(tool, tool.toolbarMode === "always")}</For>
+          <For each={alwaysPluginTools()}>{(tool) => renderPluginTool(tool)}</For>
         </div>
       </Show>
 
@@ -1147,7 +1168,7 @@ export function Toolbar(props: ToolbarProps) {
         <CompactItem visible={visibleInToolbar(settingsActive())}>
           <div data-mesurer-builtin="settings" ref={(element) => { settingsElement = element; }} class="msr:relative msr:flex">
             <ToolbarButton id="settings" builtin="settings" active={settingsActive()} label="Settings" shortcut="⌘/Ctrl+," onClick={() => props.onBuiltinAction("settings")} {...buttonProps("settings")}><GearIcon size={20} /></ToolbarButton>
-            <Show when={props.model.state.settingsOpen}>
+            <Show when={props.model.state.settingsOpen && !compact()}>
               <div
                 class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:max-h-[calc(100vh-16px)] msr:overflow-y-auto msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
                 style={{ left: `${settingsMenuLeft()}px`, right: "auto" }}
@@ -1166,6 +1187,24 @@ export function Toolbar(props: ToolbarProps) {
       </div>
 
       <ToolbarDivider visible={compactDividerVisible()} marker="compact" />
+      {/* A Settings shortcut remains available when the toolbar is collapsed.
+          Its surface sits outside the collapsing tool groups so it cannot be
+          clipped or made inert along with the hidden Settings button. */}
+      <Show when={compact() && props.model.state.settingsOpen}>
+        <div
+          data-mesurer-toolbar-compact-settings="true"
+          data-mesurer-inspector-ui="true"
+          role="dialog"
+          aria-label="Settings"
+          class={`mesurer-menu-surface msr:pointer-events-auto msr:absolute msr:z-[110] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:max-h-[calc(100vh-16px)] msr:overflow-y-auto msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
+          style={{ left: `${settingsMenuLeft()}px`, right: "auto" }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <SettingsPanel model={props.model} ownerWindow={props.ownerWindow} onResetSettings={props.onResetSettings} onClearWorkspace={props.onClearWorkspace} selectionSpacingStyle={props.selectionSpacingStyle} onSelectionSpacingStyleChange={props.onSelectionSpacingStyleChange} />
+        </div>
+      </Show>
       <div class="msr:flex msr:items-center msr:p-1">
         <button
           type="button"

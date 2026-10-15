@@ -10,6 +10,8 @@ import { formatValue } from "../core/utils";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import { documentHoverPortalTarget } from "../runtime/document-hover-portal";
 import { hasNativeScrollAnchoring } from "../runtime/native-scroll-registry";
+import { ensureMesurerStyles } from "../runtime/style-inject";
+import { MESURER_STYLES } from "../styles.generated";
 import { DistanceOverlayItem, type SelectionSpacingInteraction } from "./DistanceOverlayItem";
 import { MeasurementBox } from "./MeasurementBox";
 
@@ -41,6 +43,9 @@ const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any 
 export function MesurerOverlay(props: MesurerOverlayProps) {
   let overlayElement: HTMLDivElement | undefined;
   let hoverChromeElement: HTMLDivElement | undefined;
+  let spacingInteractionLayer: HTMLDivElement | undefined;
+  let spacingOriginX = 0;
+  let spacingOriginY = 0;
 
   let passiveGuideDrag: {
     id: string;
@@ -55,6 +60,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   let hoverScrollFrame = 0;
   const [expandedSpacingGroup, setExpandedSpacingGroup] = createSignal<string | null>(null);
   const [pinnedSpacingGroup, setPinnedSpacingGroup] = createSignal<string | null>(null);
+  const [selectionDocumentTarget, setSelectionDocumentTarget] = createSignal<HTMLElement | null>(null);
 
   const spacingInteraction: SelectionSpacingInteraction = {
     expandedKey: expandedSpacingGroup,
@@ -93,6 +99,37 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const selectedFill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 15.36%, transparent)`;
   const selectedMeasurements = createMemo(() => props.model.state.selectedMeasurements);
 
+  // Spacing pills remain interactive inside the protected top layer. The
+  // dotted strokes themselves move with the document's native scroll tree.
+  createEffect(
+    () => selectedMeasurements(),
+    () => {
+      const ownerWindow = overlayElement?.ownerDocument.defaultView;
+
+      if (!ownerWindow) return;
+      spacingOriginX = ownerWindow.scrollX;
+      spacingOriginY = ownerWindow.scrollY;
+      spacingInteractionLayer?.style.removeProperty("transform");
+    },
+  );
+
+  // The multi-selection union, its per-target outlines, and pairwise spacing
+  // share document coordinates. Keeping them inside the fixed interaction
+  // overlay leaves old viewport pixels behind until the scroll-settle refresh.
+  const selectionDocumentOrigin = createMemo(() => {
+    const measurements = selectedMeasurements();
+    const sample = measurements[0]?.documentScroll;
+
+    // A scroll event can arrive before Solid paints the latest measurements.
+    // Never pair a cached viewport rectangle with a newer window.scrollY:
+    // carry the viewport origin recorded when the rectangle was sampled.
+    if (sample) return sample;
+
+    const ownerWindow = overlayElement?.ownerDocument.defaultView;
+
+    return { x: ownerWindow?.scrollX ?? 0, y: ownerWindow?.scrollY ?? 0 };
+  });
+
   const displayedMeasurements = createMemo(() => {
     const measurements = props.model.state.settings.multiMeasureEnabled && props.model.state.measurements.length > 0
       ? props.model.state.measurements
@@ -129,6 +166,12 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     return ownerWindow ? getSelectionSpacingOverlays(selected, ownerWindow) : [];
   });
+
+  // Preserve each distance's rendered DOM across scroll-settle refreshes.
+  // Solid's For keys by object identity; every recomputation produces new
+  // DistanceOverlay objects although the measured pair is unchanged.
+  const selectionSpacingPairIds = createMemo(() => selectionSpacingOverlays().map((distance) => distance.id));
+  const selectionSpacingForId = (id: string) => selectionSpacingOverlays().find((distance) => distance.id === id)!;
 
   const selectedSpacingIds = createMemo(() => selectedMeasurements().map((measurement) => measurement.id).join("|"));
   createEffect(
@@ -269,7 +312,28 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     if (!overlay || !ownerWindow || !ownerDocument) return;
 
+    spacingOriginX = ownerWindow.scrollX;
+    spacingOriginY = ownerWindow.scrollY;
+
+    // A document-backed multi-selection paints in the same native scroll tree
+    // as the page. Only the toolbar and pointer input remain viewport-fixed.
+    if (ownerDocument.body) {
+      ensureMesurerStyles(MESURER_STYLES, ownerDocument.body);
+      setSelectionDocumentTarget(ownerDocument.body);
+    }
+
     const handleOverlayPointerMove = (event: PointerEvent) => props.onPointerMove(event);
+
+    const syncSpacingInteractionScroll = () => {
+      const layer = spacingInteractionLayer;
+
+      if (!layer?.isConnected) return;
+      const dx = spacingOriginX - ownerWindow.scrollX;
+      const dy = spacingOriginY - ownerWindow.scrollY;
+
+      if (dx === 0 && dy === 0) layer.style.removeProperty("transform");
+      else layer.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+    };
 
     const handleEditWindowPointerMove = (event: PointerEvent) => {
       if (!props.editSelectionHover() || props.model.current.toolMode !== "select") return;
@@ -425,6 +489,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     overlay.addEventListener("pointermove", handleOverlayPointerMove);
     ownerWindow.addEventListener("pointermove", handleEditWindowPointerMove, true);
     ownerWindow.addEventListener("scroll", handleScroll, { capture: true, passive: true });
+    ownerWindow.addEventListener("scroll", syncSpacingInteractionScroll, { capture: true, passive: true });
     ownerWindow.addEventListener("resize", syncHoverGeometry, true);
     ownerWindow.addEventListener("pointerdown", handlePassiveGuideDown, true);
     ownerWindow.addEventListener("pointermove", handlePassiveGuideMove, true);
@@ -435,6 +500,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       overlay.removeEventListener("pointermove", handleOverlayPointerMove);
       ownerWindow.removeEventListener("pointermove", handleEditWindowPointerMove, true);
       ownerWindow.removeEventListener("scroll", handleScroll, true);
+      ownerWindow.removeEventListener("scroll", syncSpacingInteractionScroll, true);
       ownerWindow.removeEventListener("resize", syncHoverGeometry, true);
       ownerWindow.removeEventListener("pointerdown", handlePassiveGuideDown, true);
       ownerWindow.removeEventListener("pointermove", handlePassiveGuideMove, true);
@@ -456,6 +522,59 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       passiveGuideDrag = null;
     };
   });
+
+  const SelectedPresentation = () => (
+    <>
+      <For each={displayedSelectedMeasurements()}>{(measurement, index) => (
+        <MeasurementBox
+          measurement={measurement}
+          edgeVisibility={selectedEdges()[index()]}
+          outlineColor={selectedOutline()}
+          fillColor={selectedFill()}
+          theme={props.model.state.settings.theme}
+        />
+      )}</For>
+      <Show when={props.editSelectionHover() && displayedSelectedMeasurements()[0]?.id.startsWith("group-")}>
+        <div
+          data-mesurer-selection-group-outline="true"
+          class="msr:pointer-events-none msr:absolute"
+          style={{
+            left: `${displayedSelectedMeasurements()[0]!.rect.left}px`,
+            top: `${displayedSelectedMeasurements()[0]!.rect.top}px`,
+            width: `${displayedSelectedMeasurements()[0]!.rect.width}px`,
+            height: `${displayedSelectedMeasurements()[0]!.rect.height}px`,
+            "box-sizing": "border-box",
+            border: "1px solid #0d99ff",
+          }}
+        />
+      </Show>
+      <Show when={selectedMeasurements().length > 1}>
+        <For each={selectedMeasurements()}>{(measurement) => (
+          <div
+            data-mesurer-selection-spacing-target="true"
+            class="msr:pointer-events-none msr:absolute msr:rounded msr:border msr:border-[#2563eb]/70"
+            style={{
+              left: `${measurement.rect.left}px`,
+              top: `${measurement.rect.top}px`,
+              width: `${measurement.rect.width}px`,
+              height: `${measurement.rect.height}px`,
+            }}
+          />
+        )}</For>
+        <For each={selectionSpacingPairIds()}>{(distanceId) => (
+          <DistanceOverlayItem
+            distance={selectionSpacingForId(distanceId)}
+            kind="selection-spacing"
+            showRects={false}
+            spacingScopeId={selectedSpacingIds()}
+            selectionSpacingStyle={props.selectionSpacingStyle}
+            spacingInteraction={spacingInteraction}
+            renderPart="paint"
+          />
+        )}</For>
+      </Show>
+    </>
+  );
 
   return (
     <div
@@ -503,30 +622,46 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       </Show>
 
       <Show when={selectionVisible()}>
-        <For each={displayedSelectedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={selectedEdges()[index()]} outlineColor={selectedOutline()} fillColor={selectedFill()} theme={props.model.state.settings.theme} />}</For>
-        <Show when={selectedMeasurements().length > 1}>
-          <For each={selectedMeasurements()}>{(measurement) => (
+        <Show
+          when={selectedMeasurements().length > 1 ? selectionDocumentTarget() : null}
+          fallback={<SelectedPresentation />}
+        >
+          {(mount) => <Portal mount={mount()}>
             <div
-              data-mesurer-selection-spacing-target="true"
-              class="msr:pointer-events-none msr:absolute msr:rounded msr:border msr:border-[#2563eb]/70"
+              data-mesurer-multi-selection-document-layer="true"
+              data-mesurer-selection-scope={selectedSpacingIds()}
+              data-mesurer-inspector-ui="true"
+              data-theme={props.model.state.settings.theme}
+              class="msr:pointer-events-none"
               style={{
-                left: `${measurement.rect.left}px`,
-                top: `${measurement.rect.top}px`,
-                width: `${measurement.rect.width}px`,
-                height: `${measurement.rect.height}px`,
+                position: "absolute",
+                left: `${selectionDocumentOrigin().x}px`,
+                top: `${selectionDocumentOrigin().y}px`,
+                "pointer-events": "none",
               }}
-            />
-          )}</For>
-          <For each={selectionSpacingOverlays()}>{(distance) => (
+            >
+              <SelectedPresentation />
+            </div>
+          </Portal>}
+        </Show>
+      </Show>
+
+      {/* Interactive spacing labels must remain in the top-layer host. Its
+          pointer plane intercepts all labels rendered below it in <body>. */}
+      <Show when={selectionVisible() && selectedMeasurements().length > 1}>
+        <div ref={(element) => { spacingInteractionLayer = element; }} data-mesurer-spacing-interaction-layer="true" class="msr:pointer-events-none">
+          <For each={selectionSpacingPairIds()}>{(distanceId) => (
             <DistanceOverlayItem
-              distance={distance}
+              distance={selectionSpacingForId(distanceId)}
               showRects={false}
               kind="selection-spacing"
+              spacingScopeId={selectedSpacingIds()}
               selectionSpacingStyle={props.selectionSpacingStyle}
               spacingInteraction={spacingInteraction}
-          />
+              renderPart={selectionDocumentTarget() ? "interaction" : "all"}
+            />
           )}</For>
-        </Show>
+        </div>
       </Show>
 
       <For each={heldDistances()}>{(distance) => <DistanceOverlayItem distance={distance} onRemove={props.model.removeHeldDistance} kind="held" />}</For>

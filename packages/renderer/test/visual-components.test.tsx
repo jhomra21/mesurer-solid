@@ -180,7 +180,7 @@ describe("upstream Mesurer visual contracts", () => {
     expect(labels.find((element) => element.textContent?.trim() === "10")?.style.top).toBe("115px");
   });
 
-  it("shows distance labels only while their lines intersect the viewport", () => {
+  it("keeps labels attached to the full segment when their lines intersect the viewport", () => {
     const host = document.createElement("div");
     document.body.append(host);
 
@@ -213,12 +213,11 @@ describe("upstream Mesurer visual contracts", () => {
     ));
 
     const labels = [...host.querySelectorAll<HTMLElement>("[data-mesurer-distance-label]")];
-    const viewportHeight = document.defaultView?.innerHeight ?? window.innerHeight;
     expect(host.querySelectorAll("[data-mesurer-distance-line]")).toHaveLength(9);
     expect(labels.map((label) => label.textContent?.trim())).toEqual(["700", "900"]);
     expect(labels.slice(0, 2).map((label) => label.style.top)).toEqual([
-      "100px",
-      `${(600 + viewportHeight) / 2}px`,
+      "-150px",
+      "1050px",
     ]);
   });
 });
