@@ -287,6 +287,13 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     }
   }
 
+  // The removed Solid-only rows sit above Persist, so removing them moves the
+  // switch out from under the pointer that just clicked it. Return the pointer
+  // to the switch, where it rests in the upstream capture.
+  if (caseName === "settings-general-persist-toggle" && changed) {
+    await sw(page, "Persist").hover();
+  }
+
   const settingsVisible = await page.getByRole("dialog", { name: "Settings" }).isVisible();
 
   if (changed || (themeRemoved && settingsVisible)) {
