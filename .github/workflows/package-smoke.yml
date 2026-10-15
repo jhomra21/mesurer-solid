@@ -409,7 +409,7 @@ jobs:
           mkdir -p /tmp/mesurer-solid2/src
           cd /tmp/mesurer-solid2
           npm init -y >/dev/null
-          npm install "$PACKAGE_TGZ" solid-js@2.0.0-rc.0 @solidjs/web@2.0.0-rc.0 vite@8.1.5 @solidjs/vite-plugin@3.0.0-next.29 >/dev/null
+          npm install "$PACKAGE_TGZ" solid-js@2.0.0-rc.15 @solidjs/web@2.0.0-rc.15 vite@8.1.5 @solidjs/vite-plugin@3.0.0-next.50 >/dev/null
           cat > index.html <<'HTML'
           <!doctype html><html><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
           HTML
