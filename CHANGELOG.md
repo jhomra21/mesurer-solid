@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Keep each selected element's outline and labels on the same rendered layer while the selection's geometry refreshes, instead of rebuilding them shortly after selection. This removes an occasional misplaced outline when scrolling right after selecting a nested element.
+
 ## 0.2.2-beta.8 - 2026-10-15
 
 - Keep multi-selection chrome attached to the page while scrolling in Select and Edit. The group outline and its dimensions label, the dotted spacing lines, and the distance pills now scroll with their elements instead of lagging, jumping, or flashing after the scroll settles.
