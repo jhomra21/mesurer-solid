@@ -38,7 +38,7 @@ const compactItem = (button: HTMLButtonElement) =>
   button.closest<HTMLElement>('[data-mesurer-toolbar-compact-item="true"]');
 
 describe("compact toolbar", () => {
-  it("collapses to the selected mode without changing active tool or plugin state", async () => {
+  it("collapses to the selected mode and keeps active tools visible without changing tool or plugin state", async () => {
     const host = document.createElement("div");
     document.body.append(host);
 
@@ -63,26 +63,22 @@ describe("compact toolbar", () => {
     const toolbar = document.querySelector<HTMLElement>('[data-mesurer-toolbar="true"]')!;
     await waitFor(() => toolbar.dataset.mesurerToolbarCompact === "true");
 
-    const expandedTools = toolbar.querySelector<HTMLElement>('[data-mesurer-toolbar-expanded-tools="true"]')!;
-
-    expect(expandedTools.getAttribute("aria-hidden")).toBe("true");
-    expect(expandedTools.getAttribute("data-open")).toBe("false");
     expect(toolbar.querySelector('[data-mesurer-toolbar-mode-switch]')?.getAttribute("data-compact")).toBe("true");
     expect(selectButton.getAttribute("aria-pressed")).toBe("true");
     expect(pluginButton.getAttribute("aria-pressed")).toBe("true");
+    // Active tools stay in the collapsed toolbar; idle ones are hidden.
+    expect(compactItem(pluginButton)?.getAttribute("aria-hidden")).toBeNull();
     expect(compactItem(xrayButton)?.getAttribute("aria-hidden")).toBe("true");
     expect(compactItem(typographyButton)?.getAttribute("aria-hidden")).toBe("true");
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true }));
     await waitFor(() => xrayButton.getAttribute("aria-pressed") === "true");
-    expect(xrayButton.getAttribute("aria-pressed")).toBe("true");
-    expect(expandedTools.getAttribute("aria-hidden")).toBe("true");
+    expect(compactItem(xrayButton)?.getAttribute("aria-hidden")).toBeNull();
 
     const expandButton = await waitForButton('button[aria-label="Expand toolbar"]');
     expandButton.click();
     await waitFor(() => toolbar.dataset.mesurerToolbarCompact === "false");
 
-    expect(expandedTools.getAttribute("aria-hidden")).toBeNull();
     expect(compactItem(typographyButton)?.getAttribute("aria-hidden")).toBeNull();
     expect(selectButton.getAttribute("aria-pressed")).toBe("true");
     expect(pluginButton.getAttribute("aria-pressed")).toBe("true");

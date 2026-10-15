@@ -386,11 +386,11 @@ body.mesurer-solid-xray .mesurer-ti-close {
    contributing horizontal padding once every item in that group is hidden.
    Otherwise invisible built-in/plugin/settings groups leave a phantom gap
    immediately before the compact/expand chevron. */
-[data-mesurer-toolbar="true"] > div:has(> [data-mesurer-toolbar-compact-item]) {
+[data-mesurer-toolbar="true"] div:has(> [data-mesurer-toolbar-compact-item]) {
   transition: padding-inline 150ms ease;
 }
 
-[data-mesurer-toolbar="true"][data-mesurer-toolbar-compact="true"] > div:has(> [data-mesurer-toolbar-compact-item]):not(:has(> [data-mesurer-toolbar-compact-item][data-visible="true"])) {
+[data-mesurer-toolbar="true"][data-mesurer-toolbar-compact="true"] div:has(> [data-mesurer-toolbar-compact-item]):not(:has(> [data-mesurer-toolbar-compact-item][data-visible="true"])) {
   padding-inline: 0;
 }
 
@@ -404,7 +404,7 @@ body.mesurer-solid-xray .mesurer-ti-close {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-mesurer-toolbar="true"] > div:has(> [data-mesurer-toolbar-compact-item]) {
+  [data-mesurer-toolbar="true"] div:has(> [data-mesurer-toolbar-compact-item]) {
     transition: none;
   }
 
@@ -742,31 +742,9 @@ body.mesurer-solid-xray .mesurer-ti-close {
   background: transparent;
 }
 
-/* Compact means one current mode, not "every activated or pinned tool".
-   Keep the full tool lane mounted and animate its measured width to zero;
-   this preserves plugin state, mode-stage geometry, and quick expansion. */
-.mesurer-toolbar-expanded-tools {
-  flex: none;
-  min-width: 0;
-  overflow: visible;
-  /* Natural-width tool groups must keep reflowing when plugins come and go. */
-  interpolate-size: allow-keywords;
-  transition: width 150ms ease, opacity 150ms ease;
-}
-
-.mesurer-toolbar-expanded-tools[data-open="false"] {
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.mesurer-toolbar-expanded-track {
-  display: flex;
-  width: max-content;
-  min-width: 0;
-  align-items: stretch;
-}
-
+/* Compact shows the current mode and every active tool. Idle tools animate
+   to zero width through their compact items, so plugin state, mode-stage
+   geometry, and quick expansion are preserved. */
 .mesurer-toolbar-mode-switch[data-compact="true"][data-value="select"]
   [data-mesurer-toolbar-edit-control="true"],
 .mesurer-toolbar-mode-switch[data-compact="true"][data-value="edit"]
@@ -779,12 +757,6 @@ body.mesurer-solid-xray .mesurer-ti-close {
 .mesurer-toolbar-mode-switch[data-compact="true"][data-value="edit"]
   .mesurer-toolbar-mode-switch-pill {
   transform: translateX(0);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .mesurer-toolbar-expanded-tools {
-    transition: none;
-  }
 }
 
 /* Select/Edit mode switch and 150ms toolbar transition. */

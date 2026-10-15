@@ -111,6 +111,26 @@ page.on("console", (message) => {
 
 const waitForSettledMotion = () => page.waitForTimeout(210);
 
+// Buttons a user can actually see and press right now, excluding the mode
+// switch and the compact toggle (which are always present).
+const visibleToolLabels = () => page.evaluate(() =>
+  [...document.querySelectorAll('[data-mesurer-toolbar="true"] [data-mesurer-toolbar-compact-item="true"] button[aria-pressed]')]
+    .filter((button) => {
+      const item = button.closest('[data-mesurer-toolbar-compact-item="true"]');
+      const rect = button.getBoundingClientRect();
+
+      return item.dataset.visible === "true"
+        && item.getAttribute("aria-hidden") !== "true"
+        && !item.inert
+        && rect.width > 0.5
+        && rect.height > 0.5;
+    })
+    .map((button) => ({
+      label: button.getAttribute("aria-label"),
+      pressed: button.getAttribute("aria-pressed"),
+      background: getComputedStyle(button).backgroundColor,
+    })));
+
 const compactItemVisible = (locator) => locator.evaluate((button) => {
   const item = button.closest('[data-mesurer-toolbar-compact-item="true"]');
 
@@ -258,38 +278,74 @@ try {
   assert(transitionDurations.divider.includes("0.15s"), `Toolbar dividers must use 150ms transitions, got ${transitionDurations.divider}`);
   assert(transitionDurations.modePill.includes("0.15s"), `Mode pill must use 150ms transitions, got ${transitionDurations.modePill}`);
 
+  // Compact keeps the current mode and every active tool, with its pressed
+  // (blue) state, and hides everything idle, including pinned plugin tools.
+  if ((await selectButton.getAttribute("aria-pressed")) === "true") await selectButton.click();
+  await xrayButton.click();
+  await rulersButton.click();
+  assert.equal(await xrayButton.getAttribute("aria-pressed"), "true");
+  assert.equal(await rulersButton.getAttribute("aria-pressed"), "true");
+  await waitForSettledMotion();
+  const toolbarWithActiveToolsBox = await toolbar.boundingBox();
+
   await compactToggle.click();
   await waitForSettledMotion();
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true");
   const initialCompactBox = await toolbar.boundingBox();
   const modeSwitchBox = await modeSwitch.boundingBox();
 
-  assert(initialCompactBox && modeSwitchBox, "Compact toolbar must keep the mode switch visible");
-  assert(initialCompactBox.width < 110, `Collapsed Select toolbar must only contain the active mode and expand toggle: ${initialCompactBox.width}px`);
+  assert(initialCompactBox && modeSwitchBox && toolbarWithActiveToolsBox, "Compact toolbar must keep the mode switch visible");
   assert(modeSwitchBox.width < 42, `Collapsed switch must show only Select, not both mode controls: ${modeSwitchBox.width}px`);
-  const expandedTools = page.locator('[data-mesurer-toolbar-expanded-tools="true"]');
-
-  assert.equal(await expandedTools.getAttribute("data-open"), "false");
-  assert.equal(await expandedTools.getAttribute("aria-hidden"), "true");
-  assert.equal(await expandedTools.evaluate((element) => element.inert), true, "Collapsed tool lane must not accept pointer or keyboard input");
-  const compactLaneBox = await expandedTools.boundingBox();
-
-  assert(compactLaneBox && compactLaneBox.width < 1, "Collapsed tool lane must actually shrink to zero width");
+  assert(initialCompactBox.width < toolbarWithActiveToolsBox.width / 2, `Collapsed toolbar must drop idle tools: ${initialCompactBox.width}px of ${toolbarWithActiveToolsBox.width}px`);
   assert.equal(await selectMode.isVisible(), true, "Only current Select mode must remain visible");
   assert.equal(await editMode.isVisible(), false, "Inactive Edit mode must not remain visible");
   assert.equal(await contextButton.count(), 1, "Compacting must not unmount Context");
   assert.equal(await codexButton.count(), 1, "Compacting must not unmount Codex");
-  assert.equal(await compactItemVisible(rulersButton), true, "Compact must preserve the previously active Rulers state internally");
 
-  // Compact hides the Settings tool button, not keyboard access to Settings.
-  // Its floating dialog must mount outside the clipped and inert tool lane.
+  const compactVisible = await visibleToolLabels();
+
+  assert.deepEqual(
+    compactVisible.map((entry) => entry.label).sort(),
+    ["Rulers (R)", "X-ray (X)"],
+    `Compact must show exactly the active tools: ${JSON.stringify(compactVisible)}`,
+  );
+  assert(
+    compactVisible.every((entry) => entry.pressed === "true" && entry.background === "rgb(13, 153, 255)"),
+    `Active tools must keep their blue pressed state when compact: ${JSON.stringify(compactVisible)}`,
+  );
+
+  for (const [name, locator] of [
+    ["Select tool", selectButton],
+    ["Typography", typographyButton],
+    ["Guides", guidesButton],
+    ["Screenshot", screenshotButton],
+    ["Recording", recordingButton],
+    ["Layout Guides", layoutGuidesButton],
+    ["Context", contextButton],
+    ["Codex", codexButton],
+  ]) {
+    assert.equal(await compactItemVisible(locator), false, `Idle ${name} must be hidden when compact`);
+  }
+
+  // A tool activated while compact appears with its pressed state; turning it
+  // off removes it again.
+  await page.keyboard.press("g");
+  await page.waitForFunction(() => document.querySelector('button[aria-label="Guides (G)"]')?.getAttribute("aria-pressed") === "true");
+  await waitForSettledMotion();
+  assert.equal(await compactItemVisible(guidesButton), true, "A tool activated while compact must appear");
+  await page.keyboard.press("g");
+  await page.waitForFunction(() => document.querySelector('button[aria-label="Guides (G)"]')?.getAttribute("aria-pressed") === "false");
+  await waitForSettledMotion();
+  assert.equal(await compactItemVisible(guidesButton), false, "A tool deactivated while compact must disappear");
+
+  // Compact hides the idle Settings button, not keyboard access to Settings.
+  // Its floating dialog mounts outside the collapsing tool groups.
   await page.keyboard.press("Control+,");
   await settingsDialog.waitFor({ state: "visible" });
-  assert.equal(await expandedTools.getAttribute("aria-hidden"), "true", "Opening Settings must not re-expand the tool lane");
-  assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true");
+  assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true", "Opening Settings must not re-expand the toolbar");
   assert(
-    await settingsDialog.evaluate((dialog) => !dialog.closest('[data-mesurer-toolbar-expanded-tools="true"]')),
-    "Compact Settings dialog must not be clipped or inert inside the collapsed lane",
+    await settingsDialog.evaluate((dialog) => dialog.matches('[data-mesurer-toolbar-compact-settings="true"]') && !dialog.closest('[inert]')),
+    "Compact Settings dialog must not be clipped or inert",
   );
   await page.keyboard.press("Control+,");
   await settingsDialog.waitFor({ state: "hidden" });
@@ -297,7 +353,11 @@ try {
   await page.getByRole("button", { name: "Expand toolbar", exact: true }).click();
   await waitForSettledMotion();
   const expandedAgainBox = await toolbar.boundingBox();
-  assert(expandedAgainBox && Math.abs(expandedAgainBox.width - expandedBox.width) <= 1, "Expanding must restore the original width");
+  assert(expandedAgainBox && Math.abs(expandedAgainBox.width - toolbarWithActiveToolsBox.width) <= 1, "Expanding must restore the original width");
+  await xrayButton.click();
+  await rulersButton.click();
+  assert.equal(await xrayButton.getAttribute("aria-pressed"), "false");
+  assert.equal(await rulersButton.getAttribute("aria-pressed"), "false");
 
   // Edit's internal Select dependency must not leak into Select mode. If Select
   // began off, leaving Edit restores it to off.
@@ -371,10 +431,22 @@ try {
   assert(await editMode.isVisible(), "Only active Edit mode must remain visible when compact");
   assert.equal(await selectMode.isVisible(), false, "Inactive Select mode must be hidden in compact Edit");
   assert.equal(await editOptions.isVisible(), false, "Edit options chevron must not remain beside collapsed Edit");
-  assert.equal(await expandedTools.getAttribute("aria-hidden"), "true", "Compact Edit must hide the entire tool lane");
 
-  const editCompactBox = await toolbar.boundingBox();
-  assert(editCompactBox && editCompactBox.width < 110, "Compact Edit toolbar must contain only Edit and expand");
+  // Rulers is the only tool still active in Edit (the Guides mode ended with
+  // the mode switch); it stays visible and blue, nothing idle does.
+  const editCompactVisible = await visibleToolLabels();
+
+  assert.deepEqual(
+    editCompactVisible.map((entry) => entry.label).sort(),
+    ["Rulers (R)"],
+    `Compact Edit must show exactly the active tools: ${JSON.stringify(editCompactVisible)}`,
+  );
+  assert(
+    editCompactVisible.every((entry) => entry.pressed === "true" && entry.background === "rgb(13, 153, 255)"),
+    `Active tools must keep their blue pressed state in compact Edit: ${JSON.stringify(editCompactVisible)}`,
+  );
+  assert.equal(await compactItemVisible(layoutGuidesButton), false, "Idle Layout Guides must be hidden in compact Edit");
+  assert.equal(await compactItemVisible(contextButton), false, "Idle Context must be hidden in compact Edit");
 
   // A Select-owned shortcut exits Edit, activates its tool, and keeps compact
   // presentation intact.
@@ -386,7 +458,7 @@ try {
   await waitForSettledMotion();
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true");
   assert.equal(await xrayButton.getAttribute("aria-pressed"), "true", "Compacting must not deactivate an activated Select-owned tool");
-  assert.equal(await expandedTools.getAttribute("aria-hidden"), "true", "Select-owned shortcut must not expand the toolbar");
+  assert.equal(await compactItemVisible(xrayButton), true, "The tool activated by a compact shortcut must be visible and pressed");
   assert.equal(await editMode.getAttribute("aria-pressed"), "false");
 
   // Edit can be re-entered while compact. Its options remain available
