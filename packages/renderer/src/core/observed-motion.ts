@@ -1,9 +1,10 @@
 import {
   getMotionAnimations,
-  getOwnMotionAnimations,
   hasTransientScriptMotion,
   motionCssProperty,
+  motionLevel,
   OBSERVED_MOTION_PROPERTIES,
+  scopedMotionAnimations,
 } from "./motion";
 import {
   createMotionDependencies,
@@ -62,11 +63,13 @@ export const readObservedMotion = (
 ): ObservedMotionTarget[] => {
   const cached = knownMotion
     .get(element)
-    ?.filter((target) => target.element === element && target.element.isConnected);
+    ?.filter((target) =>
+      target.element.isConnected
+      && motionLevel(element, target.element) !== null);
 
   if (cached?.length) return cached;
 
-  return hasTransientScriptMotion(element, getOwnMotionAnimations(element))
+  return hasTransientScriptMotion(element, scopedMotionAnimations(element))
     ? [{ element, properties: ["animation"] }]
     : [];
 };
@@ -187,7 +190,7 @@ export function observeMotion(
 
       let changed = false;
 
-      if (hasTransientScriptMotion(root, getOwnMotionAnimations(root)) && !detected.has(root)) {
+      if (hasTransientScriptMotion(root, scopedMotionAnimations(root, animations)) && !detected.has(root)) {
         detected.set(root, new Set(["animation"]));
         changed = true;
       }

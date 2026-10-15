@@ -189,6 +189,39 @@ export const getMotionAnimations = (element: Element) => {
   return [...animations];
 };
 
+export const MOTION_LEVELS = 2;
+
+const motionShadowHost = (element: Element): Element | null => {
+  const root = element.getRootNode();
+
+  return "host" in root && root.host instanceof Element ? root.host : null;
+};
+
+export const motionLevel = (element: Element, target: Element): number | null => {
+  let level = 0;
+  let node: Element | null = target;
+
+  while (node && node !== element && level <= MOTION_LEVELS) {
+    node = node.parentElement ?? motionShadowHost(node);
+    level += 1;
+  }
+
+  return node === element && level <= MOTION_LEVELS ? level : null;
+};
+
+export const scopedMotionAnimations = (
+  element: Element,
+  animations = getMotionAnimations(element),
+) => animations.filter((animation) => {
+  const effect = animation.effect;
+
+  if (!isKeyframeEffect(effect)) return true;
+
+  if (effect.pseudoElement) return false;
+
+  return !effect.target || motionLevel(element, effect.target) !== null;
+});
+
 export const getOwnMotionAnimations = (element: Element) => getMotionAnimations(element).filter((animation) => {
   const effect = animation.effect;
 
@@ -216,7 +249,7 @@ export const readMotionDetails = (
 ): MotionDetails[] => {
   const view = element.ownerDocument.defaultView ?? ownerWindow;
   const style = view.getComputedStyle(element);
-  const animations = getOwnMotionAnimations(element);
+  const animations = getMotionAnimations(element);
   const ownAnimations = ownAnimationsFor(element, animations);
 
   const names = splitList(style.animationName);
@@ -291,7 +324,7 @@ export const readMotionDetails = (
       .map((motion) => motion.animation),
   );
 
-  const webAnimations: MotionDetails[] = ownAnimations
+  const webAnimations: MotionDetails[] = scopedMotionAnimations(element, animations)
     .filter((animation) => !claimed.has(animation))
     .flatMap((animation, index) => {
       let timing: EffectTiming | null = null;
