@@ -85,6 +85,9 @@ const checkSurface = async (surface, label) => {
   evidence.push({ surface: label, panel, bar });
 };
 
+const intersects = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x
+  && a.y < b.y + b.height && a.y + a.height > b.y;
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await toolbar.waitFor();
@@ -114,6 +117,33 @@ try {
   assert.equal(await dock.inputValue(), "free");
   assert.equal(await page.getByRole("switch", { name: "Auto-hide", exact: true }).count(), 0);
   await dock.selectOption("snap");
+  await settings.click();
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "platform", { configurable: true, value: "MacIntel" });
+    Object.defineProperty(window, "process", { configurable: true, value: { type: "renderer" } });
+    window.__MESURER_HOST__ = { windowControls: { visible: true, bounds: { x: 0, y: 0, width: 90, height: 42 } } };
+  });
+  await drag(140, 24);
+  assert.equal(await toolbar.getAttribute("data-dock-edge"), "top");
+  assert.equal(await toolbar.getAttribute("data-dock-align"), "start");
+  await settings.click();
+  await page.getByRole("switch", { name: "Auto-hide", exact: true }).click();
+  await settings.click();
+  const controls = { x: 0, y: 0, width: 90, height: 42 };
+  await page.mouse.move(900, 900);
+  await page.waitForTimeout(1000);
+  assert.equal(await toolbar.getAttribute("data-tucked"), "true");
+  const tucked = await bounds();
+  assert(!intersects(tucked, controls), `tucked toolbar avoids native controls: ${JSON.stringify(tucked)}`);
+  await page.mouse.move(100, 45);
+  await page.waitForTimeout(350);
+  assert.notEqual(await toolbar.getAttribute("data-tucked"), "true", "pointer reveals toolbar");
+  const revealed = await bounds();
+  assert(!intersects(revealed, controls), `revealed toolbar avoids native controls: ${JSON.stringify(revealed)}`);
+  evidence.push({ nativeControls: controls, tucked, revealed });
+  await settings.click();
+  await page.getByRole("switch", { name: "Auto-hide", exact: true }).click();
   await settings.click();
 
   for (const [edge, x, y] of [["top", 640, 24], ["bottom", 640, 976], ["left", 24, 500], ["right", 1256, 500]]) {
@@ -146,7 +176,62 @@ try {
     await page.getByRole("button", { name: "Expand toolbar", exact: true }).click();
     await page.waitForTimeout(250);
     await page.screenshot({ path: `${output}/${edge}.png` });
+
+    if (edge === "left" || edge === "right") {
+      const tooltip = page.locator("[role='tooltip']:visible").first();
+      const trigger = settings;
+      await trigger.hover();
+      await page.waitForTimeout(200);
+      const tooltipBounds = await tooltip.boundingBox();
+      assert(tooltipBounds, `${edge} Settings tooltip is visible`);
+      const tooltipStyle = await tooltip.evaluate((element) => ({ side: element.getAttribute("data-tooltip-side"), left: getComputedStyle(element).left, right: getComputedStyle(element).right, translate: getComputedStyle(element).translate, transform: getComputedStyle(element).transform }));
+      const viewport = page.viewportSize();
+      assert(tooltipBounds.x >= 0 && tooltipBounds.y >= 0
+        && tooltipBounds.x + tooltipBounds.width <= viewport.width
+        && tooltipBounds.y + tooltipBounds.height <= viewport.height,
+      `${edge} tooltip stays inside viewport: ${JSON.stringify(tooltipBounds)}`);
+      assert(!intersects(tooltipBounds, box), `${edge} tooltip avoids toolbar: ${JSON.stringify({ tooltipBounds, box, tooltipStyle })}`);
+      await page.mouse.move(700, 900);
+
+      const guideMenu = page.getByRole("button", { name: "Guide orientation menu", exact: true });
+
+      for (let cycle = 0; cycle < 3; cycle += 1) {
+        await guideMenu.click();
+        await page.getByRole("menu").last().waitFor({ state: "visible" });
+
+        const closedSurface = await page.getByRole("menu").last().elementHandle();
+        await page.waitForTimeout(450);
+        await guideMenu.click();
+        await page.getByRole("menu").waitFor({ state: "detached" });
+        await page.waitForTimeout(50);
+
+        const remainingPlacement = await closedSurface.evaluate((element) => ({
+          position: element.style.getPropertyValue("position"),
+          width: element.style.getPropertyValue("width"),
+        }));
+
+        assert.deepEqual(remainingPlacement, { position: "", width: "" },
+          `${edge} closed menu releases its temporary placement styles`);
+        assert.equal(await toolbar.locator("[role='menu'], [role='dialog']").count(), 0,
+          `${edge} closed surfaces are removed from toolbar DOM`);
+      }
+
+      await guideMenu.click();
+      const surface = page.getByRole("menu").last();
+      await page.setViewportSize({ width: 210, height: 1000 });
+      await page.waitForTimeout(450);
+      const narrow = await surface.boundingBox();
+      assert(narrow && narrow.width < 176,
+        `${edge} menu constrains to narrow viewport: ${narrow?.width}`);
+      await page.setViewportSize({ width: 1280, height: 1000 });
+      await page.waitForTimeout(500);
+      const restored = await surface.boundingBox();
+      assert(restored && restored.width >= 176,
+        `${edge} menu restores preferred width after viewport expands: ${narrow?.width} -> ${restored?.width}`);
+      await guideMenu.click();
+    }
   }
+
 
   await drag(140, 24);
   assert.equal(await toolbar.getAttribute("data-dock-align"), "start");

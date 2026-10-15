@@ -106,9 +106,24 @@ export function Toolbar(props: ToolbarProps) {
 
   const tuckSafeOffset = () => {
     const controls = getWindowControls(props.ownerWindow);
+    const positionValue = position();
+    const size = barSize();
 
-    return dockEdge() === "top" && controls && position().x < controls.x + controls.width
-      ? 16 : 0;
+    if (dockEdge() !== "top" || !controls) return 0;
+
+    const tuckedTop = positionValue.y - size.height - 10;
+
+    const overlapsControlsVertically = tuckedTop < controls.y + controls.height
+      && tuckedTop + size.height > controls.y;
+
+    if (!overlapsControlsVertically) return 0;
+
+    const rightShift = controls.x + controls.width - positionValue.x;
+    const shiftedRight = positionValue.x + rightShift + size.width;
+
+    if (shiftedRight <= props.ownerWindow.innerWidth - 8) return rightShift;
+
+    return controls.x - (positionValue.x + size.width);
   };
 
   const viewport = () => ({ width: props.ownerWindow.innerWidth, height: props.ownerWindow.innerHeight });
@@ -1089,7 +1104,17 @@ export function Toolbar(props: ToolbarProps) {
     // SAFETY: ownerWindow is the Window instance that owns this toolbar's document and browser APIs.
     const Resize = (props.ownerWindow as Window & typeof globalThis).ResizeObserver;
 
-    const observer = Resize ? new Resize(syncWidths) : null;
+    let syncFrame = 0;
+
+    const scheduleSyncWidths = () => {
+      if (syncFrame) return;
+      syncFrame = props.ownerWindow.requestAnimationFrame(() => {
+        syncFrame = 0;
+        syncWidths();
+      });
+    };
+
+    const observer = Resize ? new Resize(scheduleSyncWidths) : null;
 
     observer?.observe(selectPanel);
     observer?.observe(editPanel);
@@ -1101,6 +1126,8 @@ export function Toolbar(props: ToolbarProps) {
 
     return () => {
       props.ownerWindow.cancelAnimationFrame(frame);
+
+      if (syncFrame) props.ownerWindow.cancelAnimationFrame(syncFrame);
       observer?.disconnect();
     };
   });
@@ -1139,6 +1166,7 @@ export function Toolbar(props: ToolbarProps) {
 
   onSettled(() => {
     let persistTimer = 0;
+    let settleFrame = 0;
 
     const settle = () => {
       if (!snapping() || motionSuspended()) return;
@@ -1147,15 +1175,27 @@ export function Toolbar(props: ToolbarProps) {
       persistTimer = props.ownerWindow.setTimeout(() => reportPosition(position()), 300);
     };
 
-    const observer = new ResizeObserver(settle);
+    const scheduleSettle = () => {
+      if (settleFrame) return;
+      settleFrame = props.ownerWindow.requestAnimationFrame(() => {
+        settleFrame = 0;
+        settle();
+      });
+    };
 
-    if (toolbarElement) observer.observe(toolbarElement);
-    props.ownerWindow.addEventListener("resize", settle);
+    // SAFETY: ownerWindow is the Window instance that owns this toolbar's document and browser APIs.
+    const realm = props.ownerWindow as Window & typeof globalThis;
+    const observer = realm.ResizeObserver ? new realm.ResizeObserver(scheduleSettle) : null;
+
+    if (toolbarElement) observer?.observe(toolbarElement);
+    props.ownerWindow.addEventListener("resize", scheduleSettle);
     settle();
 
     return () => {
-      observer.disconnect();
-      props.ownerWindow.removeEventListener("resize", settle);
+      observer?.disconnect();
+      props.ownerWindow.removeEventListener("resize", scheduleSettle);
+
+      if (settleFrame) props.ownerWindow.cancelAnimationFrame(settleFrame);
       props.ownerWindow.clearTimeout(persistTimer);
       props.ownerWindow.clearTimeout(glideTimer);
       turnAnimation.cancel();
@@ -1173,6 +1213,17 @@ export function Toolbar(props: ToolbarProps) {
     const place = () => {
       frame = 0;
 
+      for (const [surface, original] of placed) {
+        if (surface.isConnected && bar.contains(surface)) continue;
+
+        for (const [key, value] of original) {
+          if (value) surface.style.setProperty(key, value);
+          else surface.style.removeProperty(key);
+        }
+
+        placed.delete(surface);
+      }
+
       if (vertical()) {
         const rect = bar.getBoundingClientRect();
         const leftSide = rect.left < props.ownerWindow.innerWidth / 2;
@@ -1182,7 +1233,21 @@ export function Toolbar(props: ToolbarProps) {
 
           if (!anchor) continue;
           const size = surface.getBoundingClientRect();
-          const width = Math.min(size.width, Math.max(0, leftSide ? props.ownerWindow.innerWidth - rect.right - 16 : rect.left - 16));
+          let preferredWidth = size.width;
+          const originalWidth = placed.get(surface)?.get("width");
+
+          if (originalWidth !== undefined) {
+            const constrainedWidth = surface.style.getPropertyValue("width");
+
+            if (originalWidth) surface.style.setProperty("width", originalWidth);
+            else surface.style.removeProperty("width");
+            preferredWidth = surface.getBoundingClientRect().width;
+
+            if (constrainedWidth) surface.style.setProperty("width", constrainedWidth);
+            else surface.style.removeProperty("width");
+          }
+
+          const width = Math.min(preferredWidth, Math.max(0, leftSide ? props.ownerWindow.innerWidth - rect.right - 16 : rect.left - 16));
           const left = leftSide ? rect.right + 8 : rect.left - width - 8;
           const top = Math.max(8, Math.min(anchor.top, props.ownerWindow.innerHeight - size.height - 8));
 
@@ -1226,16 +1291,18 @@ export function Toolbar(props: ToolbarProps) {
       if (!frame) frame = props.ownerWindow.requestAnimationFrame(place);
     };
 
-    const mutation = new MutationObserver(schedule);
-    mutation.observe(bar, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-orientation", "data-tucked", "data-dock-edge"] });
-    const resize = new ResizeObserver(schedule);
-    resize.observe(bar);
+    // SAFETY: ownerWindow is the Window instance that owns this toolbar's document and browser APIs.
+    const realm = props.ownerWindow as Window & typeof globalThis;
+    const mutation = realm.MutationObserver ? new realm.MutationObserver(schedule) : null;
+    mutation?.observe(bar, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-orientation", "data-tucked", "data-dock-edge"] });
+    const resize = realm.ResizeObserver ? new realm.ResizeObserver(schedule) : null;
+    resize?.observe(bar);
     props.ownerWindow.addEventListener("resize", schedule);
     schedule();
 
     return () => {
-      mutation.disconnect();
-      resize.disconnect();
+      mutation?.disconnect();
+      resize?.disconnect();
       props.ownerWindow.removeEventListener("resize", schedule);
       props.ownerWindow.cancelAnimationFrame(frame);
     };

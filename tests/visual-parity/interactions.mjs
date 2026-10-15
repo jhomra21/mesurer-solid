@@ -195,6 +195,66 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     changed = true;
   }
 
+  const toolbarDock = page.getByRole("combobox", { name: "Toolbar dock" });
+
+  const generalSettingsVisible = await page.getByRole("dialog", { name: "Settings" })
+    .getByRole("tab", { name: "General", selected: true }).count() > 0;
+
+  if (generalSettingsVisible && (await toolbarDock.count()) !== 1) {
+    throw new Error(`Expected exactly one visible Toolbar dock control, found ${await toolbarDock.count()}.`);
+  }
+
+  if (await toolbarDock.count() > 0) {
+    if (await toolbarDock.count() !== 1) {
+      throw new Error("Expected exactly one Toolbar dock control in Settings.");
+    }
+
+    const contract = await toolbarDock.evaluate((select) => ({
+      tag: select.tagName.toLowerCase(),
+      value: select.value,
+      options: [...select.options].map((option) => ({
+        label: option.textContent?.trim() ?? "",
+        value: option.value,
+        selected: option.selected,
+        disabled: option.disabled,
+      })),
+    }));
+
+    const dock = contract.value;
+
+    if (
+      contract.tag !== "select"
+      || !["free", "snap"].includes(dock)
+      || JSON.stringify(contract.options) !== JSON.stringify([
+        { label: "Free", value: "free", selected: dock === "free", disabled: false },
+        { label: "Snap to edges", value: "snap", selected: dock === "snap", disabled: false },
+      ])
+    ) {
+      throw new Error(`Unexpected current Toolbar dock contract: ${JSON.stringify(contract)}`);
+    }
+
+    const autoHide = page.getByRole("switch", { name: "Auto-hide" });
+
+    const expectedAutoHideCount = dock === "snap" ? 1 : 0;
+
+    if (await autoHide.count() !== expectedAutoHideCount) {
+      throw new Error(`Expected ${expectedAutoHideCount} Auto-hide control(s) for ${dock} docking.`);
+    }
+
+    if (expectedAutoHideCount) {
+      const checked = await autoHide.getAttribute("aria-checked");
+
+      if (checked !== "true" && checked !== "false") {
+        throw new Error(`Unexpected Auto-hide switch state: ${checked}`);
+      }
+
+      await autoHide.evaluate((element) => element.remove());
+    }
+
+    await toolbarDock.evaluate((select) => select.parentElement?.remove());
+    changed = true;
+  }
+
   const extensions = page.locator(
     "[data-mesurer-distance='true'], [data-mesurer-plugin-settings='true']",
   );
