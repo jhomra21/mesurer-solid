@@ -27,7 +27,7 @@ Browser-protected pages such as `chrome://` pages cannot be injected. File URLs 
 
 The extension uses the same built `inject-script` artifact as the browser harness. It loads the separate MPL-2.0 `mediabunny-vendor.js` asset immediately before Mesurer; it does not carry a fork of either Mesurer or the Recording pipeline.
 
-Injection enables the same managed first-party catalog, including Context, Screenshot, and Recording, for the active tab. The page-mounted instance otherwise has the same toolbar, direct text editing, plugin host, compact-toolbar behavior, route-scoped workspace state, and `window.__MESURER__` API as other injected Mesurer instances.
+Injection enables the same managed first-party catalog, including Context, Screenshot, and Recording, for the active tab. The page-mounted instance otherwise has the same toolbar, direct text editing, plugin host, compact-toolbar behavior (current mode, active tools, and expand control remain visible; the Settings shortcut is available when shortcuts are enabled), route-scoped workspace state, and `window.__MESURER__` API as other injected Mesurer instances.
 
 When the tab remains authorized, the background worker remembers that Mesurer was explicitly opened and restores a missing injected instance after reload or eligible navigation. The injector also remounts Mesurer if the page replaces the DOM node that owns the injected UI. A live connected instance is reused rather than replaced. If the user closes Mesurer while navigation is racing the background worker's session-state read, the close request remains authoritative and recovery does not reopen the tab.
 

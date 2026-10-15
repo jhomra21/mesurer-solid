@@ -80,7 +80,7 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 
 ## Features
 
-- **Select.** Inspect one or more rendered HTML or SVG elements. Turning Select off clears the current element and Guide selection instead of retaining hidden selection state.
+- **Select.** Inspect one or more rendered HTML or SVG elements. Motion inspection is built in and follows the selected element, with a live preview and keyframe details. Select, measurement geometry, X-ray, Motion, and Context work across same-origin iframes; cross-origin frame contents are inaccessible. Turning Select off clears the current element and Guide selection instead of retaining hidden selection state.
 - **Distance.** Measure spacing and geometry, including pairwise multi-selection spacing.
 - **X-ray, Guides, and Rulers.** Inspect page structure and alignment.
 - **Layout Guides.** Add page-scoped columns, rows, or a pixel grid through the optional `layoutGuides()` plugin. Layout Guide mutations participate in plugin history, and Context includes the current page's saved guides with their visibility state.
@@ -90,7 +90,7 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 - **Recording.** Select and adjust a page region, then record the live application while it remains interactive. Recording defaults to 60 fps with an optional 120 fps setting; MediaBunny owns encoding, trim, 1×/2×/3× resize, format detection, and WebM/MP4 export while browser, extension, and Electron APIs only acquire the live source.
 - **Context and annotations.** Expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotations persist across same-tab reloads, conservatively rebind to their original DOM targets, stay attached through scrolling, keep repeated-note markers local, leave Add Note available while a saved note is open, and keep cards/composers above Select hover and selection chrome.
 - **Plugins.** Add tools, commands, overlays, settings, state, hooks, and services at runtime.
-- **Compact toolbar.** Collapse inactive controls while every active tool remains visible. Expanding restores the same toolbar order and state.
+- **Compact toolbar.** Keep the current Select/Edit mode, active tools in their pressed state, and the expand control visible while hiding inactive tools. The Settings shortcut remains available while compact when shortcuts are enabled.
 - **Appearance.** Use System, Light, or Dark without changing the inspected page. The same theme applies to the isolated toolbar and document-backed Context and Typography UI.
 - **Color Picker.** Native hosts with `window.__MESURER_HOST__.captureScreenshot` use a current-window picker that captures once when the user chooses a pixel. Other supported browser hosts use the native `EyeDropper`. A successful sample is copied to the clipboard in the configured format.
 
