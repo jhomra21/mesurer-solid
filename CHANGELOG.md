@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.2.2-beta.9 - 2026-10-15
+
 - Keep each selected element's outline and labels on the same rendered layer while the selection's geometry refreshes, instead of rebuilding them shortly after selection. This removes an occasional misplaced outline when scrolling right after selecting a nested element.
 
 ## 0.2.2-beta.8 - 2026-10-15
