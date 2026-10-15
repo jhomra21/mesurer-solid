@@ -1,6 +1,6 @@
 # Capabilities
 
-This page lists the public Mesurer features and the APIs that expose them for `mesurer-solid@0.2.1` stable. Feature guides contain the detailed interaction rules.
+This page lists the public Mesurer features and the APIs that expose them for `mesurer-solid@0.2.2` stable. Feature guides contain the detailed interaction rules.
 
 ## Built-in tools
 

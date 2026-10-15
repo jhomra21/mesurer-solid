@@ -108,7 +108,7 @@ mesurer-solid/plugins/recording/bridge
 mesurer-solid/plugins/recording/preload
 ```
 
-The root export owns mounting, public domain types, and the agent API. `/plugins` owns first-party plugin factories and contracts. `/core` stays framework-neutral. Injection entries are for development, testing, and agent-controlled browser evaluation. The current stable public baseline is `0.2.1`; install-facing docs use the `latest` dist-tag rather than prerelease tags.
+The root export owns mounting, public domain types, and the agent API. `/plugins` owns first-party plugin factories and contracts. `/core` stays framework-neutral. Injection entries are for development, testing, and agent-controlled browser evaluation. The current stable public baseline is `0.2.2`; install-facing docs use the `latest` dist-tag rather than prerelease tags.
 
 Do not expose private workspace package names or renderer-specific types through the staged public artifact.
 
