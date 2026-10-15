@@ -12,8 +12,10 @@ import {
   motionCssProperty,
   motionDuration,
   motionPlaybackState,
+  motionLevel,
   readMotionDetails,
   readMotionKeyframes,
+  scopedMotionAnimations,
   scrubAnimations,
   type MotionDetails,
 } from "../core/motion";
@@ -274,7 +276,9 @@ export function MotionPlayer(props: {
   let animations: Animation[] = [];
 
   const observedProperties = createMemo(() =>
-    [...new Set(observedTargets().flatMap((target) => target.properties))]);
+    [...new Set(observedTargets()
+      .filter((target) => motionLevel(props.element, target.element) !== null)
+      .flatMap((target) => target.properties))]);
 
   const observedOnly = () => observedProperties().length > 0;
   const playbackReady = () => playbackElement() === props.element;
@@ -293,7 +297,8 @@ export function MotionPlayer(props: {
       const stopObserved = observeMotion(
         element,
         ownerWindow,
-        (targets) => setObservedTargets(targets.filter((target) => target.element === element)),
+        (targets) => setObservedTargets(targets.filter((target) =>
+          motionLevel(element, target.element) !== null)),
       );
 
       onCleanup(stopObserved);
@@ -343,7 +348,7 @@ export function MotionPlayer(props: {
             nextMotions.flatMap((motion) => motion.animation ? [motion.animation] : []),
           )];
 
-          setReady(nextMotions.length > 0 || getOwnMotionAnimations(element).length > 0);
+          setReady(nextMotions.length > 0 || scopedMotionAnimations(element).length > 0);
           setDuration(Math.max(0, ...nextMotions.map(motionDuration)));
           setMotions(nextMotions);
           animations = nextAnimations;

@@ -28,6 +28,8 @@ const settle = () => page.evaluate(() => new Promise((resolve) => {
 const selectTarget = async (selector) => {
   const target = page.locator(selector);
   await target.waitFor({ state: "visible" });
+  await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
+  await settle();
   const box = await target.boundingBox();
 
   assert(box, `Expected rendered target geometry for ${selector}`);
@@ -378,30 +380,82 @@ try {
 
   await page.screenshot({ path: screenshotPath, fullPage: true });
 
-  await selectTarget("[data-testid='static-target']");
-  await player.waitFor({ state: "hidden" });
+  const makeDepthTarget = async (depth, type) => page.evaluate(({ depth, type }) => {
+    const root = document.createElement("div");
+    root.className = "motion-target";
+    root.dataset.testid = `${type}-depth-${depth}`;
+    root.textContent = `${type} depth ${depth}`;
+    root.style.position = "fixed";
+    root.style.left = `${520 + depth * 8}px`;
+    root.style.top = `${280 + (type === "observed" ? 40 : 0)}px`;
+    root.style.zIndex = "100";
+    document.querySelector("main")?.append(root);
 
-  // A selected static parent must not show Motion just because its child has
-  // an active Web Animation. Target the same parent after installing one.
-  const childMotion = await page.evaluate(() => {
-    const parent = document.querySelector("[data-testid='static-target']");
+    let target = root;
 
-    if (!parent) return null;
+    for (let level = 1; level <= depth; level += 1) {
+      const child = document.createElement("span");
+      child.textContent = `level ${level}`;
+      child.style.pointerEvents = "none";
+      target.append(child);
+      target = child;
+    }
 
-    const child = document.createElement("span");
-    child.textContent = "Animated descendant";
-    parent.append(child);
+    if (type === "web") {
+      target.animate([{ opacity: 0.4 }, { opacity: 1 }], {
+        duration: 1200,
+        iterations: Infinity,
+      });
+    } else {
+      let value = 0.4;
+      target.style.opacity = String(value);
 
-    const animation = child.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 500, iterations: Infinity });
+      const timer = window.setInterval(() => {
+        value = value === 0.4 ? 0.9 : 0.4;
+        target.style.opacity = String(value);
+      }, 40);
 
-    return { parentOwn: parent.getAnimations().length, subtree: parent.getAnimations({ subtree: true }).length, id: animation.id };
-  });
+      window.setTimeout(() => window.clearInterval(timer), 5000);
+    }
 
-  assert.equal(childMotion?.parentOwn, 0);
-  assert((childMotion?.subtree ?? 0) > 0, "Fixture must have real descendant animation");
-  await selectTarget("[data-testid='static-target']");
-  await page.waitForTimeout(400);
-  await player.waitFor({ state: "hidden" });
+  }, { depth, type });
+
+  for (const depth of [1, 2]) {
+    await makeDepthTarget(depth, "web");
+    await selectTarget(`[data-testid='web-depth-${depth}']`);
+    await player.waitFor({ state: "visible", timeout: 3000 });
+    await page.waitForTimeout(300);
+    assert.equal(
+      await player.isVisible(),
+      true,
+      `Web Animation on depth-${depth} descendant must contribute to the selected element's Motion card`,
+    );
+    await page.evaluate((depth) => document.querySelector(`[data-testid='web-depth-${depth}']`)?.remove(), depth);
+  }
+
+  await makeDepthTarget(3, "web");
+  await selectTarget("[data-testid='web-depth-3']");
+  await page.waitForTimeout(350);
+  await player.waitFor({ state: "hidden", timeout: 3000 });
+  await page.evaluate(() => document.querySelector("[data-testid='web-depth-3']")?.remove());
+
+  for (const depth of [1, 2]) {
+    await makeDepthTarget(depth, "observed");
+    await selectTarget(`[data-testid='observed-depth-${depth}']`);
+    await player.waitFor({ state: "visible", timeout: 3000 });
+    await page.waitForTimeout(250);
+    assert.equal(
+      await player.isVisible(),
+      true,
+      `Observed JavaScript motion on depth-${depth} descendant must contribute to the selected element's Motion card`,
+    );
+    await page.evaluate((depth) => document.querySelector(`[data-testid='observed-depth-${depth}']`)?.remove(), depth);
+  }
+
+  await makeDepthTarget(3, "observed");
+  await selectTarget("[data-testid='observed-depth-3']");
+  await page.waitForTimeout(350);
+  await player.waitFor({ state: "hidden", timeout: 3000 });
 
   const report = {
     css: {
