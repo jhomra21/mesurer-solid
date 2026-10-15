@@ -6,8 +6,10 @@ This page lists the public Mesurer features and the APIs that expose them for `m
 
 | Tool | What it does |
 | --- | --- |
-| Select | Select one or many rendered HTML or SVG elements and report exact geometry. Invoking Select clears the current element and Guide selection before toggling the tool. |
+| Select | Select one or many rendered HTML or SVG elements and report exact geometry, including accessible same-origin iframe documents. Invoking Select clears the current element and Guide selection before toggling the tool. |
 | X-ray | Show page structure without changing application source. |
+| Motion | Built into Select; inspect motion on the selected element with a live preview, play/pause, scrubbing, preset or custom speed, Web Animations API targets, and grouped, copyable keyframe details. Observed JavaScript motion is read-only. |
+| Same-origin iframes | Select, measurement geometry, X-ray, Motion, and Context work across accessible same-origin frames, including 2D-scaled or transformed frame ancestry. Cross-origin frames are inaccessible and fail closed. |
 | Color Picker | Sample a rendered color from the current application window when a host capture capability exists; otherwise use the browser `EyeDropper` when operational. Copy the sample in the configured `colorPickerClickFormat`. |
 | Rulers | Show viewport rulers and ruler settings. |
 | Typography | Inspect rendered typography and computed type styles in Select mode. |
@@ -23,7 +25,7 @@ The default keyboard shortcuts are listed in the root [README](../README.md).
 | --- | --- |
 | Direct text editing | In Edit mode, double-click or double-tap a valid direct text run in an HTML element. Mixed inline copy can target the exact run under the pointer while preserving inline children. Typography in Select remains inspection-only. SVG selection does not enable direct text editing. |
 | Select/Edit modes | Select owns selection-first inspection/capture tools such as X-ray, Color Picker, Typography, Screenshot, and Recording. Edit owns movement and direct text/style editing. Rulers, Guides, and Layout Guides remain available in both modes; Context and Codex remain visible in both. The grouped toolbar changes mode in 150 ms and respects reduced-motion preferences. |
-| Compact toolbar | Hide inactive controls without changing mode or active state. Expanding restores the same controls. Toolbar dragging starts after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. |
+| Compact toolbar | Keep the current Select/Edit mode, active tools in their pressed state, and the expand control; hide inactive tools. The Settings shortcut remains available while compact when shortcuts are enabled. Toolbar dragging starts after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. |
 | Multi-selection | Extend Select across multiple targets and inspect group geometry plus pairwise relationships. |
 | Visual hit testing | Select and agent point inspection share the rendered-point resolver. It follows the native front-to-back hit stack, traverses open shadow roots, and can recover visible `pointer-events:none` descendants that native hit testing would otherwise skip. |
 | Presentation ownership | Edit movement and text previews restore only values Mesurer still owns. Host-authored changes remain untouched. |
