@@ -115,21 +115,24 @@ const waitForSettledMotion = () => page.waitForTimeout(210);
 // switch and the compact toggle (which are always present).
 const visibleToolLabels = () => page.evaluate(() =>
   [...document.querySelectorAll('[data-mesurer-toolbar="true"] [data-mesurer-toolbar-compact-item="true"] button[aria-pressed]')]
-    .filter((button) => {
+    .flatMap((button) => {
       const item = button.closest('[data-mesurer-toolbar-compact-item="true"]');
       const rect = button.getBoundingClientRect();
 
-      return item.dataset.visible === "true"
+      const shown = item.dataset.visible === "true"
         && item.getAttribute("aria-hidden") !== "true"
         && !item.inert
         && rect.width > 0.5
         && rect.height > 0.5;
-    })
-    .map((button) => ({
-      label: button.getAttribute("aria-label"),
-      pressed: button.getAttribute("aria-pressed"),
-      background: getComputedStyle(button).backgroundColor,
-    })));
+
+      return shown
+        ? [{
+          label: button.getAttribute("aria-label"),
+          pressed: button.getAttribute("aria-pressed"),
+          background: getComputedStyle(button).backgroundColor,
+        }]
+        : [];
+    }));
 
 const compactItemVisible = (locator) => locator.evaluate((button) => {
   const item = button.closest('[data-mesurer-toolbar-compact-item="true"]');
