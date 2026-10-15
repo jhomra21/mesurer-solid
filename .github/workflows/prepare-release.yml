@@ -42,6 +42,7 @@ jobs:
         startsWith(github.event.comment.body, '/release ')
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Require the default branch as release source
         shell: bash

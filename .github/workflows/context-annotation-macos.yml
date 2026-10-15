@@ -14,6 +14,11 @@ on:
       - ".github/workflows/context-annotation-macos.yml"
   workflow_dispatch:
 
+# Keep only the latest run for each PR; non-PR runs are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   normal-context-annotation:
     runs-on: macos-14

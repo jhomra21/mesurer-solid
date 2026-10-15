@@ -15,12 +15,18 @@ on:
   workflow_call:
   workflow_dispatch:
 
+# The prefix keeps this reusable workflow's group distinct from its caller's.
+concurrency:
+  group: package-smoke-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
 jobs:
   packed-consumers:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
@@ -469,8 +475,22 @@ jobs:
           (window as Window & { __HOST_READY__?: boolean }).__HOST_READY__ = true;
           TSX
 
+      - name: Resolve Playwright version
+        id: playwright_version
+        run: echo "version=$(bunx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      # The resolved Playwright version is part of the key, so dependency bumps cannot reuse a mismatched browser.
+      - name: Cache Playwright Chromium
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright_version.outputs.version }}-chromium-only-shell
+
+      - name: Install Linux browser dependencies
+        run: bunx playwright install-deps chromium
+
       - name: Install headless Chromium shell
-        run: bunx playwright install --with-deps --only-shell chromium
+        run: bunx playwright install --only-shell chromium
 
       - name: Create clean Electron renderer consumer
         run: |
@@ -633,9 +653,9 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-
   macos-electron-toolbar:
     runs-on: macos-14
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
