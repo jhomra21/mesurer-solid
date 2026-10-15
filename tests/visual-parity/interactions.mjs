@@ -121,6 +121,10 @@ const normalizeHistoricalToolbarMode = async (page, implementation, caseName) =>
   });
 };
 
+// Normalization removes the dock row from the live DOM, and Settings stays
+// open across cases, so the row is required only until validated on a page.
+const pagesWithValidatedDock = new WeakSet();
+
 // Interaction parity compares the upstream-shared controls. Solid-only,
 // explicitly plugin-owned settings are exercised by browser-contracts instead.
 async function normalizeSharedParitySurface(page, implementation, caseName) {
@@ -200,7 +204,7 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
   const generalSettingsVisible = await page.getByRole("dialog", { name: "Settings" })
     .getByRole("tab", { name: "General", selected: true }).count() > 0;
 
-  if (implementation === "solid" && generalSettingsVisible && (await toolbarDock.count()) !== 1) {
+  if (generalSettingsVisible && !pagesWithValidatedDock.has(page) && (await toolbarDock.count()) !== 1) {
     throw new Error(`Expected exactly one visible Toolbar dock control, found ${await toolbarDock.count()}.`);
   }
 
@@ -252,6 +256,7 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     }
 
     await toolbarDock.evaluate((select) => select.parentElement?.remove());
+    pagesWithValidatedDock.add(page);
     changed = true;
   }
 
