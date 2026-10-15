@@ -6,6 +6,33 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.2.2 - 2026-10-15
+
+- Keep each selected element's outline and labels on the same rendered layer while the selection's geometry refreshes, instead of rebuilding them shortly after selection. This removes an occasional misplaced outline when scrolling right after selecting a nested element.
+- Keep multi-selection chrome attached to the page while scrolling in Select and Edit. The group outline and its dimensions label, the dotted spacing lines, and the distance pills now scroll with their elements instead of lagging, jumping, or flashing after the scroll settles.
+- Keep Edit's selection stroke attached to nested selected elements during wheel scrolling, and move multi-selection outlines and spacing with elements dragged in Edit without needing a scroll.
+- Collapse the toolbar to the current Select/Edit mode, the tools that are currently active (shown in their pressed blue state), and the expand control. The Settings shortcut still opens Settings while the toolbar is collapsed.
+- Render selected page outlines and their translucent tint directly on the selected element's own scroll/compositor layer, rather than painting a second, lagging border in the document portal. Keep portaled measurement geometry and labels, and restore the host's original styling when the selection clears.
+- Keep Edit selection outlines attached to their page elements while scrolling, rather than painting a lagging fixed border. The page-anchored outline and Edit's drag hitbox now have separate ownership.
+- Hide both the Edit hitbox and its visible selection outline while the direct Typography editor is open, then restore dragging after the editor closes.
+- Avoid reserving the macOS traffic-light area in Electron windows whose native titlebar is outside the renderer. Honor visible window controls reported by Window Controls Overlay or a narrow host bridge in custom-titlebar windows.
+- Keep selection highlight chrome from painting over the Typography editor during direct text editing.
+- Keep Motion's preview attached to the toolbar during movement; detach it with a deliberate drag and reattach using its control. Suspend preview rendering during dragging without pausing the inspected page's animation.
+- Keep Screenshot previews and their viewer clickable while Select is active by placing them above the selection plane in the same renderer stacking context.
+- Show Motion for animations on the selected element itself, rather than treating an animated descendant as motion on a static parent.
+- Keep selection borders bound to their actual page elements during scrolling, normalize document-portaled fallback geometry, and clear stale hover without reactive work inside scroll events.
+- Click Color Picker again after sampling to pick another color immediately, including through native EyeDropper and application-window capture.
+- Move the toolbar on the compositor during dragging rather than updating its reactive layout for every pointer event. On macOS Electron, allow dragging close to the top beyond the window-control area while keeping the safer initial position.
+- Prevent the inspected page's styles from hiding or enlarging Context's Add Note action. Annotation icons, saved markers, and note controls keep their own geometry, colors, and pointer behavior even under aggressive host CSS.
+- Align the new Motion player with upstream's 20px playback controls, slim draggable/keyboard-accessible timeline, preset and custom speed selection, themed slider/editor, viewport-safe popup, and grouped, copyable keyframe details.
+- Add Motion inspection for selected animated elements, including live preview, play/pause, scrubbing, playback speed, keyframe details, Web Animations API targets, and read-only detection of observed JavaScript motion.
+- Add same-origin iframe inspection across Select, measurement geometry, X-ray, Motion, and Context. Pointer input and rectangles project through scaled/transformed frame ancestry, Context evidence and annotation chrome stay aligned in the top viewport, and inaccessible cross-origin frames fail closed.
+- Restore Mesurer's browser **Settings -> Codex** path through the local Mesurer Codex Bridge companion while keeping Electron on its native preload bridge. Browser users can enable Codex without an Electron host; a missing companion stays in an unavailable/retry state instead of rolling the plugin back with a preload error.
+- Keep the Mesurer Solid ChatGPT/Codex agent plugin separate from the Mesurer Codex Bridge helper so agent-side Mesurer usage and human-triggered Queue to Codex remain independent features.
+- Preserve Codex's client user-message identity alongside the queued-submission receipt and recover missing Mesurer delivery records from one exact turn-history match after Codex has already consumed the queue item. Failed tracked deliveries retain their recovery identity and retry restoration before Mesurer can submit anything again.
+- Verify browser companion identity, protocol, and capabilities before using it; distinguish missing, outdated, and conflicting local bridges; and reconnect automatically when a compatible helper appears.
+- Make bridge replacement and shutdown ownership-safe: stale helpers are replaced only when idle, queued/working deliveries keep the helper alive after the last session unregisters, browser toggle-off cleans only page-owned resources, and Electron toggle-off releases only its renderer lease.
+
 ## 0.2.2-beta.9 - 2026-10-15
 
 - Keep each selected element's outline and labels on the same rendered layer while the selection's geometry refreshes, instead of rebuilding them shortly after selection. This removes an occasional misplaced outline when scrolling right after selecting a nested element.
