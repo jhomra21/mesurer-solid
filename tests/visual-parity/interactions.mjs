@@ -176,29 +176,6 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     themeRemoved = true;
   }
 
-  const presentationSettings = page.locator("[data-mesurer-presentation-settings='true']");
-
-  if ((await presentationSettings.count()) > 0) {
-    const contract = await presentationSettings.getByRole("switch").evaluateAll((nodes) =>
-      nodes.map((node) => ({
-        label: node.getAttribute("aria-label"),
-        checked: node.getAttribute("aria-checked"),
-      })),
-    );
-
-    const expected = [
-      { label: "Keep text changes", checked: "false" },
-      { label: "Keep Edit changes", checked: "false" },
-    ];
-
-    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
-      throw new Error(`Unexpected current presentation settings contract: ${JSON.stringify(contract)}`);
-    }
-
-    await presentationSettings.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
-    changed = true;
-  }
-
   const toolbarDock = page.getByRole("combobox", { name: "Toolbar dock" });
 
   const generalSettingsVisible = await page.getByRole("dialog", { name: "Settings" })
@@ -257,6 +234,29 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
 
     await toolbarDock.evaluate((select) => select.parentElement?.remove());
     pagesWithValidatedDock.add(page);
+    changed = true;
+  }
+
+  const presentationSettings = page.locator("[data-mesurer-presentation-settings='true']");
+
+  if ((await presentationSettings.count()) > 0) {
+    const contract = await presentationSettings.getByRole("switch").evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        label: node.getAttribute("aria-label"),
+        checked: node.getAttribute("aria-checked"),
+      })),
+    );
+
+    const expected = [
+      { label: "Keep text changes", checked: "false" },
+      { label: "Keep Edit changes", checked: "false" },
+    ];
+
+    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
+      throw new Error(`Unexpected current presentation settings contract: ${JSON.stringify(contract)}`);
+    }
+
+    await presentationSettings.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
     changed = true;
   }
 
