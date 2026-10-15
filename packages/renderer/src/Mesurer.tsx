@@ -144,7 +144,12 @@ const readToolbarPosition = (ownerWindow: Window, storageKey: string): ToolbarPo
 
     if (!Number.isFinite(value.x) || !Number.isFinite(value.y)) return undefined;
 
-    return { x: value.x!, y: value.y! };
+    return {
+      x: value.x!, y: value.y!,
+      edge: value.edge === "top" || value.edge === "bottom" || value.edge === "left" || value.edge === "right" ? value.edge : null,
+      align: value.align === "start" || value.align === "end" ? value.align : "center",
+      vertical: value.vertical === true,
+    };
   } catch {
     return undefined;
   }
@@ -1374,6 +1379,8 @@ export default function Mesurer(props: MesurerProps) {
     persistOnReload: props.persistOnReload ?? false,
     shortcutsEnabled: props.shortcutsEnabled ?? true,
     theme: props.theme ?? "system",
+    toolbarDock: "free",
+    toolbarAutoHide: false,
     colorPickerFormats: props.colorPickerFormats ?? ["hex", "rgb", "oklch"],
     colorPickerClickFormat: props.colorPickerClickFormat ?? "hex",
     snapEnabled: props.snapEnabled ?? true,

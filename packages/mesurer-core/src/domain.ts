@@ -79,6 +79,8 @@ export type MesurerStoredSettings = {
   persistOnReload?: boolean;
   shortcutsEnabled?: boolean;
   theme?: MesurerTheme;
+  toolbarDock?: "free" | "snap";
+  toolbarAutoHide?: boolean;
   guideStyle?: Partial<GuideStyle>;
   rulerSettings?: Partial<RulerSettings>;
 };
@@ -103,6 +105,8 @@ export type MesurerSettings = {
   persistOnReload: boolean;
   shortcutsEnabled: boolean;
   theme: MesurerTheme;
+  toolbarDock: "free" | "snap";
+  toolbarAutoHide: boolean;
   colorPickerFormats: ColorPickerFormat[];
   colorPickerClickFormat: ColorPickerFormat;
   snapEnabled: boolean;

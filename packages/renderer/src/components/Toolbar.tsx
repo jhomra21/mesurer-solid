@@ -1,10 +1,14 @@
-import { For, Show, createEffect, createSignal, flush, onSettled } from "solid-js";
+import { For, Show, createEffect, createSignal, flush, onSettled, untrack } from "solid-js";
 import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesurer-solid-core";
 import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
 import { supportsColorPicker } from "../runtime/color-picker-support";
-import { constrainToolbarPosition } from "../runtime/toolbar-position";
+import { constrainToolbarPosition, getWindowControls } from "../runtime/toolbar-position";
+import type { ToolbarPosition } from "../runtime/toolbar-position";
+import { alignedDockPosition, dockAlignFor, dragToolbarPosition, isVerticalToolbarSide, nearestDropFor, snapToolbarPosition, DOCK_ALIGNS, TOOLBAR_SIDES, type DockAlign, type ToolbarSide } from "../runtime/toolbar-dock";
+import { createToolbarAutoHide } from "../runtime/toolbar-auto-hide";
+import { createToolbarTurn } from "../runtime/toolbar-turn";
 import { MotionPlayer } from "./MotionPlayer";
 import { SettingsPanel } from "./SettingsPanel";
 import { Tooltip, createTooltip } from "./Tooltip";
@@ -41,8 +45,8 @@ export type ToolbarProps = {
   onResetSettings: () => void;
   selectionSpacingStyle: SelectionSpacingStyle;
   onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void;
-  initialPosition?: { x: number; y: number };
-  onPositionChange?: (position: { x: number; y: number }) => void;
+  initialPosition?: ToolbarPosition;
+  onPositionChange?: (position: ToolbarPosition) => void;
   motion?: {
     element(): Element | null;
   };
@@ -94,8 +98,34 @@ type MotionPlayerGeometry = {
 
 export function Toolbar(props: ToolbarProps) {
   const [position, setPosition] = createSignal(props.initialPosition ?? { x: 16, y: 16 });
+  const [dockEdge, setDockEdge] = createSignal<ToolbarSide | null>(props.initialPosition?.edge ?? null);
+  const [vertical, setVertical] = createSignal(untrack(() => props.model.state.settings.toolbarDock === "snap" && (props.initialPosition?.vertical ?? isVerticalToolbarSide(props.initialPosition?.edge ?? null))));
+  const [dockAlignment, setDockAlignment] = createSignal<DockAlign>(props.initialPosition?.align ?? "center");
+  let dockAlign: DockAlign = props.initialPosition?.align ?? "center";
+  const snapping = () => props.model.state.settings.toolbarDock === "snap";
+
+  const tuckSafeOffset = () => {
+    const controls = getWindowControls(props.ownerWindow);
+
+    return dockEdge() === "top" && controls && position().x < controls.x + controls.width
+      ? 16 : 0;
+  };
+
+  const viewport = () => ({ width: props.ownerWindow.innerWidth, height: props.ownerWindow.innerHeight });
+  let glideTimer = 0;
+  const [gliding, setGliding] = createSignal(false);
+
+  const glide = () => {
+    if (props.ownerWindow.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    props.ownerWindow.clearTimeout(glideTimer);
+    setGliding(true);
+    glideTimer = props.ownerWindow.setTimeout(() => setGliding(false), 378);
+  };
+
   const [detachedMotionPosition, setDetachedMotionPosition] = createSignal<{ x: number; y: number } | null>(null);
   const [motionSuspended, setMotionSuspended] = createSignal(false);
+  const [externalSurfaceOpen, setExternalSurfaceOpen] = createSignal(false);
+  const [landing, setLanding] = createSignal<{ side: ToolbarSide; align: DockAlign } | null>(null);
   const [guideMenuOpen, setGuideMenuOpen] = createSignal(false);
   const [pluginMenuOpenId, setPluginMenuOpenId] = createSignal<string | null>(null);
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
@@ -122,6 +152,51 @@ export function Toolbar(props: ToolbarProps) {
   let modeMotionTimer = 0;
   let colorPickerCapabilityRevision = 0;
   const colorPickerOwnerWindow = () => toolbarElement?.ownerDocument.defaultView ?? props.ownerWindow;
+  const barSize = () => ({ width: toolbarElement?.offsetWidth ?? 0, height: toolbarElement?.offsetHeight ?? 0 });
+
+  const sizeFor = (upright: boolean) => {
+    const size = barSize();
+
+    return upright === vertical() ? size : { width: size.height, height: size.width };
+  };
+
+  const safePosition = (point: { x: number; y: number }, size = barSize()) =>
+    constrainToolbarPosition(props.ownerWindow, point, size, viewport(), snapping() && dockEdge() ? 16 : 8);
+
+  const reportPosition = (point: { x: number; y: number }) =>
+    props.onPositionChange?.({ ...point, edge: snapping() ? dockEdge() : null, align: dockAlign, vertical: vertical() });
+
+  const turnAnimation = createToolbarTurn();
+  let pendingTurn: { capture: ReturnType<typeof turnAnimation.captureToolbarTurn>; vertical: boolean } | null = null;
+
+  const turn = (upright: boolean) => {
+    if (upright === vertical()) return;
+
+    if (toolbarElement) pendingTurn = { capture: turnAnimation.captureToolbarTurn(toolbarElement), vertical: upright };
+    setVertical(upright);
+    flush();
+  };
+
+  const playTurn = () => {
+    flush();
+
+    if (pendingTurn && toolbarElement && !props.ownerWindow.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      turnAnimation.playToolbarTurn(toolbarElement, pendingTurn.capture, pendingTurn.vertical);
+    }
+
+    pendingTurn = null;
+  };
+
+  const settleDock = () => {
+    if (!snapping() || motionSuspended() || !toolbarElement) return;
+    const result = snapToolbarPosition({ point: position(), size: barSize(), viewport: viewport(), glued: dockEdge(), align: dockEdge() ? dockAlign : undefined });
+    dockAlign = result.align;
+    setDockAlignment(dockAlign);
+    setDockEdge(result.side);
+    turn(isVerticalToolbarSide(result.side));
+    setPosition(safePosition(alignedDockPosition(result.side, dockAlign, barSize(), viewport())));
+    playTurn();
+  };
 
   const recordingActive = () => (props.pluginTools ?? []).some(
     (tool) => tool.id === "recording" && (tool.active?.() ?? false),
@@ -231,11 +306,20 @@ export function Toolbar(props: ToolbarProps) {
     || pluginMenuOpenId() !== null
     || props.model.state.settingsOpen;
 
+  const autoHide = createToolbarAutoHide({
+    ownerWindow: props.ownerWindow,
+    element: () => toolbarElement,
+    enabled: () => snapping() && props.model.state.settings.toolbarAutoHide,
+    edge: dockEdge,
+    busy: () => motionSuspended() || toolbarMenuOpen() || Boolean(visibleMotionElement()) || recordingActive() || externalSurfaceOpen()
+      || colorPickerActive() || (props.pluginTools ?? []).some(toolActive) || typographyActive(),
+  });
+
   const builtinDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) => props.isBuiltinActionDisabled?.(id) ?? false;
   const viewportHeight = () => props.ownerWindow.innerHeight || 0;
   const nearTop = () => position().y < 56;
   const nearBottom = () => viewportHeight() > 0 && position().y > viewportHeight() - 56;
-  const tooltipSide = (): "top" | "bottom" => nearTop() && !nearBottom() ? "bottom" : "top";
+  const tooltipSide = (): "top" | "bottom" | "left" | "right" => vertical() ? (position().x < props.ownerWindow.innerWidth / 2 ? "right" : "left") : nearTop() && !nearBottom() ? "bottom" : "top";
 
   const guideMenuSide = (): "top" | "bottom" => {
     position();
@@ -284,10 +368,10 @@ export function Toolbar(props: ToolbarProps) {
     const toolbarBounds = toolbarElement?.getBoundingClientRect();
 
     const toolbar = toolbarBounds && {
-      left: toolbarPosition.x,
-      top: toolbarPosition.y,
-      right: toolbarPosition.x + toolbarBounds.width,
-      bottom: toolbarPosition.y + toolbarBounds.height,
+      left: snapping() ? toolbarBounds.left : toolbarPosition.x,
+      top: snapping() ? toolbarBounds.top : toolbarPosition.y,
+      right: (snapping() ? toolbarBounds.left : toolbarPosition.x) + toolbarBounds.width,
+      bottom: (snapping() ? toolbarBounds.top : toolbarPosition.y) + toolbarBounds.height,
     };
 
     const viewportWidth = props.ownerWindow.innerWidth || MOTION_PLAYER_WIDTH + VIEWPORT_PADDING * 2;
@@ -305,6 +389,20 @@ export function Toolbar(props: ToolbarProps) {
         bottom: null,
         width,
         maxHeight: Math.max(0, viewportHeightValue - VIEWPORT_PADDING * 2),
+      };
+    }
+
+    if (vertical()) {
+      const leftSide = toolbar.left < viewportWidth / 2;
+      const room = leftSide ? viewportWidth - toolbar.right - MOTION_PLAYER_GAP - VIEWPORT_PADDING : toolbar.left - MOTION_PLAYER_GAP - VIEWPORT_PADDING;
+      const sideWidth = Math.min(width, Math.max(0, room));
+
+      return {
+        left: leftSide ? toolbar.right + MOTION_PLAYER_GAP : toolbar.left - MOTION_PLAYER_GAP - sideWidth,
+        top: Math.min(Math.max(VIEWPORT_PADDING, toolbar.top), Math.max(VIEWPORT_PADDING, viewportHeightValue - MOTION_PLAYER_IDEAL_HEIGHT - VIEWPORT_PADDING)),
+        bottom: null,
+        width: sideWidth,
+        maxHeight: viewportHeightValue - VIEWPORT_PADDING * 2,
       };
     }
 
@@ -575,11 +673,27 @@ export function Toolbar(props: ToolbarProps) {
     let nextPosition = origin;
     const pointerId = event.pointerId;
 
+    const grab = vertical()
+      ? { along: (startY - rect.top) / rect.height, across: (startX - rect.left) / rect.width }
+      : { along: (startX - rect.left) / rect.width, across: (startY - rect.top) / rect.height };
+
+    let pushed = false;
+    let latched = false;
+    let lastPointer = { x: startX, y: startY };
+
     // Drag the painted surface on the compositor. Commit reactive position and
     // persistence only once, on release; nearby previews must not rerender for
     // every pointer event.
     const paint = () => {
       dragFrame = 0;
+
+      if (snapping()) {
+        setPosition(nextPosition);
+        playTurn();
+
+        return;
+      }
+
       const delta = `translate3d(${nextPosition.x - origin.x}px, ${nextPosition.y - origin.y}px, 0)`;
 
       surface.style.transform = delta;
@@ -608,7 +722,21 @@ export function Toolbar(props: ToolbarProps) {
       }
 
       didDrag = true;
-      nextPosition = constrainToolbarPosition(
+      lastPointer = { x: next.clientX, y: next.clientY };
+
+      if (snapping()) {
+        const result = dragToolbarPosition({ pointer: lastPointer, grab, glued: dockEdge(), upright: vertical(), pushed, latched, sizeFor, viewport: viewport() });
+        pushed = result.pushed;
+        latched = result.latched;
+        setDockEdge(result.side);
+        turn(result.upright);
+        const measured = dragToolbarPosition({ pointer: lastPointer, grab, glued: result.side, upright: result.upright, pushed, latched, sizeFor, viewport: viewport() });
+        nextPosition = safePosition(measured.position);
+        const square = Math.min(barSize().width, barSize().height);
+        setLanding(result.side
+          ? { side: result.side, align: dockAlignFor(result.side, nextPosition, barSize(), viewport()) }
+          : nearestDropFor(lastPointer, result.upright, { width: square, height: square }, viewport()));
+      } else nextPosition = constrainToolbarPosition(
         props.ownerWindow,
         { x: origin.x + dx, y: origin.y + dy },
         { width: rect.width, height: rect.height },
@@ -621,6 +749,7 @@ export function Toolbar(props: ToolbarProps) {
     const finish = (commit: boolean) => {
       if (dragFrame) props.ownerWindow.cancelAnimationFrame(dragFrame);
       dragFrame = 0;
+      setLanding(null);
 
       surface.style.transform = previousTransform;
       surface.style.willChange = previousWillChange;
@@ -633,8 +762,24 @@ export function Toolbar(props: ToolbarProps) {
       // Clear the transient transform BEFORE the Solid position commit. The
       // attached player measures the toolbar rect and must never see both.
       if (didDrag && commit) {
+        if (snapping()) {
+          const square = Math.min(barSize().width, barSize().height);
+
+          const landing = dockEdge()
+            ? { side: dockEdge()!, align: dockAlignFor(dockEdge()!, nextPosition, barSize(), viewport()) }
+            : nearestDropFor(lastPointer, vertical(), { width: square, height: square }, viewport());
+
+          setDockEdge(landing.side);
+          dockAlign = landing.align;
+          setDockAlignment(dockAlign);
+          turn(isVerticalToolbarSide(landing.side));
+          nextPosition = safePosition(alignedDockPosition(landing.side, dockAlign, barSize(), viewport()));
+          glide();
+        }
+
         setPosition(nextPosition);
-        props.onPositionChange?.(nextPosition);
+        playTurn();
+        reportPosition(nextPosition);
       }
 
       setMotionSuspended(false);
@@ -935,6 +1080,8 @@ export function Toolbar(props: ToolbarProps) {
     const syncWidths = () => {
       stage.style.setProperty("--msr-select-mode-w", `${selectPanel.offsetWidth}px`);
       stage.style.setProperty("--msr-edit-mode-w", `${editPanel.offsetWidth}px`);
+      stage.style.setProperty("--msr-select-mode-h", `${selectPanel.offsetHeight}px`);
+      stage.style.setProperty("--msr-edit-mode-h", `${editPanel.offsetHeight}px`);
     };
 
     syncWidths();
@@ -958,9 +1105,180 @@ export function Toolbar(props: ToolbarProps) {
     };
   });
 
+  let wasSnapping = untrack(snapping);
+
+  createEffect(snapping, (snap) => {
+    if (snap === wasSnapping) return;
+    wasSnapping = snap;
+    untrack(() => {
+      if (snap) settleDock();
+      else {
+        setDockEdge(null);
+        turn(false);
+        setPosition(safePosition(position()));
+        playTurn();
+        reportPosition(position());
+      }
+    });
+  });
+
+  createEffect(() => [autoHide.tucked(), gliding(), vertical()] as const, () => {
+    let frame = 0;
+    const until = props.ownerWindow.performance.now() + 400;
+
+    const follow = () => {
+      setViewportRevision((value) => value + 1);
+
+      if (props.ownerWindow.performance.now() < until) frame = props.ownerWindow.requestAnimationFrame(follow);
+    };
+
+    frame = props.ownerWindow.requestAnimationFrame(follow);
+
+    return () => props.ownerWindow.cancelAnimationFrame(frame);
+  });
+
+  onSettled(() => {
+    let persistTimer = 0;
+
+    const settle = () => {
+      if (!snapping() || motionSuspended()) return;
+      settleDock();
+      props.ownerWindow.clearTimeout(persistTimer);
+      persistTimer = props.ownerWindow.setTimeout(() => reportPosition(position()), 300);
+    };
+
+    const observer = new ResizeObserver(settle);
+
+    if (toolbarElement) observer.observe(toolbarElement);
+    props.ownerWindow.addEventListener("resize", settle);
+    settle();
+
+    return () => {
+      observer.disconnect();
+      props.ownerWindow.removeEventListener("resize", settle);
+      props.ownerWindow.clearTimeout(persistTimer);
+      props.ownerWindow.clearTimeout(glideTimer);
+      turnAnimation.cancel();
+    };
+  });
+
+  onSettled(() => {
+    const bar = toolbarElement;
+
+    if (!bar) return;
+    let frame = 0;
+    let followUntil = 0;
+    const placed = new Map<HTMLElement, Map<string, string>>();
+
+    const place = () => {
+      frame = 0;
+
+      if (vertical()) {
+        const rect = bar.getBoundingClientRect();
+        const leftSide = rect.left < props.ownerWindow.innerWidth / 2;
+
+        for (const surface of bar.querySelectorAll<HTMLElement>("[role='menu'], [role='dialog']")) {
+          const anchor = surface.parentElement?.getBoundingClientRect();
+
+          if (!anchor) continue;
+          const size = surface.getBoundingClientRect();
+          const width = Math.min(size.width, Math.max(0, leftSide ? props.ownerWindow.innerWidth - rect.right - 16 : rect.left - 16));
+          const left = leftSide ? rect.right + 8 : rect.left - width - 8;
+          const top = Math.max(8, Math.min(anchor.top, props.ownerWindow.innerHeight - size.height - 8));
+
+          const write = (key: string, value: string) => {
+            let original = placed.get(surface);
+
+            if (!original) { original = new Map(); placed.set(surface, original); }
+
+            if (!original.has(key)) original.set(key, surface.style.getPropertyValue(key));
+
+            if (surface.style.getPropertyValue(key) !== value) surface.style.setProperty(key, value);
+          };
+
+          write("position", "absolute");
+          write("left", `${left - anchor.left}px`);
+          write("top", `${top - anchor.top}px`);
+          write("bottom", "auto");
+          write("right", "auto");
+          write("margin", "0");
+          write("width", `${width}px`);
+          write("max-height", `${props.ownerWindow.innerHeight - 16}px`);
+        }
+      } else if (placed.size) {
+        for (const [surface, original] of placed) {
+          for (const [key, value] of original) {
+            if (value) surface.style.setProperty(key, value);
+            else surface.style.removeProperty(key);
+          }
+        }
+
+        placed.clear();
+        setViewportRevision((value) => value + 1);
+      }
+
+      if (props.ownerWindow.performance.now() < followUntil) frame = props.ownerWindow.requestAnimationFrame(place);
+    };
+
+    const schedule = () => {
+      followUntil = props.ownerWindow.performance.now() + 400;
+
+      if (!frame) frame = props.ownerWindow.requestAnimationFrame(place);
+    };
+
+    const mutation = new MutationObserver(schedule);
+    mutation.observe(bar, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-orientation", "data-tucked", "data-dock-edge"] });
+    const resize = new ResizeObserver(schedule);
+    resize.observe(bar);
+    props.ownerWindow.addEventListener("resize", schedule);
+    schedule();
+
+    return () => {
+      mutation.disconnect();
+      resize.disconnect();
+      props.ownerWindow.removeEventListener("resize", schedule);
+      props.ownerWindow.cancelAnimationFrame(frame);
+    };
+  });
+
+  onSettled(() => {
+    const root = toolbarElement?.closest("[data-mesurer-root]");
+
+    if (!root) return;
+    const selector = "[data-mesurer-screenshot-preview], [data-mesurer-screenshot-viewer], [data-mesurer-recording-preview], [role='dialog']";
+
+    const sync = () => setExternalSurfaceOpen(
+      Array.from(root.querySelectorAll<HTMLElement>(selector)).some((element) =>
+        !toolbarElement?.contains(element) && element.getClientRects().length > 0 && getComputedStyle(element).display !== "none"),
+    );
+
+    const observer = new MutationObserver((records) => {
+      if (records.some((record) => record.type === "childList"
+        || (record.target instanceof Element && record.target.matches(selector)))) sync();
+    });
+
+    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["style", "hidden", "aria-hidden"] });
+    sync();
+
+    return () => observer.disconnect();
+  });
+
 
   return (
     <>
+      <Show when={snapping() && landing()}>
+        <For each={TOOLBAR_SIDES}>{(side) => (
+          <For each={isVerticalToolbarSide(side) ? DOCK_ALIGNS.slice(0, 1) : DOCK_ALIGNS}>{(align) => (
+            <div class="mesurer-toolbar-zone" data-active={landing()?.side === side && landing()?.align === align ? "true" : undefined} style={(() => {
+              const square = Math.min(barSize().width, barSize().height);
+              const point = alignedDockPosition(side, align, { width: square, height: square }, viewport());
+              const safe = safePosition(point, { width: square, height: square });
+
+              return { left: `${safe.x}px`, top: `${safe.y}px`, width: `${square}px`, height: `${square}px` };
+            })()} />
+          )}</For>
+        )}</For>
+      </Show>
       {(() => {
         const motionElement = visibleMotionElement();
 
@@ -1019,9 +1337,14 @@ export function Toolbar(props: ToolbarProps) {
       data-mesurer-toolbar="true"
       data-mesurer-toolbar-compact={compact() ? "true" : "false"}
       data-mesurer-toolbar-mode={toolbarMode()}
+      data-orientation={vertical() ? "vertical" : "horizontal"}
+      data-dock-edge={snapping() ? dockEdge() ?? undefined : undefined}
+      data-dock-align={snapping() ? dockAlignment() : undefined}
+      data-tucked={autoHide.tucked() ? "true" : undefined}
+      data-tuck-locked={autoHide.pressedOff() ? "true" : undefined}
       data-mesurer-inspector-ui="true"
       class={`mesurer-toolbar-surface msr:pointer-events-auto msr:absolute msr:flex msr:items-stretch msr:rounded-[12px] msr:bg-[#fff] msr:outline msr:outline-transparent ${toolbarMenuOpen() ? "msr:z-[110]" : "msr:z-[90]"}`}
-      style={{ left: `${position().x}px`, top: `${position().y}px` }}
+      style={{ left: `${position().x}px`, top: `${position().y}px`, "--msr-tuck-safe-offset": `${tuckSafeOffset()}px`, transition: gliding() ? "left 280ms cubic-bezier(0.2, 0.9, 0.3, 1), top 378ms cubic-bezier(0.3, 1.2, 0.5, 1), transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1)" : undefined }}
       onPointerDown={(event) => { event.stopPropagation(); props.model.setTransient({ toolbarActive: true }); onToolbarPointerDown(event); }}
       onClick={(event) => event.stopPropagation()}
       onMouseEnter={refreshColorPickerCapability}

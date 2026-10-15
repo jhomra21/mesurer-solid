@@ -7,7 +7,7 @@ export function Tooltip(props: {
   shortcut?: string;
   visible?: boolean;
   instant?: boolean;
-  side?: "top" | "bottom";
+  side?: "top" | "bottom" | "left" | "right";
   class?: string;
 }) {
   const side = () => props.side ?? "top";
@@ -15,6 +15,7 @@ export function Tooltip(props: {
   return (
     <span
       role="tooltip"
+      data-tooltip-side={side()}
       class={`msr:pointer-events-none msr:absolute msr:left-1/2 msr:-translate-x-1/2 msr:whitespace-nowrap msr:rounded msr:bg-black msr:px-2 msr:py-1 msr:text-[11px] msr:text-white msr:transition-opacity msr:duration-150 msr:select-none ${props.instant ? "msr:transition-none" : ""} ${side() === "top" ? "msr:bottom-full msr:mb-2" : "msr:top-full msr:mt-2"} ${props.visible === undefined ? "" : props.visible ? "msr:opacity-100" : "msr:opacity-0"} ${props.class ?? ""}`}
     >
       {props.label}{props.shortcut ? <> <kbd class="msr:text-white/60">{props.shortcut}</kbd></> : null}

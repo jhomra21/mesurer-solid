@@ -914,3 +914,107 @@ body.mesurer-solid-xray .mesurer-ti-close {
 [data-mesurer-root="true"][data-mesurer-recording-active] [data-mesurer-motion-surface="true"] {
   display: none !important;
 }
+
+/* Docking changes the flow axis, not tool ownership or mode membership. */
+.mesurer-toolbar-zone {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 9px;
+  box-sizing: border-box;
+  border: 1px dashed rgb(15 15 20 / 6%);
+  outline: 1px dashed rgb(255 255 255 / 7%);
+  outline-offset: -2px;
+  background: rgb(15 15 20 / 1%);
+  animation: mesurer-toolbar-zone-in 180ms ease-out both;
+}
+.mesurer-toolbar-zone[data-active="true"] {
+  border-color: rgb(15 15 20 / 14%);
+  background: rgb(15 15 20 / 3.5%);
+}
+@keyframes mesurer-toolbar-zone-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+[data-mesurer-toolbar][data-orientation="vertical"] {
+  flex-direction: column;
+}
+[data-mesurer-toolbar][data-orientation="vertical"] > div:not([role="dialog"]),
+[data-mesurer-toolbar][data-orientation="vertical"] [role="group"],
+[data-mesurer-toolbar][data-orientation="vertical"] .mesurer-toolbar-mode-panel,
+[data-mesurer-toolbar][data-orientation="vertical"] .mesurer-toolbar-mode-track,
+[data-mesurer-toolbar][data-orientation="vertical"] [data-mesurer-toolbar-compact-item] {
+  flex-direction: column;
+}
+[data-mesurer-toolbar][data-orientation="vertical"] [role="group"] {
+  padding: 2px 4px;
+}
+[data-mesurer-toolbar][data-orientation="vertical"] [data-mesurer-toolbar-compact-item] {
+  max-width: none;
+  padding: 2px 0;
+  transition-property: max-height, opacity, transform, padding;
+}
+[data-mesurer-toolbar][data-orientation="vertical"] [data-mesurer-toolbar-compact-item][data-visible="false"] {
+  max-height: 0;
+  padding: 0;
+  transform: translateY(-4px);
+}
+[data-mesurer-toolbar][data-orientation="vertical"] [data-mesurer-toolbar-compact-item][data-visible="true"] {
+  max-height: 80px;
+}
+[data-mesurer-toolbar][data-orientation="vertical"] [data-mesurer-toolbar-divider] {
+  width: auto;
+  height: 1px;
+  transition-property: height, opacity;
+}
+[data-mesurer-toolbar][data-orientation="vertical"] [data-mesurer-toolbar-divider].msr\:opacity-0 {
+  height: 0;
+}
+[data-mesurer-toolbar][data-orientation="vertical"] .mesurer-toolbar-mode-stage,
+[data-mesurer-toolbar][data-orientation="vertical"] .mesurer-toolbar-mode-slot {
+  width: auto;
+  height: var(--msr-select-mode-h, auto);
+}
+[data-mesurer-toolbar][data-orientation="vertical"] .mesurer-toolbar-mode-stage[data-mode="edit"],
+[data-mesurer-toolbar][data-orientation="vertical"] .mesurer-toolbar-mode-slot[data-mode="edit"] {
+  height: var(--msr-edit-mode-h, auto);
+}
+[data-mesurer-toolbar][data-orientation="vertical"] .mesurer-toolbar-mode-stage {
+  transition-property: height;
+}
+[data-mesurer-toolbar][data-orientation="vertical"] .mesurer-toolbar-mode-track {
+  width: auto;
+  height: max-content;
+}
+[data-mesurer-toolbar][data-orientation="vertical"] .mesurer-toolbar-mode-panel {
+  width: auto;
+  height: max-content;
+}
+[data-mesurer-toolbar][data-orientation="vertical"] .mesurer-toolbar-mode-stage[data-mode="edit"] .mesurer-toolbar-mode-track {
+  transform: translateY(calc(-1 * var(--msr-select-mode-h)));
+}
+[data-mesurer-toolbar][data-orientation="vertical"] .mesurer-toolbar-mode-switch[data-value="edit"] .mesurer-toolbar-mode-switch-pill {
+  transform: translateY(30px);
+}
+[data-mesurer-toolbar][data-orientation="vertical"] .mesurer-toolbar-mode-switch[data-compact="true"] .mesurer-toolbar-mode-switch-pill {
+  transform: none;
+}
+[data-mesurer-toolbar][data-dock-edge] {
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+[data-mesurer-toolbar][data-tucked="true"]:is(:not(:hover), [data-tuck-locked="true"])[data-dock-edge="top"] { transform: translateY(calc(-100% - 10px + var(--msr-tuck-safe-offset, 0px))); }
+[data-mesurer-toolbar][data-tucked="true"]:is(:not(:hover), [data-tuck-locked="true"])[data-dock-edge="bottom"] { transform: translateY(calc(100% + 10px)); }
+[data-mesurer-toolbar][data-tucked="true"]:is(:not(:hover), [data-tuck-locked="true"])[data-dock-edge="left"] { transform: translateX(calc(-100% - 10px)); }
+[data-mesurer-toolbar][data-tucked="true"]:is(:not(:hover), [data-tuck-locked="true"])[data-dock-edge="right"] { transform: translateX(calc(100% + 10px)); }
+[role="tooltip"][data-tooltip-side="left"],
+[role="tooltip"][data-tooltip-side="right"] {
+  top: 50%;
+  bottom: auto;
+  margin: 0;
+  transform: translateY(-50%);
+}
+[role="tooltip"][data-tooltip-side="left"] { left: auto; right: calc(100% + 8px); }
+[role="tooltip"][data-tooltip-side="right"] { left: calc(100% + 8px); right: auto; }
+@media (prefers-reduced-motion: reduce) {
+  [data-mesurer-toolbar][data-dock-edge] { transition: none !important; }
+  .mesurer-toolbar-zone { animation: none; }
+}

@@ -699,6 +699,23 @@ jobs:
           ./node_modules/.bin/electron main-bundled.cjs
           cat artifacts/result.json
 
+      - name: Verify native toolbar docking window topologies
+        if: always()
+        run: |
+          cd /tmp/mesurer-electron-macos
+          bun build toolbar-docking-renderer.ts --target browser --format esm --outfile=toolbar-docking-renderer.js
+          MESURER_ELECTRON_DOCKING_OUT=/tmp/mesurer-electron-macos/docking-artifacts \
+            ./node_modules/.bin/electron toolbar-docking.cjs
+
+      - name: Upload native docking evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: macos-electron-docking
+          path: /tmp/mesurer-electron-macos/docking-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload macOS Electron evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

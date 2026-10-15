@@ -19,7 +19,7 @@ type ToolbarButtonProps = {
   onClick: () => void;
   tooltipVisible: boolean;
   tooltipInstant: boolean;
-  tooltipSide: "top" | "bottom";
+  tooltipSide: "top" | "bottom" | "left" | "right";
   onTooltipEnter: (id: string) => void;
   onTooltipLeave: () => void;
   children: any;
@@ -95,7 +95,7 @@ export function ToolbarModeSwitch(props: {
   shortcutsEnabled: boolean;
   tooltipVisibleId: string | null;
   tooltipInstant: boolean;
-  tooltipSide: "top" | "bottom";
+  tooltipSide: "top" | "bottom" | "left" | "right";
   onTooltipEnter: (id: string) => void;
   onTooltipLeave: () => void;
   onSelect: () => void;

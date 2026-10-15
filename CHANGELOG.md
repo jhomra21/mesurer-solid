@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Add opt-in toolbar edge/corner docking, vertical side layouts, and optional auto-hide in Settings. Free dragging remains the default; dock placement survives tab reloads and respects native window controls.
+
 ## 0.2.3-beta.0 - 2026-10-15
 
 - Build Mesurer with Solid 2.0.0-rc.15 (previously 2.0.0-rc.0). Solid stays bundled inside `mesurer-solid`, so applications do not need to install or upgrade Solid.

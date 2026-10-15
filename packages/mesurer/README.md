@@ -111,6 +111,7 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Keep saved annotations across same-tab reloads and conservatively rebind them to their original DOM targets; markers, cards, and ownership evidence stay attached through scrolling, repeated-note markers stay local, Add Note remains available while a note is open, and cards/composers occlude Select hover and selection chrome.
 - Extend the runtime with tools, settings, overlays, commands, hooks, state, and services.
 - Compact the toolbar to the current mode and active tools with their pressed state, while keeping the expand control visible; the Settings shortcut remains available when shortcuts are enabled.
+- Keep Free dragging by default, or choose **Settings > General > Dock > Snap to edges** for edge/corner docking and vertical side layouts. The optional **Auto-hide** switch appears in Snap mode. Edge, alignment, and orientation follow the toolbar's existing tab-session placement lifetime.
 - Choose System, Light, or Dark appearance while keeping the same theme across isolated and document-backed Mesurer UI.
 
 Use `1` for Select and `2` for Edit. Select owns X-ray, Color Picker, Typography, Screenshot, Recording, and built-in Motion inspection, including across accessible same-origin iframes. Edit owns movement and direct text/style changes. Rulers, Guides, and Layout Guides remain usable in both modes; Context and Codex remain visible in both modes. The grouped toolbar changes modes in 150 ms. `Shift+A` still enters Edit as a compatibility shortcut.
