@@ -1,6 +1,10 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
-import { getSelectionChromeTarget, registerNativeScrollAnchoring } from "./native-scroll-registry";
+import {
+  getSelectionChromeTarget,
+  notifySelectionAnchorsChanged,
+  registerNativeScrollAnchoring,
+} from "./native-scroll-registry";
 
 const SCROLL_IDLE_MS = 80;
 
@@ -529,7 +533,18 @@ body:has([data-mesurer-text-editor="true"]) [data-mesurer-source-selection-paint
     return selectedTargets.length === 1 ? selectedTargets[0] : null;
   };
 
+  const selectionAnchorNames = () =>
+    Array.from(selectionBindings.values(), (binding) => binding.name).join("|");
+
   const stabilizeSelections = () => {
+    const anchorsBefore = selectionAnchorNames();
+
+    reconcileSelectionBindings();
+
+    if (selectionAnchorNames() !== anchorsBefore) notifySelectionAnchorsChanged(ownerDocument);
+  };
+
+  const reconcileSelectionBindings = () => {
     const roots = new Set<HTMLElement>();
 
     for (const root of selectionBindings.keys()) if (root.isConnected) roots.add(root);

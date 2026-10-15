@@ -24,6 +24,26 @@ export const registerNativeScrollAnchoring = (ownerDocument: Document) => {
 export const hasNativeScrollAnchoring = (ownerDocument: Document) =>
   (nativeScrollAnchoringCounts.get(ownerDocument) ?? 0) > 0;
 
+const selectionAnchorListeners = new WeakMap<Document, Set<() => void>>();
+
+/** Selection anchor names are minted per binding, so anything keyed to one
+ * (such as Edit's source-owned stroke) must follow a rebind in the same task
+ * instead of waiting for its own frame-based refresh. */
+export const onSelectionAnchorsChanged = (ownerDocument: Document, listener: () => void) => {
+  const listeners = selectionAnchorListeners.get(ownerDocument) ?? new Set<() => void>();
+
+  listeners.add(listener);
+  selectionAnchorListeners.set(ownerDocument, listeners);
+
+  return () => {
+    listeners.delete(listener);
+  };
+};
+
+export const notifySelectionAnchorsChanged = (ownerDocument: Document) => {
+  for (const listener of Array.from(selectionAnchorListeners.get(ownerDocument) ?? [])) listener();
+};
+
 /** Link a portaled selection border to its actual element; DOMRect matching is
  * ambiguous when the border uses document coordinates during a scroll. */
 const selectionChromeTargets = new WeakMap<HTMLElement, Element>();

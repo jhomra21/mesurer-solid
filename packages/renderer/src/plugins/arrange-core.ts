@@ -17,6 +17,7 @@ import {
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { GUIDE_SNAP_DISTANCE } from "../core/constants";
 import { getTargetElement } from "../core/selection";
+import { onSelectionAnchorsChanged } from "../runtime/native-scroll-registry";
 
 export const MESURER_ARRANGE_PLUGIN_ID = "mesurer.arrange";
 
@@ -805,9 +806,17 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-multi-selection-docu
       previews.clear();
     };
 
+    // Transform previews move page elements without a scroll or resize, so the
+    // stored selection rects behind the group outline and spacing overlays must
+    // be re-measured explicitly or they stay at the pre-move position.
+    const syncSelectionGeometry = () => {
+      if (!disposed) workspace.refreshSelectionGeometry();
+    };
+
     const clearPresentationStyles = () => {
       clearPreviewStyles();
       restoreAllTransformTransitions();
+      syncSelectionGeometry();
     };
 
     const hideSnapLines = () => {
@@ -1047,6 +1056,7 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-multi-selection-docu
       }
 
       restoreUnusedTransformTransitions(activeElements);
+      syncSelectionGeometry();
     };
 
     const applyPresentation = () => applyOffsets(presentationOffsets());
@@ -1832,6 +1842,13 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-multi-selection-docu
 
     const stateSubscription = ctx.state.subscribe(scheduleRefresh);
 
+    // The native stroke is anchored by name to the selection chrome. A rebind
+    // mints a new name, so repaint the stroke in the same task rather than
+    // leaving a stale anchor until the next animation frame.
+    const selectionAnchorsUnsubscribe = onSelectionAnchorsChanged(ownerDocument, () => {
+      if (!disposed && active() && !drag) renderBox();
+    });
+
     const findIntent = (id: string) => state().intents.find((intent) => intent.id === id) ?? null;
 
     const focusRect = (intent: ArrangeIntentValue, stateValue: ArrangePresentation) => {
@@ -2159,6 +2176,7 @@ body:has([data-mesurer-text-editor="true"]) > [data-mesurer-multi-selection-docu
       ownerWindow.removeEventListener("scroll", scheduleRefresh, true);
       pageTarget.removeEventListener("scroll", scheduleRefresh, true);
       workspaceUnsubscribe();
+      selectionAnchorsUnsubscribe();
       stateSubscription.dispose();
       clearPresentationStyles();
       clearResetButtons();
