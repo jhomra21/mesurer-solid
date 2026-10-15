@@ -10,7 +10,7 @@ Mesurer Solid ports [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thi
 
 The renderer carries its own isolated Solid 2 runtime. Your application can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without installing Solid for Mesurer.
 
-**Current stable:** `mesurer-solid@0.2.1` on the `latest` dist-tag.
+**Current stable:** `mesurer-solid@0.2.2` on the `latest` dist-tag.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jhomra21/mesurer-solid/main/docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">

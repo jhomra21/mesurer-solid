@@ -4,7 +4,7 @@ Framework-agnostic UI inspection, measurement, visual intent, and agent-readable
 
 Mesurer Solid ships its own isolated Solid 2 renderer. Host applications can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without providing Solid.
 
-**Current stable:** `mesurer-solid@0.2.1` on the `latest` dist-tag.
+**Current stable:** `mesurer-solid@0.2.2` on the `latest` dist-tag.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jhomra21/mesurer-solid/main/docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">

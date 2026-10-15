@@ -1,6 +1,6 @@
 # Getting started
 
-Mesurer runs in the browser. Mount it once from the browser entry for the page or renderer you want to inspect. The current stable package is `mesurer-solid@0.2.1` on `latest`.
+Mesurer runs in the browser. Mount it once from the browser entry for the page or renderer you want to inspect. The current stable package is `mesurer-solid@0.2.2` on `latest`.
 
 ## Install
 

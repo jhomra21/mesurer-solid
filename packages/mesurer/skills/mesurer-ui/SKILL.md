@@ -5,7 +5,7 @@ description: Use Mesurer for frontend UI implementation, review, debugging, layo
 
 # Mesurer UI workflow
 
-Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. This skill matches `mesurer-solid@0.2.1` stable. The rendered page is the integration boundary.
+Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. This skill matches `mesurer-solid@0.2.2` stable. The rendered page is the integration boundary.
 
 The normal coding-agent workflow requires no Mesurer MCP server or Send-to-agent callback. Use the browser/evaluation channel the browser controller already provides and read `window.__MESURER__` directly. The first-party `codex()` plugin is a separate human-initiated **Settings -> Codex** convenience for routing Context feedback into local Codex threads. Do not confuse it with the Mesurer Solid ChatGPT/Codex agent plugin.
 
