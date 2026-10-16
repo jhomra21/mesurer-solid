@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.2.3-beta.5 - 2026-10-16
+
 - Responsive now supports up to six presets or page-breakpoint viewports, per-axis resize, reorder without iframe reload, remove, shared Fit/manual zoom, and stage/frame wheel routing. Preview list and zoom survive close/reopen in page memory only and reset when the page key changes.
 
 ## 0.2.3-beta.4 - 2026-10-16
