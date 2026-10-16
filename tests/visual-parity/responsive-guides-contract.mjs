@@ -74,22 +74,6 @@ try {
   const firstBox = await frame.nth(0).boundingBox();
   const scale = await frame.nth(0).evaluate((node) => node.getBoundingClientRect().width / node.offsetWidth);
   assert(firstBox && scale > 0, "First preview has a rendered scale");
-  const clickPoint = { x: firstBox.x + 132 * scale, y: firstBox.y + 286 * scale };
-  await page.mouse.move(clickPoint.x, clickPoint.y);
-  await page.mouse.down();
-  await page.mouse.move(clickPoint.x + 110 * scale, clickPoint.y + 20 * scale, { steps: 4 });
-  await page.mouse.up();
-  await page.waitForFunction(() => document.querySelector("[data-mesurer-island]")?.shadowRoot?.querySelectorAll("[data-mesurer-preview-guide]").length > 0);
-
-  const storedFirst = await page.locator("[data-mesurer-island]").evaluate((host) => {
-    const guide = host.shadowRoot.querySelector("[data-mesurer-preview-guide]");
-    const layer = guide?.parentElement;
-
-    return { id: guide?.dataset.mesurerPreviewGuide, orientation: guide?.dataset.orientation, position: Number(guide?.dataset.position), active: layer?.dataset.mesurerGuidesActive };
-  });
-
-  assert.equal(storedFirst.orientation, "vertical");
-
   const snapEdges = await frame.first().evaluate((node) => [...node.contentDocument.querySelectorAll("body *")]
     .filter((element) => {
       const rect = element.getBoundingClientRect();
@@ -101,6 +85,25 @@ try {
 
       return [rect.left, rect.right, rect.left + rect.width / 2];
     }));
+  // Text-derived edges vary by platform fonts, so release near a measured edge rather than a fixed coordinate.
+  const creationEdge = snapEdges
+    .filter((edge) => edge > 160 && edge < 300)
+    .reduce((best, edge) => (Math.abs(edge - 242) < Math.abs(best - 242) ? edge : best));
+  const clickPoint = { x: firstBox.x + 132 * scale, y: firstBox.y + 286 * scale };
+  await page.mouse.move(clickPoint.x, clickPoint.y);
+  await page.mouse.down();
+  await page.mouse.move(firstBox.x + (creationEdge + 3) * scale, clickPoint.y + 20 * scale, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForFunction(() => document.querySelector("[data-mesurer-island]")?.shadowRoot?.querySelectorAll("[data-mesurer-preview-guide]").length > 0);
+
+  const storedFirst = await page.locator("[data-mesurer-island]").evaluate((host) => {
+    const guide = host.shadowRoot.querySelector("[data-mesurer-preview-guide]");
+    const layer = guide?.parentElement;
+
+    return { id: guide?.dataset.mesurerPreviewGuide, orientation: guide?.dataset.orientation, position: Number(guide?.dataset.position), active: layer?.dataset.mesurerGuidesActive };
+  });
+
+  assert.equal(storedFirst.orientation, "vertical");
 
   assert(snapEdges.some((edge) => Math.abs(edge - storedFirst.position) < 1),
     `Snapped guide must equal a preview element edge/center in preview CSS px: ${JSON.stringify({ storedFirst, snapEdges })}`);
