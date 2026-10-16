@@ -185,16 +185,17 @@ try {
   await page.mouse.click(refreshedProjection.x + refreshedProjection.width / 2, refreshedProjection.y + refreshedProjection.height / 2);
   await page.waitForFunction(() => Boolean(document.querySelector("[data-mesurer-island]")?.shadowRoot?.querySelector("[data-mesurer-selected-measurement='true']")));
 
-  assert.equal(await page.locator("[data-mesurer-annotation-trigger='true']").count(), 0,
-    "Context annotation trigger must be unavailable while preview targets use root-projected geometry");
+  assert.equal(await page.locator("[data-mesurer-annotation-trigger='true']").count(), 1,
+    "Context annotation trigger is available for viewport-scoped preview targets");
   const addNote = page.locator("[data-mesurer-tool-id='context.add-note'] button");
-  assert.equal(await addNote.isDisabled(), true, "Add Note toolbar action must be disabled for preview selection");
+  assert.equal(await addNote.isDisabled(), false, "Add Note toolbar action must be enabled for preview selection");
   await page.evaluate(async () => {
     const host = await window.__responsiveMount.ready;
     await host.command.execute("context.add-note");
   });
-  assert.equal(await page.locator("[data-mesurer-annotation-composer='true']").count(), 0,
-    "context.add-note command must not open a composer for preview selection");
+  assert.equal(await page.locator("[data-mesurer-annotation-composer='true']").count(), 1,
+    "context.add-note command opens a composer for preview selection");
+  await page.locator("[data-mesurer-annotation-composer='true'] textarea").press("Escape");
 
   await page.locator("[data-mesurer-builtin='text-inspector'] button").click();
   const typographyTarget = page.frameLocator("iframe[data-mesurer-responsive-frame]").getByTestId("inspection-target");

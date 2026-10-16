@@ -320,7 +320,9 @@ export function ContextActions(props: ContextActionsProps) {
 
     if (!annotation || annotation.anchor.kind !== "elements") return null;
 
-    return annotation.resolvedTargets.find(({ element }) => element?.isConnected)?.element ?? null;
+    if (!props.runtime.annotationVisible(annotationId)) return null;
+
+    return annotation.resolvedTargets.find(({ element }) => element?.isConnected && !isResponsivePreviewDocument(element.ownerDocument))?.element ?? null;
   };
 
   const canUseNativeAnnotationAnchor = (target: Element) => Boolean(
@@ -440,6 +442,12 @@ export function ContextActions(props: ContextActionsProps) {
 
   const syncSelectionTriggerAnchor = () => {
     const element = currentSelectionTriggerElement();
+
+    if (element && isResponsivePreviewDocument(element.ownerDocument)) {
+      releaseSelectionTriggerAnchor();
+
+      return;
+    }
 
     if (fallbackTriggerElement && element !== fallbackTriggerElement) fallbackTriggerElement = null;
     const previousElement = trackedTriggerElement;
@@ -589,7 +597,7 @@ export function ContextActions(props: ContextActionsProps) {
   let placementTarget = currentSelectionTriggerElement();
   observeTriggerGeometry(placementTarget);
 
-  const unsubscribe = props.runtime.subscribe(() => {
+  const unsubscribe = props.runtime.subscribe(() => untrack(() => {
     const selectGestureActive = props.runtime.selectGestureActive();
 
     if (noteComposerOpen() && selectGestureActive) {
@@ -620,10 +628,10 @@ export function ContextActions(props: ContextActionsProps) {
 
     syncSelectionTriggerAnchor();
 
-    if (targetChanged) bumpTriggerPlacement();
+    if (targetChanged || (nextPlacementTarget && isResponsivePreviewDocument(nextPlacementTarget.ownerDocument))) bumpTriggerPlacement();
     setRevision((value) => value + 1);
     reconcileAnnotationGeometry();
-  });
+  }));
 
   syncSelectionTriggerAnchor();
   ownerWindow().queueMicrotask(syncAnnotationScrollBindings);
@@ -649,7 +657,7 @@ export function ContextActions(props: ContextActionsProps) {
   const annotations = createMemo(() => {
     revision();
 
-    return props.runtime.annotations();
+    return props.runtime.annotations().filter((annotation) => props.runtime.annotationVisible(annotation.id));
   });
 
   const activeAnnotation = createMemo(() => {
@@ -670,7 +678,7 @@ export function ContextActions(props: ContextActionsProps) {
     triggerRevision();
     const annotationId = highlightedAnnotationId();
 
-    if (!annotationId) return [];
+    if (!annotationId || !props.runtime.annotationVisible(annotationId)) return [];
     const annotation = props.runtime.annotation(annotationId);
 
     if (!annotation) return [];
@@ -742,7 +750,7 @@ export function ContextActions(props: ContextActionsProps) {
 
     const element = selectionTriggerElement();
 
-    if (!element?.isConnected || isResponsivePreviewDocument(element.ownerDocument)) return null;
+    if (!element?.isConnected) return null;
     const rect = getRectFromDom(element);
     const value = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
     const currentWindow = ownerWindow();
@@ -1096,7 +1104,6 @@ export function ContextActions(props: ContextActionsProps) {
   const openNoteComposer = () => {
     if (!hasSelection()) return;
 
-    if (props.runtime.currentSelection().elements.some((element) => isResponsivePreviewDocument(element.ownerDocument))) return;
     fallbackNextSelection = false;
     composerSelection = captureSelection();
     setNote("");
@@ -1148,12 +1155,6 @@ export function ContextActions(props: ContextActionsProps) {
 
   const addNote = () => {
     if (!note().trim() || busy()) return;
-
-    if (props.runtime.currentSelection().elements.some((element) => isResponsivePreviewDocument(element.ownerDocument))) {
-      setNoteError("Context annotations are unavailable for Responsive preview targets.");
-
-      return;
-    }
 
     try {
       const annotation = props.runtime.addSelectionAnnotation(note());

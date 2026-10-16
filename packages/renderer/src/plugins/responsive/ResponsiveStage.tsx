@@ -329,6 +329,8 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
 
         if (removeButton) removeButton.disabled = previews.length <= 1;
       }
+
+      win.dispatchEvent(new CustomEvent("mesurer:responsive-stage-change"));
     };
 
     const removePreview = (id: number) => {
@@ -460,6 +462,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       setStyles(frameWrap, { position: "relative", overflow: "hidden" });
       const frame = doc.createElement("iframe");
       frame.dataset.mesurerResponsiveFrame = "true";
+      frame.dataset.mesurerResponsivePreviewId = String(item.id);
       frame.title = `${item.name} preview`;
       frame.setAttribute("sandbox", RESPONSIVE_FRAME_SANDBOX);
       frame.src = win.location.href;
