@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import { chromium } from "playwright";
 
-const url = process.env.NORMAL_CONTEXT_URL ?? "http://127.0.0.1:4174/";
+const outputDir = process.env.NORMAL_CONTEXT_ARTIFACT_DIR ?? "normal-context-annotation-artifacts";
+
+await fs.mkdir(outputDir, { recursive: true });
+
+const url = process.env.NORMAL_CONTEXT_URL ?? "http://localhost:4174/";
 
 // Use the Playwright-managed browser locally. CI explicitly requests Chrome
 // to preserve its stable macOS integration gate.
@@ -134,7 +139,7 @@ const saveNote = async (composer, text) => {
   const textarea = composer.locator("textarea");
   await clickDocumentUi(textarea, "annotation note textarea");
   await textarea.fill(text);
-  await clickDocumentUi(composer.getByRole("button", { name: "Add note", exact: true }), "Add note submit button");
+  await textarea.press("Enter");
   await composer.waitFor({ state: "hidden" });
 };
 
@@ -355,38 +360,132 @@ try {
   const composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
   await assertDocumentSurface(composer, "Add Note composer");
+  const textarea = composer.getByRole("textbox", { name: "Note" });
+  const send = composer.getByRole("button", { name: "Add note", exact: true });
+  assert.equal(await composer.locator("textarea").count(), 1);
+  assert.equal(await composer.locator("button").count(), 1);
+  assert.equal(await send.isDisabled(), true);
+  await page.screenshot({ path: `${outputDir}/composer-empty-light.png` });
+  await textarea.fill("   ");
+  assert.equal(await send.isDisabled(), true);
+  assert.equal(await send.evaluate((button) => getComputedStyle(button).opacity), "0.4");
+  await textarea.fill("Short note");
+  assert.equal(await send.isDisabled(), false);
+  await page.screenshot({ path: `${outputDir}/composer-single-line-light.png` });
 
   const composerAppearance = await composer.evaluate((element) => {
     const textarea = element.querySelector("textarea");
-    const submit = [...element.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Add note");
-    const close = element.querySelector('button[aria-label="Close note composer"]');
-    const icon = close?.querySelector("svg");
+    const submit = element.querySelector("button");
     const box = element.getBoundingClientRect();
+    const field = textarea.getBoundingClientRect();
+    const button = submit.getBoundingClientRect();
 
     return {
       width: box.width,
       textareaFont: textarea ? getComputedStyle(textarea).fontSize : null,
-      textareaHeight: textarea?.getBoundingClientRect().height ?? 0,
+      textareaHeight: field.height,
       submitColor: submit ? getComputedStyle(submit).color : null,
       submitBackground: submit ? getComputedStyle(submit).backgroundColor : null,
-      closeIconDisplay: icon ? getComputedStyle(icon).display : null,
+      rightGap: field.right - button.right,
+      centerDelta: Math.abs(field.top + field.height / 2 - (button.top + button.height / 2)),
+      visibleText: (() => {
+        const clone = element.cloneNode(true);
+        clone.querySelector("button")?.remove();
+
+        return clone.textContent?.trim() ?? "";
+      })(),
     };
   });
 
-  assert.equal(composerAppearance.width, 272, `composer width leaked host CSS: ${JSON.stringify(composerAppearance)}`);
+  assert.equal(composerAppearance.width, 256, `composer width leaked host CSS: ${JSON.stringify(composerAppearance)}`);
   assert.equal(composerAppearance.textareaFont, "12px");
-  assert.equal(composerAppearance.textareaHeight, 80);
+  assert.equal(composerAppearance.textareaHeight, 34);
   assert.equal(composerAppearance.submitColor, "rgb(255, 255, 255)");
   assert.equal(composerAppearance.submitBackground, "rgb(13, 153, 255)");
-  assert.equal(composerAppearance.closeIconDisplay, "block");
+  assert(composerAppearance.rightGap >= 5 && composerAppearance.rightGap <= 8);
+  assert(composerAppearance.centerDelta <= 1.5);
+  assert.equal(composerAppearance.visibleText, "");
 
   const composerFrames = await captureFrameSeries(4, 6);
   assertFrameAttachment(composerFrames, ["composer"]);
-  await saveNote(composer, "Normal playground annotation acceptance");
+  await textarea.press("Shift+Enter");
+  await textarea.type("A second line");
+
+  const expanded = await textarea.evaluate((element) => {
+    const field = element.getBoundingClientRect();
+    const button = element.parentElement.querySelector("button").getBoundingClientRect();
+
+    return { height: field.height, bottomGap: field.bottom - button.bottom };
+  });
+
+  assert(expanded.height > 34 && expanded.height <= 128);
+  assert(expanded.bottomGap >= 5 && expanded.bottomGap <= 8, `expanded button placement: ${JSON.stringify(expanded)}`);
+  assert.equal(await textarea.inputValue(), "Short note\nA second line");
+  const expandedSurface = await composer.boundingBox();
+  assert(expandedSurface);
+  assert(expandedSurface.x >= 8 && expandedSurface.y >= 8);
+  assert(expandedSurface.x + expandedSurface.width <= 1162 - 8);
+  assert(expandedSurface.y + expandedSurface.height <= 494 - 8);
+  await page.screenshot({ path: `${outputDir}/composer-multiline-light.png` });
+  await textarea.fill(`${"A long annotation line that wraps in the compact composer. ".repeat(16)}`);
+
+  const capped = await textarea.evaluate((element) => ({
+    height: element.getBoundingClientRect().height,
+    overflowY: getComputedStyle(element).overflowY,
+  }));
+
+  assert.equal(capped.height, 128, `long draft did not cap at 128px: ${JSON.stringify(capped)}`);
+  assert.equal(capped.overflowY, "auto");
+
+  await textarea.fill("Short note\nA second line");
+  await textarea.press("Enter");
+  await composer.waitFor({ state: "hidden" });
 
   let markers = contextRoot.locator("[data-mesurer-annotation-marker='true']");
   await markers.first().waitFor({ state: "visible" });
   assert.equal(await markers.count(), 1, "first saved annotation marker missing");
+  assert((await markers.first().getAttribute("aria-label")).includes("A second line"), "saved note text mismatch");
+  await clickDocumentUi(trigger, "Add Note trigger for Escape dismissal");
+  const escapeComposer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
+  await escapeComposer.locator("textarea").fill("Do not save this");
+  await escapeComposer.locator("textarea").press("Escape");
+  await escapeComposer.waitFor({ state: "hidden" });
+  assert.equal(await markers.count(), 1, "Escape saved an annotation");
+  await clickDocumentUi(trigger, "Add Note trigger for IME Enter handling");
+  const imeComposer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
+  const imeTextarea = imeComposer.locator("textarea");
+  await imeTextarea.fill("IME draft");
+  await imeTextarea.evaluate((element) => element.dispatchEvent(new KeyboardEvent("keydown", {
+    key: "Enter",
+    bubbles: true,
+    cancelable: true,
+    isComposing: true,
+  })));
+  assert.equal(await imeComposer.isVisible(), true, "composing Enter submitted the draft");
+  await imeTextarea.press("Escape");
+  await imeComposer.waitFor({ state: "hidden" });
+  await clickDocumentUi(trigger, "Add Note trigger for outside dismissal");
+  const outsideComposer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
+  await outsideComposer.locator("textarea").fill("Outside click draft");
+  await page.mouse.click(16, 16);
+  assert.equal(await outsideComposer.isVisible(), true, "first outside click discarded a non-empty draft");
+  assert((await outsideComposer.textContent()).includes("Press Enter or Send to save"), "first outside click did not nudge");
+  await page.mouse.click(16, 16);
+  await outsideComposer.waitFor({ state: "hidden" });
+  assert.equal(await markers.count(), 1, "outside dismissal saved a draft");
+  await clickDocumentUi(trigger, "Add Note trigger for dark theme");
+  const darkComposer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
+  await darkComposer.evaluate((element) => element.closest("[data-mesurer-context-root='true']")?.setAttribute("data-theme", "dark"));
+  await page.screenshot({ path: `${outputDir}/composer-empty-dark.png` });
+  await darkComposer.locator("textarea").fill("Short note");
+  await page.screenshot({ path: `${outputDir}/composer-single-line-dark.png` });
+  await darkComposer.locator("textarea").press("Shift+Enter");
+  await darkComposer.locator("textarea").type("A second line");
+  await page.screenshot({ path: `${outputDir}/composer-multiline-dark.png` });
+  await darkComposer.evaluate((element) => element.closest("[data-mesurer-context-root='true']")?.removeAttribute("data-theme"));
+  await darkComposer.locator("textarea").press("Escape");
+  await darkComposer.waitFor({ state: "hidden" });
+  await clickDocumentUi(markers.first(), "saved marker after composer keyboard checks");
   const marker = markers.first();
   assert.equal(await marker.getAttribute("data-mesurer-annotation-number"), "1", "first marker must be numbered 1");
 

@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Simplified annotation writing to a compact, auto-growing text field with an in-field Send button, matching upstream. Enter sends, Shift+Enter adds a line, and Escape discards.
+
 ## 0.2.3-beta.1 - 2026-10-15
 
 - Add opt-in toolbar edge/corner docking, vertical side layouts, and optional auto-hide in Settings. Free dragging remains the default; dock placement survives tab reloads and respects native window controls.
