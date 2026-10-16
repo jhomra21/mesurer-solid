@@ -222,6 +222,7 @@ try {
   await page.locator("[data-mesurer-responsive-frame]").waitFor({ state: "detached" });
 
   await open();
+  await page.frameLocator("[data-mesurer-responsive-frame]").locator("[data-testid='breakpoint-label']").waitFor();
   await page.evaluate(() => {
     const root = document.querySelector("[data-mesurer-island]")?.shadowRoot ?? document;
     const frame = root.querySelector("iframe[data-mesurer-responsive-frame]");
