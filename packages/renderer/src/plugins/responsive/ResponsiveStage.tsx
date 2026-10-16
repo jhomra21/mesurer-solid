@@ -14,7 +14,7 @@ type ResponsiveStageProps = {
   ownerWindow: Window;
   host: HTMLElement;
   onClose(): void;
-  onFramePointerDown(): void;
+  onChromePointerMove(): void;
   shortcutsEnabled: boolean;
 };
 
@@ -29,15 +29,18 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
 
     const stage = ownerDocument.createElement("div");
     stage.dataset.mesurerResponsiveStage = "true";
-    stage.dataset.mesurerInspectorUi = "true";
+
     setStyles(stage, {
       position: "fixed", inset: "0", "z-index": "80", display: "flex",
-      "align-items": "center", "justify-content": "center", background: "#09090b",
+      "align-items": "center", "justify-content": "center", background: "rgba(9,9,11,0.12)",
       "font-family": "ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif",
       color: "var(--msr-content, #171717)", "pointer-events": "auto",
     });
     stage.addEventListener("pointerdown", (event) => {
       if (event.target === stage) props.onClose();
+    });
+    stage.addEventListener("pointermove", (event) => {
+      if (event.target !== frame) props.onChromePointerMove();
     });
 
     const card = ownerDocument.createElement("div");
@@ -111,8 +114,6 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
     let frameKeyHandler: ((event: KeyboardEvent) => void) | undefined;
 
     const onLoad = () => {
-      previewDocument?.removeEventListener("pointerdown", onFramePointer, true);
-
       if (frameKeyHandler) previewDocument?.removeEventListener("keydown", frameKeyHandler, true);
 
       try {
@@ -135,7 +136,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
 
         removeGuard = installPreviewGuard(contentWindow);
         previewDocument = contentDocument;
-        contentDocument.addEventListener("pointerdown", onFramePointer, true);
+
         frameKeyHandler = (event) => {
           if (event.metaKey || event.ctrlKey || event.altKey) return;
           const key = event.key.toLowerCase();
@@ -161,6 +162,8 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
 
         contentDocument.addEventListener("keydown", frameKeyHandler, true);
         status.style.display = "none";
+        ownerWindow.dispatchEvent(new CustomEvent("mesurer:responsive-preview-ready"));
+        ownerWindow.dispatchEvent(new CustomEvent("mesurer:responsive-stage-change"));
       } catch {
         status.textContent = "This page cannot be previewed in a same-origin frame.";
         status.dataset.mesurerResponsiveRefused = "true";
@@ -174,14 +177,13 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       status.style.display = "block";
     };
 
-    const onFramePointer = () => props.onFramePointerDown();
     frame.addEventListener("load", onLoad);
     frame.addEventListener("error", onError);
-    frame.addEventListener("pointerdown", onFramePointer);
     frameShell.append(frame);
     card.append(headerSlot, frameShell);
     stage.append(card, status);
     host.append(stage);
+    ownerWindow.dispatchEvent(new CustomEvent("mesurer:responsive-stage-change"));
 
     const fit = () => {
       const availableWidth = ownerWindow.innerWidth - 64;
@@ -214,8 +216,6 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       ownerWindow.removeEventListener("resize", fit);
       frame.removeEventListener("load", onLoad);
       frame.removeEventListener("error", onError);
-      frame.removeEventListener("pointerdown", onFramePointer);
-      previewDocument?.removeEventListener("pointerdown", onFramePointer, true);
 
       if (frameKeyHandler) previewDocument?.removeEventListener("keydown", frameKeyHandler, true);
 
@@ -227,6 +227,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
 
       frame.remove();
       stage.remove();
+      ownerWindow.dispatchEvent(new CustomEvent("mesurer:responsive-stage-change"));
 
       if (
         ownerDocument.documentElement.style.getPropertyValue("overflow") === "hidden"

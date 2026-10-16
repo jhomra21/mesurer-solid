@@ -16,6 +16,7 @@ const isElementInDocument = (
 
 export const getAccessibleDocuments = (
   root: Document | ShadowRoot | Element,
+  options: { includeResponsiveFrames?: boolean } = {},
 ): Document[] => {
   const ownerDocument = isDocumentRoot(root)
     ? root
@@ -37,7 +38,10 @@ export const getAccessibleDocuments = (
     element: Element,
     currentDocument: Document,
   ) => {
-    if (element.hasAttribute("data-mesurer-responsive-frame")) return;
+    if (
+      element.hasAttribute("data-mesurer-responsive-frame")
+      && !options.includeResponsiveFrames
+    ) return;
 
     if (element.shadowRoot) visitRoot(element.shadowRoot, currentDocument);
 
@@ -78,6 +82,30 @@ export const getAccessibleDocuments = (
   }
 
   return documents;
+};
+
+export const isResponsivePreviewDocument = (ownerDocument: Document) => {
+  let currentDocument = ownerDocument;
+  const seen = new Set<Document>();
+
+  while (!seen.has(currentDocument)) {
+    seen.add(currentDocument);
+    let frame: Element | null = null;
+
+    try {
+      frame = currentDocument.defaultView?.frameElement ?? null;
+    } catch {
+      return false;
+    }
+
+    if (!frame) return false;
+
+    if (frame.hasAttribute("data-mesurer-responsive-frame")) return true;
+
+    currentDocument = frame.ownerDocument;
+  }
+
+  return false;
 };
 
 export const isElementWithinAccessibleTarget = (

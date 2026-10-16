@@ -163,6 +163,7 @@ try {
   assert.ok(Math.abs(scale - frameEvidence.fit) < 0.002, `Frame scale ${scale} != fit ${frameEvidence.fit}`);
   await page.screenshot({ path: join(output, "responsive-open.png"), fullPage: true });
   await page.locator("button[data-mesurer-builtin='settings']").click();
+  await page.getByText("General", { exact: true }).click();
   await page.getByRole("combobox", { name: "Appearance" }).selectOption("dark");
   await page.screenshot({ path: join(output, "responsive-open-dark.png"), fullPage: true });
   await page.getByRole("combobox", { name: "Appearance" }).selectOption("light");
@@ -216,6 +217,7 @@ try {
   await page.keyboard.press("b");
   await page.locator("[data-mesurer-responsive-frame]").waitFor();
   await previewFrame.locator("body").click({ position: { x: 20, y: 20 } });
+  await page.locator("[data-mesurer-responsive-frame]").evaluate((frame) => frame.contentDocument.activeElement?.blur());
   await page.keyboard.press("b");
   await page.locator("[data-mesurer-responsive-frame]").waitFor({ state: "detached" });
 
@@ -243,6 +245,7 @@ try {
       && Boolean(frame.contentDocument?.querySelector("[data-testid='breakpoint-label']"));
   });
   await page.frameLocator("[data-mesurer-responsive-frame]").locator("body").click({ position: { x: 10, y: 10 } });
+  await page.locator("[data-mesurer-responsive-frame]").evaluate((frame) => frame.contentDocument.activeElement?.blur());
   await page.keyboard.press("b");
   await page.locator("[data-mesurer-responsive-frame]").waitFor({ state: "detached" });
 
@@ -306,6 +309,7 @@ try {
   await page.locator("[role='dialog'][aria-label='Settings']").waitFor({ state: "detached" });
   await open();
   await page.frameLocator("[data-mesurer-responsive-frame]").locator("body").click({ position: { x: 10, y: 10 } });
+  await page.locator("[data-mesurer-responsive-frame]").evaluate((frame) => frame.contentDocument.activeElement?.blur());
   await page.keyboard.press("b");
   await page.locator("[data-mesurer-responsive-frame]").waitFor();
   await page.keyboard.press("Escape");
@@ -383,6 +387,18 @@ try {
   });
   await open();
   await page.locator("[data-mesurer-responsive-refused='true']").waitFor();
+
+  const refusedEvidence = await page.evaluate(() => {
+    const root = document.querySelector("[data-mesurer-island]")?.shadowRoot ?? document;
+
+    return {
+      hover: root.querySelectorAll("[data-mesurer-hover-measurement='true']").length,
+      selected: root.querySelectorAll("[data-mesurer-selected-measurement='true']").length,
+    };
+  });
+
+  assert.deepEqual(refusedEvidence, { hover: 0, selected: 0 },
+    "A refused preview must not produce inspection evidence");
   await page.screenshot({ path: join(output, "responsive-refused.png"), fullPage: true });
   await close();
   await open();
@@ -397,7 +413,7 @@ try {
   assert.deepEqual(disposedState, { stage: false, overflow: "clip" });
   assert.deepEqual(errors, [], `Browser diagnostics: ${errors.join("\n")}`);
   await writeFile(join(output, "responsive-preview.json"), `${JSON.stringify({
-    url, frameEvidence, restored, errors, expectedRefusalDiagnostics, refusedStateCovered: true,
+    url, frameEvidence, restored, errors, expectedRefusalDiagnostics, refusedStateCovered: true, refusedEvidence,
   }, null, 2)}\n`);
   console.log(`Responsive preview contract passed. Evidence: ${output}`);
 } catch (error) {

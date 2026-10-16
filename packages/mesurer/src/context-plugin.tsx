@@ -174,7 +174,21 @@ const createService = (
 const hasContextSelection = (runtime: MesurerWorkspaceRuntime) => {
   const selection = runtime.currentSelection();
 
-  return selection.elements.length > 0 || selection.region !== null;
+  return (selection.elements.length > 0 || selection.region !== null)
+    && !selection.elements.some((element) => {
+      let current: Document | null = element.ownerDocument;
+
+      while (current) {
+        const frame: Element | null = current.defaultView?.frameElement ?? null;
+
+        if (!frame) return false;
+
+        if (frame.hasAttribute("data-mesurer-responsive-frame")) return true;
+        current = frame.ownerDocument;
+      }
+
+      return false;
+    });
 };
 
 export function context(options: MesurerContextPluginOptions = {}): MesurerPlugin {
@@ -216,7 +230,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       });
 
       const uiEnabled = () => ctx.state.get<ContextSettingsState>(MESURER_CONTEXT_SETTINGS_STATE_ID)?.ui ?? true;
-      const hasSelection = () => ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection === true;
+      const hasSelection = () => hasContextSelection(runtime);
 
       const setUiEnabled = (ui: boolean) => {
         ctx.state.update<ContextSettingsState>(MESURER_CONTEXT_SETTINGS_STATE_ID, (current) => ({ ...current, ui }));
@@ -262,7 +276,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
         if (runtime.selectGestureActive()) uiController?.abandonNoteComposer();
         else if (selectionChanged) uiController?.closeNoteComposer();
 
-        const next = nextSelection.elements.length > 0 || nextSelection.region !== null;
+        const next = hasContextSelection(runtime);
         const current = ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection ?? false;
 
         if (next !== current) ctx.state.update<ContextUiState>(CONTEXT_UI_STATE_ID, () => ({ hasSelection: next }));
@@ -337,7 +351,9 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       syncUi();
       ctx.state.subscribe(syncUi);
 
-      ctx.command.register("context.add-note", () => uiController?.openNoteComposer());
+      ctx.command.register("context.add-note", () => {
+        if (hasSelection()) uiController?.openNoteComposer();
+      });
       ctx.tool.register({
         id: "context.copy",
         label: "Copy context",
