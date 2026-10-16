@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Document the built-in, default-on Responsive inspector as complete, including same-origin limits, that each preview reruns the page's scripts, memory cost, and extension behavior. Preview Delete and Escape work from inside the same-origin frame, including from the Chromium extension's built assets, without broad host permissions.
+
 ## 0.2.3-beta.8 - 2026-10-16
 
 - Fix a `Mesurer renderer model is unavailable` page error when a mount is disposed while a plugin state change is still being delivered; listeners removed during delivery are no longer called.

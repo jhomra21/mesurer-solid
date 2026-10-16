@@ -84,7 +84,7 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 - **Distance.** Measure spacing and geometry, including pairwise multi-selection spacing.
 - **X-ray, Guides, and Rulers.** Inspect page structure and alignment.
 - **Layout Guides.** Add page-scoped columns, rows, or a pixel grid through the optional `layoutGuides()` plugin. Layout Guide mutations participate in plugin history, and Context includes the current page's saved guides with their visibility state.
-- **Responsive.** Open a live iPhone 15 (393 × 852 CSS px) same-origin iframe preview. The frames-only foundation does not yet route inspection into the preview. See [Responsive inspector](./docs/RESPONSIVE_INSPECTOR.md).
+- **Responsive.** Open the built-in, default-on live viewport inspector with **B**. It supports up to six independently sized and reorderable same-origin previews, preview-routed inspection and Guides, Layout Guides projection, and viewport-scoped Context notes. Turn it off in **Settings > Plugins** or omit it with `excludeBuiltins: ["responsive"]`. See [Responsive inspector](./docs/RESPONSIVE_INSPECTOR.md) for page-script side effects and limits.
 - **Typography.** Inspect rendered text and computed type styles in Select mode.
 - **Edit.** Move selected HTML elements and edit direct text, typography, and text color as reversible Desired intent.
 - **Screenshots.** Capture a dragged page region with the optional Screenshot plugin. It selects application-native capture, the Chromium extension adapter, or browser display capture internally.

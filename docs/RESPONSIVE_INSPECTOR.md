@@ -28,4 +28,8 @@ The page behind the stage is scroll-locked while Responsive is open. Wheel input
 
 Entering Responsive exits Edit, clears the current selection, and closes the preview when Edit, Rulers, Screenshot, or Recording is activated. B is ignored by editable controls, including open Shadow DOM inputs in the preview. Turning off global shortcuts disables B without disabling Escape.
 
-Responsive is on by default. Turn it off in **Settings > Plugins**, or omit it with `excludeBuiltins: ["responsive"]`. Press **B** to open or close it; Escape and a click on the empty stage also close it.
+Responsive is a built-in feature and is on by default. Turn it off in **Settings > Plugins**, or omit it with `excludeBuiltins: ["responsive"]`. Press **B** to open or close it; Escape and a click on the empty stage also close it.
+
+## Chromium extension limits
+
+The extension uses activeTab rather than broad host permissions. Built extension asset checks cover manifest permissions, preview keyboard behavior, and page-level reinjection only. Real toolbar-action activation, activeTab authorization, and automatic extension recovery remain manually verified; reinjecting scripts in a normal page context does not test those browser-managed paths.

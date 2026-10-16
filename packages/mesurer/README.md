@@ -105,8 +105,8 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Add page-scoped columns, rows, or pixel grids with the optional `layoutGuides()` plugin. Guide edits participate in plugin undo/redo, and Context includes the current page's saved guides with their visibility state.
 - Inspect rendered typography in Select. Edit previews reversible direct copy and style changes.
 - Use Edit to move selected UI and change direct text, typography, and text color without changing source.
+- Open the built-in, default-on Responsive inspector with **B** to inspect up to six live same-origin viewports, use per-preview Guides, and annotate preview targets through Context. Disable it in **Settings > Plugins** or omit it with `excludeBuiltins: ["responsive"]`.
 - Capture page regions through the optional Screenshot plugin. It selects native host capture, the Chromium extension adapter, or browser display capture internally, and flattens transparent native captures against the renderer backdrop before preview, copy, or save.
-- Open one live iPhone 15 (393 × 852 CSS px) preview with the built-in Responsive inspector. Inspection routing into previews is not included in this initial frames-only release.
 - Record adjustable selected regions through the optional Recording plugin at 60 fps by default or 120 fps when selected and supported. Browser, extension, and Electron APIs only acquire the stream; MediaBunny owns encoding, inspection, trim, 1×/2×/3× resize, and WebM/MP4 export.
 - Read selection, measurements, guides, annotations, layout, styles, and saved human intent through Context and agent APIs.
 - Keep saved annotations across same-tab reloads and conservatively rebind them to their original DOM targets; markers, cards, and ownership evidence stay attached through scrolling, repeated-note markers stay local, Add Note remains available while a note is open, and cards/composers occlude Select hover and selection chrome.
