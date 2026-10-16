@@ -1,0 +1,3 @@
+@media (min-width: 305px) {
+  [data-testid="breakpoint-label"] { word-spacing: 1px; }
+}
