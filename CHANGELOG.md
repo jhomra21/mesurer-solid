@@ -4,8 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Add the Responsive inspector with one live iPhone 15 same-origin preview.
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.3-beta.3 - 2026-10-16
+
+- Add the Responsive inspector with one live iPhone 15 same-origin preview.
 
 ## 0.2.3-beta.2 - 2026-10-16
 
