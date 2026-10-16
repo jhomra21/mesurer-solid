@@ -29,7 +29,7 @@ import {
   MESURER_CONTEXT_SERVICE_ID,
   type MesurerContextService,
 } from "./context-plugin";
-import type { MesurerPlugin, MesurerPluginDescription, MesurerPluginHost } from "./core";
+import { type MesurerPlugin, type MesurerPluginDescription, type MesurerPluginHost } from "./core";
 import { mountMesurerHost, type MesurerHostLayerMode } from "./host-layer";
 import { createPluginRegistry } from "./plugin-catalog";
 import { MESURER_VERSION } from "./version";
@@ -39,10 +39,10 @@ export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 export type MesurerTheme = "system" | "light" | "dark";
 
 /** Public built-in names, aligned with the factories exported by `mesurer-solid/plugins`. */
-export type MesurerBuiltin = "select" | "xray" | "colorPicker" | "rulers" | "typography" | "guides" | "distance" | "settings";
+export type MesurerBuiltin = "select" | "xray" | "colorPicker" | "rulers" | "responsive" | "typography" | "guides" | "distance" | "settings";
 
 /** @deprecated Internal compatibility ids used by the older `excludePlugins` option. */
-export type MesurerBuiltinPluginId = "select" | "xray" | "color-picker" | "rulers" | "text-inspector" | "guides" | "distance" | "settings";
+export type MesurerBuiltinPluginId = "select" | "xray" | "color-picker" | "rulers" | "responsive" | "text-inspector" | "guides" | "distance" | "settings";
 
 export type LinePattern = "solid" | "dashed" | "dotted";
 
@@ -165,6 +165,7 @@ const BUILTIN_PLUGIN_ID: Record<MesurerBuiltin, MesurerBuiltinPluginId> = {
   xray: "xray",
   colorPicker: "color-picker",
   rulers: "rulers",
+  responsive: "responsive",
   typography: "text-inspector",
   guides: "guides",
   distance: "distance",
@@ -288,6 +289,107 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
 
   const ownerDocument = target.ownerDocument ?? document;
   const ownerWindow = ownerDocument.defaultView ?? window;
+
+  try {
+    const frame = ownerWindow.frameElement;
+
+    if (frame?.hasAttribute("data-mesurer-responsive-frame")) {
+      const element = ownerDocument.createElement("div");
+
+      const unavailable = async (): Promise<never> => {
+        throw new Error("Mesurer is suppressed inside a Responsive preview frame.");
+      };
+
+      const ready = Promise.reject<MesurerPluginHost>(new Error("Mesurer is suppressed inside a Responsive preview frame."));
+
+      void ready.catch(() => undefined);
+
+      const agent = {
+        capabilities: () => ({
+          protocol: "mesurer.agent/v1",
+          contextSchema: "mesurer.context/v1",
+          capabilities: {
+            context: false,
+            select: false,
+            annotations: false,
+            review: false,
+            capturePlan: false,
+            arrange: false,
+            textEdit: false,
+          },
+        }),
+        ready: unavailable,
+        describe: unavailable,
+        inspect: () => null,
+        inspectAll: () => [],
+        at: () => null,
+        distance: () => null,
+        viewport: () => ({
+          width: ownerWindow.innerWidth,
+          height: ownerWindow.innerHeight,
+          scrollX: ownerWindow.scrollX,
+          scrollY: ownerWindow.scrollY,
+          devicePixelRatio: ownerWindow.devicePixelRatio,
+          documentWidth: ownerDocument.documentElement.scrollWidth,
+          documentHeight: ownerDocument.documentElement.scrollHeight,
+          horizontalOverflow: ownerDocument.documentElement.scrollWidth > ownerWindow.innerWidth,
+          verticalOverflow: ownerDocument.documentElement.scrollHeight > ownerWindow.innerHeight,
+        }),
+        feedback: unavailable,
+        command: unavailable,
+        state: unavailable,
+        stable: unavailable,
+        context: unavailable,
+        contextText: unavailable,
+        select: unavailable,
+        annotations: unavailable,
+        review: unavailable,
+        capturePlan: unavailable,
+        prepareCapture: unavailable,
+        finishCapture: unavailable,
+        arrangements: unavailable,
+        arrange: unavailable,
+        showArrange: unavailable,
+        arrangeCapturePlan: unavailable,
+        reviewArrange: unavailable,
+        textEdits: unavailable,
+        textEdit: unavailable,
+      } satisfies MesurerBrowserAgent;
+
+      // The frame has no independently mounted renderer, so expose a stable inert handle and reject operations that require one.
+      return {
+        element,
+        root: element,
+        hostLayer: "fixed",
+        pluginHost: undefined,
+        ready,
+        agent,
+        service: unavailable,
+        context: unavailable,
+        contextText: unavailable,
+        copyContext: unavailable,
+        select: unavailable,
+        annotations: unavailable,
+        review: unavailable,
+        capturePlan: unavailable,
+        prepareCapture: unavailable,
+        finishCapture: unavailable,
+        arrangements: unavailable,
+        arrange: unavailable,
+        showArrange: unavailable,
+        arrangeCapturePlan: unavailable,
+        reviewArrange: unavailable,
+        textEdits: unavailable,
+        textEdit: unavailable,
+        bringToFront() {},
+        describe: unavailable,
+        dispose() {},
+      };
+    }
+  } catch {
+    // A cross-origin embedding context cannot be identified from this document.
+  }
+
   const container = ownerDocument.createElement("div");
   container.dataset.mesurerIsland = "true";
   const hostLayer = mountMesurerHost(container, target, topLayer);

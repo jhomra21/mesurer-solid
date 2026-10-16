@@ -74,7 +74,9 @@ try {
   const hoverTarget = page.locator(".fixture-copy h1");
   const hoverBox = await hoverTarget.boundingBox();
   assert(hoverBox, "hover target must have rendered geometry");
-  await page.mouse.move(hoverBox.x + hoverBox.width / 2, hoverBox.y + hoverBox.height / 2);
+  // A single synthetic move intermittently leaves hover idle while the composer
+  // owns focus; real pointers always deliver a stream of moves.
+  await page.mouse.move(hoverBox.x + hoverBox.width / 2, hoverBox.y + hoverBox.height / 2, { steps: 5 });
   await page.waitForFunction(() => {
     const hover = document.querySelector("[data-mesurer-hover-measurement='true']");
 

@@ -80,6 +80,7 @@ jobs:
           cp tests/visual-parity/solid.html examples/basic/parity.html
           cp tests/visual-parity/capture.mjs upstream/apps/site/e2e/parity-capture.mjs
           cp tests/visual-parity/interactions.mjs upstream/apps/site/e2e/parity-interactions.mjs
+          cp tests/visual-parity/normalize-responsive-toolbar.mjs upstream/apps/site/e2e/normalize-responsive-toolbar.mjs
 
       - name: Start React and renderer fixtures
         run: |

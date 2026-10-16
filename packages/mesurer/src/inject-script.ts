@@ -12,6 +12,14 @@ declare global {
 
 const config = globalThis.__MESURER_CONFIG__ ?? {};
 
+const isResponsivePreview = (() => {
+  try {
+    return Boolean(window.frameElement?.hasAttribute("data-mesurer-responsive-frame"));
+  } catch {
+    return false;
+  }
+})();
+
 const {
   target: targetSelector,
   globalName = "__MESURER__",
@@ -22,7 +30,7 @@ const {
 
 const existing = globalThis.__MESURER_INSTANCE__;
 
-const reusableExisting = reuseExisting && existing?.element.isConnected
+const reusableExisting = !isResponsivePreview && reuseExisting && existing?.element.isConnected
   ? existing
   : undefined;
 
@@ -31,7 +39,7 @@ const mountInjectedMesurer = (): MountedMesurer => {
 
   if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
-  globalThis.__MESURER_INSTANCE__?.dispose();
+  if (!isResponsivePreview) globalThis.__MESURER_INSTANCE__?.dispose();
 
   return mountMesurer({
     ...options,
@@ -80,18 +88,20 @@ const installDisconnectedRecovery = (
 
 const mesurer = reusableExisting ?? mountInjectedMesurer();
 
-globalThis.__MESURER_INSTANCE__ = mesurer;
+if (!isResponsivePreview) globalThis.__MESURER_INSTANCE__ = mesurer;
 
-globalThis.__MESURER_INJECT_RECOVERY__?.stop();
+if (!isResponsivePreview) globalThis.__MESURER_INJECT_RECOVERY__?.stop();
 
-globalThis.__MESURER_INJECT_RECOVERY__ = undefined;
+if (!isResponsivePreview) globalThis.__MESURER_INJECT_RECOVERY__ = undefined;
 
-if (recoverDisconnected) installDisconnectedRecovery(mountInjectedMesurer);
+if (recoverDisconnected && !isResponsivePreview) installDisconnectedRecovery(mountInjectedMesurer);
 
 // The agent global is installed synchronously by mountMesurer(). Consumers can
 // immediately call window[globalName].ready() through their existing browser
 // evaluation primitive. Avoid top-level await so this file can be emitted as a
 // classic self-executing script instead of an ES module.
-void mesurer.ready.catch((error) => {
-  queueMicrotask(() => { throw error; });
-});
+if (!isResponsivePreview) {
+  void mesurer.ready.catch((error) => {
+    queueMicrotask(() => { throw error; });
+  });
+}

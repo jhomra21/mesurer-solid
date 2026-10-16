@@ -37,6 +37,8 @@ export const getAccessibleDocuments = (
     element: Element,
     currentDocument: Document,
   ) => {
+    if (element.hasAttribute("data-mesurer-responsive-frame")) return;
+
     if (element.shadowRoot) visitRoot(element.shadowRoot, currentDocument);
 
     const childDocument = getAccessibleFrameDocument(element);

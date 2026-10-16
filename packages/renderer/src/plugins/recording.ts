@@ -786,6 +786,8 @@ export const recordingPlugin = (
     const start = async (
       rect?: ScreenshotRect,
     ) => {
+      runtime.closeResponsiveStage?.();
+
       if (currentSnapshot.status === "recording") {
         await finishRecording();
 

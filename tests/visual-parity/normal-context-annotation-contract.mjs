@@ -50,8 +50,17 @@ const settle = () => page.evaluate(() => new Promise((resolve) => {
 }));
 
 const clickDocumentUi = async (locator, label) => {
-  await locator.waitFor({ state: "visible" });
-  const rect = await box(locator, label);
+  // Closing the composer re-keys saved markers in one task. No frame paints
+  // without the marker, but a locator resolved just before the swap measures a
+  // detached node, so re-resolve until the replacement has geometry.
+  let rect = null;
+
+  for (let attempt = 0; attempt < 10 && !rect; attempt += 1) {
+    await locator.waitFor({ state: "visible" });
+    rect = await locator.boundingBox();
+  }
+
+  rect ??= await box(locator, label);
   const x = rect.x + rect.width / 2;
   const y = rect.y + rect.height / 2;
 

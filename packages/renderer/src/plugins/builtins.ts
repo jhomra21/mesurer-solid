@@ -9,6 +9,7 @@ export type MesurerBuiltinPluginId =
   | "xray"
   | "color-picker"
   | "rulers"
+  | "responsive"
   | "text-inspector"
   | "guides"
   | "distance"
@@ -43,6 +44,8 @@ export const colorPickerPlugin = () => toolPlugin("color-picker", "Color picker"
 
 export const rulersPlugin = () => toolPlugin("rulers", "Rulers", "R", 40);
 
+export const responsivePlugin = () => toolPlugin("responsive", "Responsive", "B", 65);
+
 export const textInspectorPlugin = () => toolPlugin("text-inspector", "Typography", "A", 50);
 
 export const guidesPlugin = () => toolPlugin("guides", "Guides", "G", 60);
@@ -66,6 +69,7 @@ export const defaultMesurerPlugins = (): MesurerPlugin[] => [
   rulersPlugin(),
   textInspectorPlugin(),
   guidesPlugin(),
+  responsivePlugin(),
   distancePlugin(),
   settingsPlugin(),
 ];

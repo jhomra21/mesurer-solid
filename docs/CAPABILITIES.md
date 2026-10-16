@@ -12,12 +12,15 @@ This page lists the public Mesurer features and the APIs that expose them for `m
 | Same-origin iframes | Select, measurement geometry, X-ray, Motion, and Context work across accessible same-origin frames, including 2D-scaled or transformed frame ancestry. Cross-origin frames are inaccessible and fail closed. |
 | Color Picker | Sample a rendered color from the current application window when a host capture capability exists; otherwise use the browser `EyeDropper` when operational. Copy the sample in the configured `colorPickerClickFormat`. |
 | Rulers | Show viewport rulers and ruler settings. |
+| Responsive | Open one iPhone 15 (393 × 852 CSS px) live same-origin iframe preview. Select/X-ray/Context routing is not part of this initial frames-only release. |
 | Typography | Inspect rendered typography and computed type styles in Select mode. |
 | Guides | Add horizontal and vertical guides, including snapping behavior. |
 | Distance | Show spacing between rendered targets. Box-to-box lines use shared-overlap anchors, guide distances use the guide as line geometry, and container spacing uses the padding box. Multi-selection Context also reports pairwise distances. |
 | Settings | Control Mesurer preferences, plugin availability, shortcuts, appearance, and presentation options. |
 
 The default keyboard shortcuts are listed in the root [README](../README.md).
+
+Responsive reloads the live page and runs its JavaScript. Requests and other side effects repeat; the iframe sandbox is not a security boundary. See [Responsive inspector](./RESPONSIVE_INSPECTOR.md).
 
 ## Renderer capabilities
 
@@ -175,7 +178,7 @@ Renderer-only services remain private. Public plugins request them by service id
 
 When `agent` is an object instead of `true`, `AgentBridgeOptions` also accepts `globalName` and `root`. The returned `mounted.agent` exists regardless; `agent` controls whether that interface is also installed on the owning window.
 
-`excludeBuiltins` uses the public built-in names `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, and `settings`. The older `excludePlugins` option and `onPluginsReady` callback remain compatibility surfaces; new code should use `excludeBuiltins` and `await mounted.ready`.
+`excludeBuiltins` uses the public built-in names `select`, `xray`, `colorPicker`, `rulers`, `responsive`, `typography`, `guides`, `distance`, and `settings`. The older `excludePlugins` option and `onPluginsReady` callback remain compatibility surfaces; new code should use `excludeBuiltins` and `await mounted.ready`.
 
 A supplied `pluginHost` is caller-owned. Mount disposal removes the renderer but does not dispose that host. `onPluginHost` runs when the host becomes available, before configured plugin startup settles.
 

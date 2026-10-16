@@ -26,6 +26,7 @@ import {
   CursorIcon,
   GearIcon,
   MinusIcon,
+  ResponsiveIcon,
   RulerIcon,
   RulersIcon,
   TextInspectorIcon,
@@ -41,6 +42,7 @@ export type ToolbarProps = {
   onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
   isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;
   typographyContextActive?: boolean;
+  responsiveOpen?: boolean;
   onClearWorkspace: () => void;
   onResetSettings: () => void;
   selectionSpacingStyle: SelectionSpacingStyle;
@@ -298,7 +300,7 @@ export function Toolbar(props: ToolbarProps) {
   // The Select and Edit mode controls already show their own state, so the
   // Select tool (the mode's default targeting) is not repeated when compact.
   const modeToolsActive = () => toolbarMode() === "select"
-    ? xrayActive() || colorPickerActive() || typographyActive() || selectPluginActive()
+    ? xrayActive() || colorPickerActive() || typographyActive() || selectPluginActive() || props.responsiveOpen === true
     : editPluginActive();
 
   const sharedGuideToolsActive = () => rulersActive() || guidesActive();
@@ -1038,6 +1040,13 @@ export function Toolbar(props: ToolbarProps) {
       setPluginMenuOpenId(null);
     };
 
+    const closeMenusFromResponsiveFrame = () => {
+      setGuideMenuOpen(false);
+      setPluginMenuOpenId(null);
+
+      if (props.model.current.settingsOpen) props.model.setTransient({ settingsOpen: false });
+    };
+
     const resize = () => {
       if (guideMenuOpen()) updateMenuAlign();
       setViewportRevision((value) => value + 1);
@@ -1050,6 +1059,7 @@ export function Toolbar(props: ToolbarProps) {
     props.ownerWindow.document.addEventListener("visibilitychange", handleCapabilityRefresh);
     keyboardTarget.addEventListener("keydown", handleKeyDown, true);
     props.ownerWindow.addEventListener("resize", resize);
+    props.ownerWindow.addEventListener("mesurer:responsive-frame-pointerdown", closeMenusFromResponsiveFrame);
     toolbarElement?.addEventListener("click", handleClickCapture, true);
 
     return () => {
@@ -1076,6 +1086,7 @@ export function Toolbar(props: ToolbarProps) {
       props.ownerWindow.document.removeEventListener("visibilitychange", handleCapabilityRefresh);
       keyboardTarget.removeEventListener("keydown", handleKeyDown, true);
       props.ownerWindow.removeEventListener("resize", resize);
+      props.ownerWindow.removeEventListener("mesurer:responsive-frame-pointerdown", closeMenusFromResponsiveFrame);
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
 
       cancelActiveDrag?.();
@@ -1471,6 +1482,9 @@ export function Toolbar(props: ToolbarProps) {
                 </Show>
                 <CompactItem visible={visibleInToolbar(typographyActive())}>
                   <ToolbarButton id="text-inspector" builtin="text-inspector" active={typographyActive()} disabled={builtinDisabled("text-inspector")} label="Typography" shortcut="A" onClick={() => props.onBuiltinAction("text-inspector")} {...buttonProps("text-inspector")}><TextInspectorIcon size={20} /></ToolbarButton>
+                </CompactItem>
+                <CompactItem visible={visibleInToolbar(props.responsiveOpen === true)}>
+                  <ToolbarButton id="responsive" builtin="responsive" active={props.responsiveOpen === true} label="Responsive" shortcut="B" onClick={() => props.onBuiltinAction("responsive")} {...buttonProps("responsive")}><ResponsiveIcon size={20} /></ToolbarButton>
                 </CompactItem>
               </div>
 

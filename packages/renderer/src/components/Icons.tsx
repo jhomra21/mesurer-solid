@@ -119,6 +119,15 @@ export const TextInspectorIcon = (props: IconProps) => (
   </svg>
 );
 
+export const ResponsiveIcon = (props: IconProps) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 256 256" fill="none" aria-hidden="true" class={props.class}>
+    <g fill="none" stroke="currentColor" stroke-width={256 / (props.size ?? 20)} stroke-linecap="round" stroke-linejoin="round">
+      <path d="M124 176H52a16 16 0 0 1-16-16V72a16 16 0 0 1 16-16h132a16 16 0 0 1 16 16v20" />
+      <path d="M168 120h40a12 12 0 0 1 12 12v64a12 12 0 0 1-12 12h-40a12 12 0 0 1-12-12v-64a12 12 0 0 1 12-12Z" />
+    </g>
+  </svg>
+);
+
 export const ColorPickerIcon = (props: IconProps) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 24 24" fill="none" aria-hidden="true" class={props.class}>
     <path fill="currentColor" fill-rule="evenodd" transform="translate(-1.44 -1.44) scale(1.12)" d="M15.16 5.658a2.25 2.25 0 0 1 3.18.001l.155.17a2.25 2.25 0 0 1 0 2.84l-.154.172-1.696 1.692a1.5 1.5 0 0 1 .02 1.913l-.104.114a1.5 1.5 0 0 1-2.007.103l-.02-.018-4.443 4.447a2.24 2.24 0 0 1-1.716.65l-.814.815a1.5 1.5 0 0 1-2.121-2.121l.816-.818a2.25 2.25 0 0 1 .653-1.708l4.443-4.446a1.5 1.5 0 0 1 .088-2.025l.114-.103a1.5 1.5 0 0 1 1.91.015zm-7.544 8.959a1.25 1.25 0 0 0-.358 1.021c.021.197-.014.406-.154.546l-.958.96a.5.5 0 0 0 .708.706l.955-.956c.14-.14.352-.176.55-.153.364.042.745-.077 1.025-.356l4.438-4.442-1.767-1.767zm10.018-8.251a1.25 1.25 0 0 0-1.768 0l-1.782 1.78-.065.06a.87.87 0 0 1-1.165-.06.5.5 0 0 0-.707.707l3 3a.5.5 0 0 0 .628.064l.079-.064a.5.5 0 0 0 0-.707l-.004-.004a.873.873 0 0 1 .004-1.23l1.78-1.778a1.25 1.25 0 0 0 0-1.768" clip-rule="evenodd" />
@@ -239,8 +248,10 @@ export const TrashIcon = (props: IconProps) => (
   </IconBase>
 );
 
+export const CLOSE_ICON_PATH = "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z";
+
 export const CloseIcon = (props: IconProps) => (
   <IconBase size={props.size ?? 18} class={props.class}>
-    <path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z" />
+    <path d={CLOSE_ICON_PATH} />
   </IconBase>
 );
