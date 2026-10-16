@@ -4,8 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Responsive previews now route Select, marquee selection, measurements, X-ray, and Typography inspection to accessible same-origin preview documents. Preview targets cannot create Context annotations yet; the Add Note command is blocked consistently, and the agent inspection API remains rooted in the original page.
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.3-beta.4 - 2026-10-16
+
+- Responsive previews now route Select, marquee selection, measurements, X-ray, and Typography inspection to accessible same-origin preview documents. Preview targets cannot create Context annotations yet; the Add Note command is blocked consistently, and the agent inspection API remains rooted in the original page.
 
 ## 0.2.3-beta.3 - 2026-10-16
 
