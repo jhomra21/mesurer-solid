@@ -1,5 +1,6 @@
 import { For, Show, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import { getRectFromDom } from "../core/dom";
+import { isResponsivePreviewDocument } from "../core/document-tree";
 import { trySetPointerCapture } from "../core/events";
 import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
 import {
@@ -741,7 +742,7 @@ export function ContextActions(props: ContextActionsProps) {
 
     const element = selectionTriggerElement();
 
-    if (!element?.isConnected) return null;
+    if (!element?.isConnected || isResponsivePreviewDocument(element.ownerDocument)) return null;
     const rect = getRectFromDom(element);
     const value = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
     const currentWindow = ownerWindow();
@@ -1094,6 +1095,8 @@ export function ContextActions(props: ContextActionsProps) {
 
   const openNoteComposer = () => {
     if (!hasSelection()) return;
+
+    if (props.runtime.currentSelection().elements.some((element) => isResponsivePreviewDocument(element.ownerDocument))) return;
     fallbackNextSelection = false;
     composerSelection = captureSelection();
     setNote("");
@@ -1145,6 +1148,12 @@ export function ContextActions(props: ContextActionsProps) {
 
   const addNote = () => {
     if (!note().trim() || busy()) return;
+
+    if (props.runtime.currentSelection().elements.some((element) => isResponsivePreviewDocument(element.ownerDocument))) {
+      setNoteError("Context annotations are unavailable for Responsive preview targets.");
+
+      return;
+    }
 
     try {
       const annotation = props.runtime.addSelectionAnnotation(note());

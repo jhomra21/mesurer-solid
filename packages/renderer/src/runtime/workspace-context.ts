@@ -22,6 +22,7 @@ import { GUIDE_SNAP_DISTANCE } from "../core/constants";
 import {
   getAccessibleDocuments,
   isElementWithinAccessibleTarget,
+  isResponsivePreviewDocument,
 } from "../core/document-tree";
 import {
   getInspectMeasurement as getProjectedInspectMeasurement,
@@ -630,6 +631,11 @@ export function createMesurerWorkspaceRuntime(options: {
     const value = note.trim();
 
     if (!value) throw new Error("Annotation note cannot be empty.");
+
+    if (selectedElements(model).some((element) => isResponsivePreviewDocument(element.ownerDocument))) {
+      throw new Error("Context annotations are unavailable for Responsive preview targets.");
+    }
+
     const elements = selectedElements(model).filter(isInPageTarget);
 
     const region = model.current.selectionOriginRect

@@ -259,6 +259,11 @@ export default function ComposableMesurer(props: MesurerProps) {
     }
 
     if (arrangeActive()) await leaveEditMode("responsive-open");
+
+    if (rendererModel?.current.toolMode !== "select") {
+      await builtinController?.run("select");
+    }
+
     builtinController?.clearSelection();
     setResponsiveOpen(true);
   };
@@ -484,6 +489,7 @@ export default function ComposableMesurer(props: MesurerProps) {
 
     const unsubscribe = runtimeHost.subscribe((event) => {
       setRevision((value) => value + 1);
+
       visibilityStyle.textContent = visibilityCss();
 
       if (
@@ -843,6 +849,7 @@ export default function ComposableMesurer(props: MesurerProps) {
 
       if (active) {
         setReady(true);
+
         visibilityStyle.textContent = visibilityCss();
         input.onPluginsReady?.(runtimeHost);
       }
