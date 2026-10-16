@@ -54,10 +54,12 @@ const clickDocumentUi = async (locator, label) => {
   // without the marker, but a locator resolved just before the swap measures a
   // detached node, so re-resolve until the replacement has geometry.
   let rect = null;
+
   for (let attempt = 0; attempt < 10 && !rect; attempt += 1) {
     await locator.waitFor({ state: "visible" });
     rect = await locator.boundingBox();
   }
+
   rect ??= await box(locator, label);
   const x = rect.x + rect.width / 2;
   const y = rect.y + rect.height / 2;
