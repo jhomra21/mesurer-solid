@@ -7,7 +7,8 @@ import {
   type MesurerNestedScrollCompensation,
 } from "../runtime/nested-scroll-compensation";
 import { layoutAnnotationMarkers } from "./annotation-marker-layout";
-import { CloseIcon, CopyIcon, NoteIcon, TrashIcon } from "./Icons";
+import { CloseIcon, CopyIcon, NoteIcon, SendIcon, TrashIcon } from "./Icons";
+import { createTooltip, Tooltip } from "./Tooltip";
 
 export type ContextActionsController = {
   openNoteComposer(): void;
@@ -165,9 +166,9 @@ export function ContextActions(props: ContextActionsProps) {
   const [hoveredAnnotationId, setHoveredAnnotationId] = createSignal<string | null>(null);
   const [focusedAnnotationId, setFocusedAnnotationId] = createSignal<string | null>(null);
   const [panelPositions, setPanelPositions] = createSignal<Record<string, { left: number; top: number }>>({});
-  const [composerPosition, setComposerPosition] = createSignal<{ left: number; top: number } | null>(null);
   const [noteComposerOpen, setNoteComposerOpen] = createSignal(false);
   const [note, setNote] = createSignal("");
+  const [noteExpanded, setNoteExpanded] = createSignal(false);
   const [noteError, setNoteError] = createSignal<string | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [status, setStatus] = createSignal<string | null>(null);
@@ -191,6 +192,7 @@ export function ContextActions(props: ContextActionsProps) {
   let surfaceDragCleanup: (() => void) | null = null;
   let anchorElement: HTMLSpanElement | undefined;
   let annotationTriggerElement: HTMLButtonElement | undefined;
+  let composerOutsidePointer: ((event: PointerEvent) => void) | null = null;
   let annotationTriggerPointerId: number | null = null;
   let suppressAnnotationTriggerClick = false;
   let trackedTriggerElement: Element | null = null;
@@ -202,6 +204,8 @@ export function ContextActions(props: ContextActionsProps) {
   const annotationScrollBindings = new Map<string, AnnotationScrollBinding>();
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
+  const composerTooltip = createTooltip(ownerWindow());
+  const sendTooltipId = "context-annotation-send";
   const usesViewportCoordinates = () => props.coordinateSpace === "viewport";
 
   const scrollMode = (nativeAnchor: boolean) => nativeAnchor
@@ -244,12 +248,19 @@ export function ContextActions(props: ContextActionsProps) {
       && left.region.height === right.region.height;
   };
 
+  const detachComposerOutsidePointer = () => {
+    if (!composerOutsidePointer) return;
+    ownerWindow().document.removeEventListener("pointerdown", composerOutsidePointer, true);
+    composerOutsidePointer = null;
+  };
+
   const resetNoteComposerState = () => {
+    detachComposerOutsidePointer();
     composerSelection = null;
     setNote("");
+    setNoteExpanded(false);
     setNoteComposerOpen(false);
     setNoteError(null);
-    setComposerPosition(null);
   };
 
   const supportsNativeAnchors = () => {
@@ -618,6 +629,7 @@ export function ContextActions(props: ContextActionsProps) {
   onCleanup(() => {
     triggerResizeObserver?.disconnect();
     triggerResizeObserver = null;
+    detachComposerOutsidePointer();
     triggerResizeWindow?.removeEventListener("resize", bumpTriggerPlacement);
     triggerResizeWindow = null;
     rendererObstacleObserver?.disconnect();
@@ -705,16 +717,6 @@ export function ContextActions(props: ContextActionsProps) {
   });
 
   const selectionRect = createMemo(() => unionRects(selectionObstacleRects()));
-
-  const selectionLabel = () => {
-    const count = selection().elements.length;
-
-    if (count > 1) return `${count} selected elements`;
-
-    if (count === 1) return "Selected element";
-
-    return "Selected region";
-  };
 
   const annotationSelectionLabel = (value: MesurerAnnotation) => {
     if (value.anchor.kind !== "elements") return "Selected region";
@@ -833,16 +835,9 @@ export function ContextActions(props: ContextActionsProps) {
   const notePanelPosition = () => {
     const value = selectionRect();
     const currentWindow = ownerWindow();
-    const width = 272;
-    const height = 168;
-    const offset = composerPosition();
-
-    if (offset && value) {
-      return {
-        left: value.left + offset.left,
-        top: value.top + offset.top,
-      };
-    }
+    const width = 256;
+    // Reserve room for the expanded textarea when choosing a viewport lane.
+    const height = 160;
 
     if (!value) return { left: 8, top: 8 };
 
@@ -1039,24 +1034,16 @@ export function ContextActions(props: ContextActionsProps) {
         top: clamp(drag.originTop + next.clientY - drag.startY, 8, maxTop),
       };
 
-      if (surfaceId === "composer") {
-        const value = selectionRect();
-        setComposerPosition(value ? {
+      const value = props.runtime.annotationRect(surfaceId);
+
+      if (!value) return;
+      setPanelPositions((positions) => ({
+        ...positions,
+        [surfaceId]: {
           left: position.left - value.left,
           top: position.top - value.top,
-        } : null);
-      } else {
-        const value = props.runtime.annotationRect(surfaceId);
-
-        if (!value) return;
-        setPanelPositions((positions) => ({
-          ...positions,
-          [surfaceId]: {
-            left: position.left - value.left,
-            top: position.top - value.top,
-          },
-        }));
-      }
+        },
+      }));
     };
 
     const end = (next: PointerEvent) => {
@@ -1110,22 +1097,27 @@ export function ContextActions(props: ContextActionsProps) {
     fallbackNextSelection = false;
     composerSelection = captureSelection();
     setNote("");
+    setNoteExpanded(false);
     setNoteError(null);
     setStatus(null);
     setActiveAnnotationId(null);
-    const value = selectionRect();
-
-    if (value) {
-      const initial = placeComposerNear(value, 272, 168, ownerWindow());
-      setComposerPosition({
-        left: initial.left - value.left,
-        top: initial.top - value.top,
-      });
-    } else {
-      setComposerPosition(null);
-    }
-
     setNoteComposerOpen(true);
+    composerOutsidePointer = (event) => {
+      const composer = contextRoot()?.querySelector("[data-mesurer-annotation-composer='true']");
+      const NodeConstructor = ownerWindow().Node;
+
+      if (composer && NodeConstructor && event.target instanceof NodeConstructor && composer.contains(event.target)) return;
+
+      if (note().trim() && !noteError()) {
+        setNoteError("Press Enter or Send to save, or Escape to discard.");
+
+        return;
+      }
+
+      closeNoteComposer();
+    };
+
+    ownerWindow().document.addEventListener("pointerdown", composerOutsidePointer, true);
     ownerWindow().queueMicrotask(() => nestedTriggerScroll?.sync());
   };
 
@@ -1152,14 +1144,17 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const addNote = () => {
+    if (!note().trim() || busy()) return;
+
     try {
       const annotation = props.runtime.addSelectionAnnotation(note());
       fallbackNextSelection = false;
       composerSelection = null;
       setNote("");
+      setNoteExpanded(false);
       setNoteError(null);
       setNoteComposerOpen(false);
-      setComposerPosition(null);
+      detachComposerOutsidePointer();
       syncAnnotationScrollBinding(annotation.id);
       freezePanelPosition(annotation.id);
       setActiveAnnotationId(annotation.id);
@@ -1296,7 +1291,7 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-annotation-composer="true"
             data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
             data-mesurer-annotation-scroll-mode={scrollMode(placement().nativeAnchor)}
-            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
+            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:w-64 msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-2 msr:text-black"
             style={{
               position: placement().nativeAnchor || usesViewportCoordinates() ? "fixed" : "absolute",
               left: placement().nativeAnchor
@@ -1312,31 +1307,38 @@ export function ContextActions(props: ContextActionsProps) {
             onPointerDown={captureContextButtonPointer}
             onClick={(event) => event.stopPropagation()}
           >
-            <div
-              class="msr:flex msr:h-7 msr:items-center msr:gap-1.5 msr:px-1"
-              style={{ cursor: draggingSurfaceId() === "composer" ? "grabbing" : "grab" }}
-              aria-label="Drag note composer"
-              onPointerDown={(event) => startSurfaceDrag(event, "composer")}
-            >
-              <NoteIcon size={14} class="msr:text-ink-700" />
-              <div class="msr:min-w-0 msr:flex-1">
-                <div class="msr:text-[11px] msr:font-medium msr:text-ink-900">Add note</div>
-                <div class="msr:text-[9px] msr:text-ink-500">{selectionLabel()}</div>
-              </div>
-              <button type="button" class={annotationButtonClass} aria-label="Close note composer" title="Close" onClick={closeNoteComposer}><CloseIcon size={14} /></button>
-            </div>
+            <div class="msr:relative">
             <textarea
+              ref={(element) => ownerWindow().queueMicrotask(() => element.focus())}
               autofocus
+              rows={1}
               value={note()}
-              placeholder="Describe what should change…"
+              aria-label="Note"
+              placeholder="Add a note"
               onInput={(event) => {
-                setNote(event.currentTarget.value);
+                const element = event.currentTarget;
+                setNote(element.value);
                 setNoteError(null);
+                // Measure with the compact padding: the text only "wraps" when it
+                // overflows one row while the send button still sits beside it.
+                element.style.height = "auto";
+                element.style.paddingRight = "36px";
+                element.style.paddingBottom = "6px";
+                const expanded = element.scrollHeight > 34;
+                element.style.paddingRight = expanded ? "8px" : "36px";
+                element.style.paddingBottom = expanded ? "32px" : "6px";
+                setNoteExpanded(expanded);
+                element.style.height = `${Math.min(128, Math.max(34, element.scrollHeight))}px`;
+                element.style.overflowY = element.scrollHeight > 128 ? "auto" : "hidden";
               }}
               onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.stopPropagation();
+
+                if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
                   event.preventDefault();
                   addNote();
+
+                  return;
                 }
 
                 if (event.key === "Escape") {
@@ -1344,16 +1346,34 @@ export function ContextActions(props: ContextActionsProps) {
                   closeNoteComposer();
                 }
               }}
-              class="msr:box-border msr:mt-1 msr:h-20 msr:w-full msr:resize-none msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:p-2 msr:text-[12px] msr:leading-[1.4] msr:text-black msr:outline-none msr:placeholder:text-ink-400 msr:focus:border-[#0d99ff]"
+              class="msr:block msr:box-border msr:min-h-[34px] msr:max-h-32 msr:w-full msr:resize-none msr:rounded-[7px] msr:border msr:border-ink-200 msr:px-2 msr:py-1.5 msr:text-[12px] msr:leading-5 msr:outline-none msr:placeholder:text-ink-400 msr:focus:border-[#0d99ff]"
+              style={{ height: "34px", "padding-right": "36px", "padding-bottom": "6px", "overflow-y": "hidden", "overflow-wrap": "anywhere", "word-break": "break-word", background: "var(--msr-surface)", color: "var(--msr-content)" }}
             />
-            <Show when={noteError()}>{(message) => <div class="msr:mt-1.5 msr:px-1 msr:text-[10px] msr:text-red-600">{message()}</div>}</Show>
-            <div class="msr:mt-1.5 msr:flex msr:h-7 msr:items-center msr:justify-between msr:gap-2 msr:px-1">
-              <span class="msr:text-[9px] msr:text-ink-400">⌘/Ctrl ↵</span>
-              <div class="msr:flex msr:gap-1">
-                <button type="button" class="msr:h-7 msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:px-2 msr:text-[11px] msr:text-ink-700 msr:hover:bg-black/4" onClick={closeNoteComposer}>Cancel</button>
-                <button type="button" class="msr:h-7 msr:rounded-[7px] msr:border-0 msr:bg-[#0d99ff] msr:px-2.5 msr:text-[11px] msr:font-medium msr:text-white msr:hover:bg-[#0b8eea]" onClick={addNote}>Add note</button>
-              </div>
+            <button
+              type="button"
+              aria-label="Add note"
+              title="Add note · Enter"
+              disabled={!note().trim() || busy()}
+              data-mesurer-annotation-send="true"
+              class={`msr:absolute msr:right-1.5 msr:outline-none msr:disabled:cursor-default ${noteExpanded() ? "msr:bottom-1.5" : "msr:top-1/2 msr:-translate-y-1/2"}`}
+              onPointerDown={(event) => event.stopPropagation()}
+              onMouseEnter={() => note().trim() && composerTooltip.onTooltipEnter(sendTooltipId)}
+              onMouseLeave={() => composerTooltip.onTooltipLeave()}
+              onFocus={() => note().trim() && composerTooltip.onTooltipEnter(sendTooltipId)}
+              onBlur={() => composerTooltip.onTooltipLeave()}
+              onClick={addNote}
+            >
+              <SendIcon size={16} class="mesurer-send-icon" />
+              <Tooltip
+                label="Add note"
+                shortcut="Enter"
+                visible={composerTooltip.visibleTooltipId() === sendTooltipId}
+                instant={composerTooltip.tooltipInstant()}
+                class="msr:z-10"
+              />
+            </button>
             </div>
+            <Show when={noteError()}>{(message) => <div class="msr:mt-1.5 msr:px-1 msr:text-[10px] msr:text-red-600">{message()}</div>}</Show>
           </div>
         )}</Show>
       </Show>

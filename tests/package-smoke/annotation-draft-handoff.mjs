@@ -92,9 +92,7 @@ async function assertFreshComposer(page, trigger, composer, label) {
     "",
     `${label} must not inherit the abandoned draft`,
   );
-  await composer
-    .getByRole("button", { name: "Close note composer" })
-    .evaluate((button) => button.click());
+  await composer.locator("textarea").press("Escape");
   await composer.waitFor({ state: "detached", timeout: 3000 });
 }
 

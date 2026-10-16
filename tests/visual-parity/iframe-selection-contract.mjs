@@ -401,10 +401,7 @@ try {
 
   await composer.waitFor({ state: "visible", timeout: 5000 });
   await composer.locator("textarea").fill("Iframe context acceptance");
-  await clickDocumentUi(
-    composer.getByRole("button", { name: "Add note", exact: true }),
-    "iframe Context Add note",
-  );
+  await composer.locator("textarea").press("Enter");
   await composer.waitFor({ state: "hidden" });
 
   const marker = contextRoot.locator("[data-mesurer-annotation-marker='true']").first();

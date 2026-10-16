@@ -212,6 +212,41 @@
   fill: currentColor !important;
   stroke: none !important;
 }
+[data-mesurer-context-root="true"] [data-mesurer-annotation-send="true"] {
+  appearance: none !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 0 !important;
+  border-radius: 9999px !important;
+  background: #0d99ff !important;
+  color: #fff !important;
+  opacity: 1 !important;
+}
+[data-mesurer-context-root="true"] [data-mesurer-annotation-send="true"]:disabled {
+  opacity: 0.4 !important;
+}
+[data-mesurer-context-root="true"] [data-mesurer-annotation-composer="true"] .mesurer-send-icon {
+  width: 16px !important;
+  height: 16px !important;
+}
+[data-mesurer-context-root="true"] [data-mesurer-annotation-composer="true"] .mesurer-send-icon path {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+[data-mesurer-context-root="true"] [data-mesurer-annotation-composer="true"] textarea {
+  box-sizing: border-box !important;
+  min-height: 34px !important;
+  max-height: 128px !important;
+  resize: none !important;
+}
 
 
 /* Document-portaled native anchors stay absolute so viewport/document scrolling

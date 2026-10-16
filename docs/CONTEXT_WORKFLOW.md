@@ -40,6 +40,8 @@ For an ordinary selected element, Mesurer can show a selection-adjacent Add Note
 
 The Add Note composer is owned by the selection that opened it. If the user selects a different element or region before saving, Mesurer closes the unsaved composer instead of moving it to the new target; the new selection gets its normal small Add Note button. Add Note and saved annotation cards are protected Mesurer UI, so live page selection/hover chrome paints underneath them rather than crossing through the card.
 
+Writing a note uses a compact text field with an in-field Send button. Enter sends, Shift+Enter inserts a line break, and Escape discards the draft. Clicking outside with a non-empty draft first keeps it open and prompts the user to send or discard; a subsequent outside click dismisses it.
+
 Annotation presentation is source-linked rather than viewport furniture. On normal window scroll, the Add Note trigger, composer, saved markers, open panel, and ownership edge live in the document scroll tree and move with the page target in the same painted frame. Nested overflow containers use the runtime's scroll compensation so the same UI stays attached there too. A saved panel keeps its target-relative page point and may leave the viewport with its source instead of being clamped back onto the screen.
 
 Several notes on one target keep separate nearby markers. Opening one note does not remove the Add Note trigger, so another note can be added without closing the current review first. The marker layout keeps repeated notes local to the owning target and avoids covering unrelated markers when a clear placement is available.
