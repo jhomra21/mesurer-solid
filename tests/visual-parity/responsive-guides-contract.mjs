@@ -74,6 +74,7 @@ try {
   const firstBox = await frame.nth(0).boundingBox();
   const scale = await frame.nth(0).evaluate((node) => node.getBoundingClientRect().width / node.offsetWidth);
   assert(firstBox && scale > 0, "First preview has a rendered scale");
+
   const snapEdges = await frame.first().evaluate((node) => [...node.contentDocument.querySelectorAll("body *")]
     .filter((element) => {
       const rect = element.getBoundingClientRect();
@@ -85,10 +86,12 @@ try {
 
       return [rect.left, rect.right, rect.left + rect.width / 2];
     }));
+
   // Text-derived edges vary by platform fonts, so release near a measured edge rather than a fixed coordinate.
   const creationEdge = snapEdges
     .filter((edge) => edge > 160 && edge < 300)
     .reduce((best, edge) => (Math.abs(edge - 242) < Math.abs(best - 242) ? edge : best));
+
   const clickPoint = { x: firstBox.x + 132 * scale, y: firstBox.y + 286 * scale };
   await page.mouse.move(clickPoint.x, clickPoint.y);
   await page.mouse.down();
