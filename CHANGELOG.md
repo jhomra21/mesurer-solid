@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.2.3-beta.6 - 2026-10-16
+
 - Add independent per-preview Guides in Responsive, with preview-document snapping, CSS-pixel positions, selection, multi-select, Alt distance feedback, Delete, and drag-off removal. Preview guides persist across close/reopen in page memory and clear on page-key change; Layout Guides project into each preview. Rulers remain page-only and close the stage.
 
 ## 0.2.3-beta.5 - 2026-10-16
