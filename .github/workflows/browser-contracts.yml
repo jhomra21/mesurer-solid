@@ -94,6 +94,7 @@ on:
       - "tests/visual-parity/plugin-settings-contract.mjs"
       - "tests/visual-parity/layout-guides-contract.mjs"
       - "tests/visual-parity/responsive-preview-contract.mjs"
+      - "tests/visual-parity/responsive-viewports-contract.mjs"
       - "tests/visual-parity/responsive-inspection-contract.mjs"
       - ".github/workflows/browser-contracts.yml"
   workflow_dispatch:
@@ -265,6 +266,11 @@ jobs:
           RESPONSIVE_PREVIEW_URL: http://127.0.0.1:4174/responsive-preview.html
           RESPONSIVE_PREVIEW_OUT: responsive-preview-artifacts
         run: bun tests/visual-parity/responsive-preview-contract.mjs
+      - name: Exercise Responsive viewport controls
+        env:
+          RESPONSIVE_VIEWPORTS_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_VIEWPORTS_OUT: responsive-viewports-artifacts
+        run: bun tests/visual-parity/responsive-viewports-contract.mjs
       - name: Exercise Responsive inspection routing
         env:
           RESPONSIVE_INSPECTION_URL: http://127.0.0.1:4174/responsive-preview.html
@@ -277,6 +283,14 @@ jobs:
         with:
           name: mesurer-responsive-preview-contract
           path: responsive-preview-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload Responsive viewport evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-responsive-viewports-contract
+          path: responsive-viewports-artifacts
           if-no-files-found: warn
           retention-days: 14
       - name: Upload Responsive inspection evidence

@@ -117,6 +117,61 @@ try {
     `Selection identity must be the preview document target: ${JSON.stringify(selected.targets[0])}`);
   assertRect(await targetRectInRoot("[data-mesurer-selected-measurement='true'] > div"), expected, "Preview selection outline");
   await page.screenshot({ path: join(output, "preview-selected.png"), fullPage: true });
+
+  await page.getByLabel("Add a size").selectOption("430x932");
+  await page.locator("[data-mesurer-responsive-frame]").nth(1).waitFor();
+  await page.waitForFunction(() => {
+    const preview = document.querySelector("[data-mesurer-island]")?.shadowRoot
+      ?.querySelectorAll("iframe[data-mesurer-responsive-frame]")[1];
+
+    return Boolean(preview?.contentDocument?.querySelector("[data-testid='inspection-target']"));
+  });
+
+  const secondTarget = await page.locator("iframe[data-mesurer-responsive-frame]").nth(1).evaluate((preview) => {
+    const target = preview.contentDocument.querySelector("[data-testid='inspection-target']");
+    const frameRect = preview.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const scale = frameRect.width / preview.offsetWidth;
+
+    return {
+      x: frameRect.left + (targetRect.left + preview.clientLeft) * scale,
+      y: frameRect.top + (targetRect.top + preview.clientTop) * scale,
+      width: targetRect.width * scale,
+      height: targetRect.height * scale,
+    };
+  });
+
+  await page.mouse.move(secondTarget.x + secondTarget.width / 2, secondTarget.y + secondTarget.height / 2);
+  await page.locator("[data-mesurer-hover-measurement='true']").waitFor({ state: "visible" });
+  await page.mouse.click(secondTarget.x + secondTarget.width / 2, secondTarget.y + secondTarget.height / 2);
+  await page.waitForFunction(() => Boolean(document.querySelector("[data-mesurer-island]")?.shadowRoot?.querySelector("[data-mesurer-selected-measurement='true']")));
+  assert.equal((await selectedContext()).targets[0]?.inspection.selector, "#inspection-target",
+    "The second differently scaled preview must remain inspectable");
+
+  await page.locator("[data-mesurer-responsive-frame]").nth(1)
+    .evaluate((preview) => { window.__responsiveRemovedPreviewDocument = preview.contentDocument; });
+
+  await page.locator("[data-preview]").nth(1).getByLabel("Remove preview").click();
+  await page.waitForFunction(() => !document.querySelector("[data-mesurer-island]")?.shadowRoot?.querySelector("[data-mesurer-selected-measurement='true']"));
+  assert.equal(await page.locator("[data-mesurer-hover-measurement='true']").count(), 0,
+    "Removing the preview clears its hover and selection evidence");
+  await page.waitForFunction(() => {
+    const frame = document.querySelector("[data-mesurer-island]")?.shadowRoot?.querySelector("iframe[data-mesurer-responsive-frame]");
+
+    return Boolean(frame?.contentDocument?.body.classList.contains("mesurer-solid-xray"));
+  });
+  assert.equal(await page.locator("[data-mesurer-island] iframe[data-mesurer-responsive-frame]").first()
+    .evaluate((preview) => preview.contentDocument.querySelectorAll("[data-mesurer-xray-style]").length), 1,
+  "Remaining preview retains its X-ray style after removal");
+  assert.deepEqual(await page.evaluate(() => {
+    const document = window.__responsiveRemovedPreviewDocument;
+
+    return {
+      classPresent: document.body.classList.contains("mesurer-solid-xray"),
+      styleCount: document.querySelectorAll("[data-mesurer-xray-style]").length,
+    };
+  }), { classPresent: false, styleCount: 0 }, "Removed preview loses X-ray styling and its document watcher");
+
   await page.mouse.move(point.x, point.y);
   await close();
   await settle();

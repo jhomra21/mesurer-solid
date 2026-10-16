@@ -74,7 +74,7 @@ try {
 
     if (!(frame instanceof HTMLIFrameElement) || !frame.contentWindow) throw new Error("Responsive preview did not mount");
     const card = root.querySelector("[data-mesurer-responsive-card]");
-    const fit = Math.min(1, (innerWidth - 64) / 393, (innerHeight - 72 - 40 - 40) / 852);
+    const fit = Math.min(1, (innerWidth - 64) / 393, (innerHeight - 72 - 36 - 12 - 40 - 40) / 852);
     const computed = getComputedStyle(frame);
 
     return {

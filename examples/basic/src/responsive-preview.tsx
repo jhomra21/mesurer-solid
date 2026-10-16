@@ -25,7 +25,17 @@ function Fixture() {
           [data-testid="breakpoint-label"] { font-size: 0; }
           [data-testid="breakpoint-label"]::after { content: "Mobile layout"; font-size: 16px; }
         }
+        @media (width >= 40rem) and (width < 64rem) {
+          [data-testid="breakpoint-label"] { outline: 1px solid transparent; }
+        }
+        @media (min-width: 80em) {
+          [data-testid="breakpoint-label"] { text-decoration-thickness: 1px; }
+        }
+        @media (max-width: 200px) {
+          [data-testid="breakpoint-label"] { letter-spacing: 1px; }
+        }
       `}</style>
+      <style>{`@import url("/responsive-imported.css");`}</style>
     </main>
   );
 }

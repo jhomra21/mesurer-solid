@@ -1171,7 +1171,11 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     };
 
     const ownerLoad = () => refresh();
-    const responsiveStageChange: EventListener = () => refresh();
+
+    const responsiveStageChange: EventListener = () => {
+      refresh();
+      xrayScope.sync();
+    };
 
     const responsivePreviewReady: EventListener = () => {
       refresh();
@@ -1618,6 +1622,13 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
               textInspector?.clearResponsivePreview();
               model.setHoverTarget(null, null);
               model.setTransient({ hoverPointer: null });
+            }}
+            onPreviewRemove={() => {
+              clearPendingHover();
+              textInspector?.clearResponsivePreview();
+              model.setHoverTarget(null, null);
+              model.setTransient({ hoverPointer: null });
+              builtinController.clearSelection();
             }}
             shortcutsEnabled={input.responsiveShortcutsEnabled?.() ?? true}
           />

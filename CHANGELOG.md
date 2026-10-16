@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Responsive now supports up to six presets or page-breakpoint viewports, per-axis resize, reorder without iframe reload, remove, shared Fit/manual zoom, and stage/frame wheel routing. Preview list and zoom survive close/reopen in page memory only and reset when the page key changes.
+
 ## 0.2.3-beta.4 - 2026-10-16
 
 - Responsive previews now route Select, marquee selection, measurements, X-ray, and Typography inspection to accessible same-origin preview documents. Preview targets cannot create Context annotations yet; the Add Note command is blocked consistently, and the agent inspection API remains rooted in the original page.
