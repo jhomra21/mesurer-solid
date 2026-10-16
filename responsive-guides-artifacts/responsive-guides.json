@@ -1,0 +1,16 @@
+{
+  "url": "http://127.0.0.1:4192/responsive-preview.html",
+  "rootGuideCount": 1,
+  "storedFirst": {
+    "id": "preview-guide-mvbfdsys-0y7t3x",
+    "orientation": "vertical",
+    "position": 235.984375,
+    "active": "true"
+  },
+  "guideCounts": [
+    2,
+    1
+  ],
+  "errors": [],
+  "rulersCloseStage": true
+}

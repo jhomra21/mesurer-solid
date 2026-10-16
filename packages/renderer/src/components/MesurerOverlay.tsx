@@ -25,6 +25,7 @@ export type MesurerOverlayProps = {
   guideDistanceOverlay: import("../core/types").DistanceOverlay | null;
   optionContainerLines: ReturnType<typeof import("../core/option-measurements").getOptionContainerLines>;
   hoverGuide: Guide | null;
+  responsiveOpen?: boolean;
   selectionSpacingStyle: SelectionSpacingStyle;
   interactive: boolean;
   editSelectionHover(): boolean;
@@ -245,6 +246,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   };
 
   const renderedGuides = createMemo((): Guide[] => {
+    if (props.responsiveOpen) return [];
+
     if (props.model.state.guides.length > 0) return props.model.state.guides;
 
     if (!props.model.state.settingsOpen || props.model.state.settingsTab !== "guides") return props.model.state.guides;
@@ -411,7 +414,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     };
 
     const handlePassiveGuideDown = (event: PointerEvent) => {
-      if (!props.model.current.enabled || props.model.current.settingsOpen || props.model.current.toolMode !== "none") return;
+      if (props.responsiveOpen || !props.model.current.enabled || props.model.current.settingsOpen || props.model.current.toolMode !== "none") return;
 
       const toolbarTarget = event.composedPath().some((target) =>
         target instanceof ownerWindow.Element && target.hasAttribute("data-mesurer-toolbar"),

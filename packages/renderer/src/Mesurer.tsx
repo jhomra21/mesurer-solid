@@ -877,6 +877,19 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       clickCycle = null;
     },
   );
+  createEffect(
+    () => [
+      input.responsiveOpen === true && model.state.toolMode === "guides",
+      model.state.altPressed,
+      model.state.guideOrientation,
+      model.state.settings.guideColor,
+      JSON.stringify(model.state.settings.guideStyle),
+    ] as const,
+    ([active, altPressed]) => {
+      ownerWindow.dispatchEvent(new CustomEvent("mesurer:responsive-guide-mode", { detail: active }));
+      ownerWindow.dispatchEvent(new CustomEvent("mesurer:responsive-guide-alt", { detail: altPressed }));
+    },
+  );
 
   createEffect(
     () => [
@@ -1402,6 +1415,13 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         return;
       }
 
+      if ((key === "delete" || key === "backspace") && input.responsiveOpen) {
+        ownerWindow.dispatchEvent(new CustomEvent("mesurer:responsive-delete-selected-guides"));
+        event.preventDefault();
+
+        return;
+      }
+
       if ((key === "delete" || key === "backspace") && model.current.selectedGuideIds.length) {
         event.preventDefault(); model.removeGuides(model.current.selectedGuideIds);
 
@@ -1579,6 +1599,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           guideDistanceOverlay={guideDistanceOverlay()}
           optionContainerLines={optionContainerLines()}
           hoverGuide={hoverGuide()}
+          responsiveOpen={input.responsiveOpen}
           selectionSpacingStyle={props.selectionSpacingStyle}
           interactive={model.state.enabled && !model.state.settingsOpen}
           editSelectionHover={() => input.editSelectionHover?.() ?? false}
@@ -1631,6 +1652,12 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
               builtinController.clearSelection();
             }}
             shortcutsEnabled={input.responsiveShortcutsEnabled?.() ?? true}
+            guidesActive={() => model.current.toolMode === "guides"}
+            guideOrientation={() => model.current.guideOrientation}
+            altPressed={() => model.current.altPressed}
+            guideColor={() => model.current.settings.guideColor}
+            guideStyle={() => model.current.settings.guideStyle}
+            snapGuidesEnabled={() => model.current.settings.snapGuidesEnabled}
           />
         </Show>
       </div>

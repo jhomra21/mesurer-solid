@@ -1,6 +1,6 @@
 import { render } from "@solidjs/web";
 import { mountMesurer } from "../../../packages/mesurer/src/index";
-import { context, edit, recording, screenshot } from "../../../packages/mesurer/src/plugins";
+import { context, edit, layoutGuides, recording, screenshot } from "../../../packages/mesurer/src/plugins";
 
 function Fixture() {
   return (
@@ -44,7 +44,7 @@ const root = document.querySelector<HTMLElement>("#root")!;
 
 render(() => <Fixture />, root);
 
-const mounted = mountMesurer({ target: root, persistKey: "responsive-preview-contract", agent: true, plugins: [context(), edit(), recording(), screenshot()] });
+const mounted = mountMesurer({ target: root, persistKey: "responsive-preview-contract", agent: true, plugins: [context(), edit(), layoutGuides(), recording(), screenshot()] });
 
 // SAFETY: This fixture intentionally exposes the mounted handle to its same-origin browser contract.
 (window as Window & { __responsiveMount?: typeof mounted }).__responsiveMount = mounted;

@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Add independent per-preview Guides in Responsive, with preview-document snapping, CSS-pixel positions, selection, multi-select, Alt distance feedback, Delete, and drag-off removal. Preview guides persist across close/reopen in page memory and clear on page-key change; Layout Guides project into each preview. Rulers remain page-only and close the stage.
+
 ## 0.2.3-beta.5 - 2026-10-16
 
 - Responsive now supports up to six presets or page-breakpoint viewports, per-axis resize, reorder without iframe reload, remove, shared Fit/manual zoom, and stage/frame wheel routing. Preview list and zoom survive close/reopen in page memory only and reset when the page key changes.

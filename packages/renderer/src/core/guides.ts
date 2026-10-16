@@ -1,6 +1,7 @@
 // Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
 import { GUIDE_SNAP_DISTANCE, MIN_SINGLE_TARGET_SIZE } from "./constants";
 import { getBodyElementsCached, getRectFromDomCached } from "./dom";
+import { projectRectToDocument } from "./frame-geometry";
 import { getViewportSize } from "./geometry";
 import type { Guide, Point, Rect } from "./types";
 
@@ -10,7 +11,7 @@ export const getGuideRect = (guide: Guide, ownerWindow: Window = window): Rect =
 
 export const getGuideDistance = (guide: Guide, point: Point) => guide.orientation === "vertical" ? Math.abs(guide.position - point.x) : Math.abs(guide.position - point.y);
 
-export const getSnapGuidePosition = (params: { orientation: Guide["orientation"]; point: Point; snapGuidesEnabled: boolean; overlayNode: HTMLDivElement | null; guides: Guide[]; draggingGuideId: string | null; document?: Document }) => {
+export const getSnapGuidePosition = (params: { orientation: Guide["orientation"]; point: Point; snapGuidesEnabled: boolean; overlayNode: HTMLDivElement | null; guides: Guide[]; draggingGuideId: string | null; document?: Document; projectFrameGeometry?: boolean }) => {
   const ownerDocument = params.document ?? document; const { orientation, point, snapGuidesEnabled, overlayNode, guides } = params;
 
   if (!snapGuidesEnabled) return orientation === "vertical" ? point.x : point.y;
@@ -18,7 +19,12 @@ export const getSnapGuidePosition = (params: { orientation: Guide["orientation"]
 
   for (const element of getBodyElementsCached(ownerDocument)) {
     if (overlayNode?.contains(element) || element === ownerDocument.body || element === ownerDocument.documentElement) continue;
-    const rect = getRectFromDomCached(element);
+
+    const rect = params.projectFrameGeometry === false
+      ? element.getBoundingClientRect()
+      : params.document
+        ? projectRectToDocument(element.getBoundingClientRect(), element.ownerDocument, ownerDocument)
+        : getRectFromDomCached(element);
 
  if (rect.width <= 2 || rect.height <= 2) continue;
 
