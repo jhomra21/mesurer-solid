@@ -59,6 +59,8 @@ export type MesurerAnnotationTarget = {
   selector: string;
   fingerprint: MesurerElementFingerprint;
   lastRect: MesurerContextRect;
+  viewport?: { url: string; width: number; height: number; previewId: string };
+  domPath?: Array<{ kind: "frame" | "shadow"; selector: string }>;
 };
 
 export type MesurerAnnotationBaseline = {
@@ -84,7 +86,12 @@ export type MesurerAnnotation = {
   baseline: MesurerAnnotationBaseline;
 };
 
-export type MesurerContextTarget = { ref: string; inspection: MesurerElementInspection };
+export type MesurerContextTarget = {
+  ref: string;
+  inspection: MesurerElementInspection;
+  viewport?: MesurerAnnotationTarget["viewport"];
+  domPath?: MesurerAnnotationTarget["domPath"];
+};
 
 export type MesurerContextGuide = { id: string; orientation: "vertical" | "horizontal"; position: number };
 
@@ -123,6 +130,7 @@ export type MesurerContextV1 = {
   page: { url: string; title: string };
   viewport: { width: number; height: number; devicePixelRatio: number; scrollX: number; scrollY: number };
   coordinateSpace: "viewport-css-px";
+  previewViewport?: MesurerAnnotationTarget["viewport"];
   /** Requested/annotated viewport regions. Empty for whole-workspace context. */
   regions: MesurerContextRect[];
   visualState: { rulersVisible: boolean; xrayVisible: boolean };
@@ -168,6 +176,7 @@ export type MesurerCapturePlanV1 = {
   contextId: string;
   chrome: "hide";
   evidence: "show";
+  previewViewport?: MesurerAnnotationTarget["viewport"];
   captures: Array<
     | { id: "viewport"; kind: "viewport" }
     | { id: "focus"; kind: "clip"; rect: MesurerContextRect }
@@ -194,6 +203,7 @@ export type MesurerWorkspaceContextSource = {
     guides: Array<{ id: string; orientation: "vertical" | "horizontal"; position: number }>;
   } | null;
   elementRect?(element: Element): MesurerContextRect;
+  targetScope?(element: Element): Pick<MesurerAnnotationTarget, "viewport" | "domPath">;
   currentSelection(): { elements: Element[]; region: MesurerContextRect | null };
   annotations(): MesurerAnnotation[];
   annotation(id: string): (MesurerAnnotation & { resolvedTargets: Array<{ target: MesurerAnnotationTarget; element: Element | null }> }) | null;
@@ -245,14 +255,25 @@ export function captureMesurerContext(options: {
   let anchorRegions: MesurerContextRect[] = [];
   let scope: MesurerContextV1["scope"] = { kind: "workspace" };
   const preferredRefByElement = new Map<Element, string>();
+  const savedScopeByElement = new Map<Element, Pick<MesurerAnnotationTarget, "viewport" | "domPath">>();
+  let previewViewport: MesurerAnnotationTarget["viewport"];
 
   if ("annotation" in request) {
     const annotation = runtime.annotation(request.annotation);
 
     if (!annotation) throw new Error(`Mesurer annotation not found: ${request.annotation}`);
 
+    if (annotation.anchor.kind === "elements") previewViewport = annotation.anchor.targets.find((target) => target.viewport)?.viewport;
+
     for (const item of annotation.resolvedTargets) {
-      if (item.element?.isConnected) preferredRefByElement.set(item.element, item.target.id);
+      if (item.element?.isConnected) {
+        preferredRefByElement.set(item.element, item.target.id);
+
+        if (item.target.viewport) savedScopeByElement.set(item.element, {
+          viewport: { ...item.target.viewport },
+          domPath: item.target.domPath?.map((hop) => ({ ...hop })) ?? [],
+        });
+      }
     }
 
     anchorElements = uniqueElements(annotation.resolvedTargets.map((item) => item.element));
@@ -336,6 +357,7 @@ export function captureMesurerContext(options: {
 
     return {
       ref,
+      ...(savedScopeByElement.get(element) ?? runtime.targetScope?.(element)),
       inspection: {
         ...inspection,
         rect: {
@@ -384,7 +406,7 @@ export function captureMesurerContext(options: {
     return value;
   });
 
-  return {
+  const result: MesurerContextV1 = {
     schema: "mesurer.context/v1",
     id: randomId(ownerWindow),
     createdAt: new Date().toISOString(),
@@ -408,6 +430,12 @@ export function captureMesurerContext(options: {
       distances: contextDistances,
     },
   };
+
+  previewViewport ??= targets.find((target) => target.viewport)?.viewport;
+
+  if (previewViewport) result.previewViewport = { ...previewViewport };
+
+  return result;
 }
 
 const px = (value: number) => `${Math.round(value * 100) / 100}px`;
@@ -447,6 +475,8 @@ export function formatMesurerContext(context: MesurerContextV1): string {
 
     for (const target of context.targets) {
       const value = target.inspection;
+
+      if (target.viewport) lines.push(`Preview: ${target.viewport.url}; ${target.viewport.width} × ${target.viewport.height} CSS px; id=${target.viewport.previewId}`);
       lines.push(
         `[${target.ref}] ${value.selector}`,
         `  rect: ${lineRect(value.rect)}`,
@@ -535,13 +565,17 @@ export function createMesurerCapturePlan(context: MesurerContextV1): MesurerCapt
     }
   }
 
-  return {
+  const result: MesurerCapturePlanV1 = {
     schema: "mesurer.capture/v1",
     contextId: context.id,
     chrome: "hide",
     evidence: "show",
     captures,
   };
+
+  if (context.previewViewport) result.previewViewport = { ...context.previewViewport };
+
+  return result;
 }
 
 const addMetricChange = (

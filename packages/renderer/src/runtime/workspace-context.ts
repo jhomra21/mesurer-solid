@@ -24,12 +24,14 @@ import {
   isElementWithinAccessibleTarget,
   isResponsivePreviewDocument,
 } from "../core/document-tree";
+import { getAccessibleFrameDocument } from "../core/frame-geometry";
 import {
   getInspectMeasurement as getProjectedInspectMeasurement,
   getRectFromDom as getProjectedRectFromDom,
 } from "../core/dom";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import { getMesurerPageKey, subscribeMesurerPageKey } from "./page-location";
+import { previewDocuments, previewTargetRoot, previewTargetScope } from "./preview-context";
 
 export type {
   MesurerAnnotation,
@@ -59,6 +61,8 @@ export type MesurerWorkspaceSnapshot = {
 export type MesurerWorkspaceRuntime = {
   snapshot(): MesurerWorkspaceSnapshot;
   elementRect(element: Element): Rect;
+  targetScope(element: Element): Pick<MesurerAnnotationTarget, "viewport" | "domPath">;
+  annotationVisible(id: string): boolean;
   currentSelection(): { elements: Element[]; region: Rect | null };
   /**
    * Re-measure the selected elements after something other than scroll or
@@ -126,11 +130,19 @@ const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => ({
     ? {
         kind: "elements",
         region: annotation.anchor.region ? cloneMesurerRect(annotation.anchor.region) : null,
-        targets: annotation.anchor.targets.map((target) => ({
-          ...target,
-          fingerprint: { ...target.fingerprint, classes: [...target.fingerprint.classes] },
-          lastRect: cloneMesurerRect(target.lastRect),
-        })),
+        targets: annotation.anchor.targets.map((target) => {
+          const copy = {
+            ...target,
+            fingerprint: { ...target.fingerprint, classes: [...target.fingerprint.classes] },
+            lastRect: cloneMesurerRect(target.lastRect),
+          };
+
+          if (target.viewport) copy.viewport = { ...target.viewport };
+
+          if (target.domPath) copy.domPath = target.domPath.map((hop) => ({ ...hop }));
+
+          return copy;
+        }),
       }
     : { kind: "region", rect: cloneMesurerRect(annotation.anchor.rect) },
   baseline: {
@@ -248,14 +260,24 @@ export function createMesurerWorkspaceRuntime(options: {
   const watchedDocuments = new Map<Document, {
     load: EventListener;
     observer: MutationObserver | null;
+    removeResizeListener: () => void;
+    unsubscribeLocation: () => void;
   }>();
+
+  const watchedShadowRoots = new Map<ShadowRoot, MutationObserver>();
 
   let watching = false;
 
   const targetKey = (annotationId: string, targetId: string) => `${annotationId}:${targetId}`;
 
   const isInPageTarget = (element: Element) =>
-    isElementWithinAccessibleTarget(element, pageTarget);
+    isElementWithinAccessibleTarget(element, pageTarget)
+    || previewDocuments(uiRoot).includes(element.ownerDocument);
+
+  const matchesScope = (element: Element, target: MesurerAnnotationTarget) =>
+    target.viewport
+      ? element.getRootNode() === previewTargetRoot(uiRoot, target)
+      : !isResponsivePreviewDocument(element.ownerDocument);
 
   const queryCandidates = (selector: string): Element[] => {
     const matches: Element[] = [];
@@ -319,7 +341,10 @@ export function createMesurerWorkspaceRuntime(options: {
     let rawSelectorMatches: Element[] = [];
 
     try {
-      rawSelectorMatches = queryCandidates(target.selector);
+      const previewDocument = target.viewport ? previewTargetRoot(uiRoot, target) : null;
+      rawSelectorMatches = target.viewport
+        ? [...previewDocument?.querySelectorAll(target.selector) ?? []]
+        : queryCandidates(target.selector).filter((candidate) => matchesScope(candidate, target));
     } catch {
       return null;
     }
@@ -361,7 +386,7 @@ export function createMesurerWorkspaceRuntime(options: {
     const key = targetKey(annotationId, target.id);
     const live = liveTargets.get(key);
 
-    if (live?.isConnected && isInPageTarget(live)) return live;
+    if (live?.isConnected && isInPageTarget(live) && matchesScope(live, target)) return live;
 
     if (live) liveTargets.delete(key);
 
@@ -424,15 +449,68 @@ export function createMesurerWorkspaceRuntime(options: {
 
     currentDocument.removeEventListener("load", watcher.load, true);
     currentDocument.removeEventListener("scroll", scheduleRefresh, true);
-    currentDocument.defaultView?.removeEventListener("resize", scheduleRefresh);
+    watcher.removeResizeListener();
+    watcher.unsubscribeLocation();
     watcher.observer?.disconnect();
     watchedDocuments.delete(currentDocument);
+  };
+
+  const syncShadowRootWatchers = () => {
+    const reachable = new Set<ShadowRoot>();
+
+    for (const annotation of annotations) {
+      if (annotation.anchor.kind !== "elements") continue;
+
+      for (const target of annotation.anchor.targets) {
+        if (!target.viewport) continue;
+
+        let currentRoot: Document | ShadowRoot | null = previewTargetRoot(uiRoot, { ...target, domPath: [] });
+
+        for (const hop of target.domPath ?? []) {
+          const matches = currentRoot?.querySelectorAll(hop.selector);
+
+          if (matches?.length !== 1) break;
+          const element = matches[0];
+          const shadowRoot = hop.kind === "shadow" ? element.shadowRoot : null;
+          currentRoot = hop.kind === "frame" ? getAccessibleFrameDocument(element) : shadowRoot;
+
+          if (shadowRoot) reachable.add(shadowRoot);
+        }
+      }
+    }
+
+    for (const shadowRoot of reachable) {
+      if (watchedShadowRoots.has(shadowRoot)) continue;
+
+      const Observer = shadowRoot.ownerDocument.defaultView?.MutationObserver;
+
+      if (!Observer) continue;
+
+      const observer = new Observer(() => {
+        syncDocumentWatchers();
+        scheduleRefresh();
+      });
+
+      observer.observe(shadowRoot, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["id", "class", "data-testid", "role", "aria-label", "style"],
+      });
+      watchedShadowRoots.set(shadowRoot, observer);
+    }
+
+    for (const [shadowRoot, observer] of watchedShadowRoots) {
+      if (reachable.has(shadowRoot)) continue;
+      observer.disconnect();
+      watchedShadowRoots.delete(shadowRoot);
+    }
   };
 
   const syncDocumentWatchers = () => {
     if (!watching) return;
 
-    const reachable = new Set(getAccessibleDocuments(pageTarget));
+    const reachable = new Set([...getAccessibleDocuments(pageTarget), ...previewDocuments(uiRoot)]);
 
     for (const currentDocument of reachable) {
       if (watchedDocuments.has(currentDocument)) continue;
@@ -450,13 +528,16 @@ export function createMesurerWorkspaceRuntime(options: {
       const observer = Observer && currentDocument.body
         ? new Observer(() => {
             syncDocumentWatchers();
+            syncShadowRootWatchers();
             scheduleRefresh();
           })
         : null;
 
       currentDocument.addEventListener("load", load, true);
       currentDocument.addEventListener("scroll", scheduleRefresh, true);
-      currentDocument.defaultView?.addEventListener("resize", scheduleRefresh);
+      const view = currentDocument.defaultView;
+      view?.addEventListener("resize", scheduleRefresh);
+      const removeListener = view?.removeEventListener.bind(view);
       observer?.observe(currentDocument.body, {
         childList: true,
         subtree: true,
@@ -467,16 +548,22 @@ export function createMesurerWorkspaceRuntime(options: {
       watchedDocuments.set(currentDocument, {
         load,
         observer,
+        removeResizeListener: () => removeListener?.("resize", scheduleRefresh),
+        unsubscribeLocation: currentDocument.defaultView && isResponsivePreviewDocument(currentDocument)
+          ? subscribeMesurerPageKey(currentDocument.defaultView, scheduleRefresh)
+          : () => {},
       });
     }
 
     for (const currentDocument of watchedDocuments.keys()) {
       if (!reachable.has(currentDocument)) releaseDocumentWatcher(currentDocument);
     }
+
+    syncShadowRootWatchers();
   };
 
   const startWatching = () => {
-    if (watching || disposed || annotations.length === 0) return;
+    if (disposed || annotations.length === 0) return;
 
     watching = true;
     syncDocumentWatchers();
@@ -491,10 +578,22 @@ export function createMesurerWorkspaceRuntime(options: {
       releaseDocumentWatcher(currentDocument);
     }
 
+    for (const observer of watchedShadowRoots.values()) observer.disconnect();
+    watchedShadowRoots.clear();
+
     if (mutationFrame) ownerWindow.cancelAnimationFrame(mutationFrame);
 
     mutationFrame = 0;
   };
+
+  const stageChanged = () => {
+    syncDocumentWatchers();
+    refreshAnnotations();
+    notify();
+  };
+
+  ownerWindow.addEventListener("mesurer:responsive-stage-change", stageChanged);
+  uiRoot?.addEventListener("scroll", scheduleRefresh, true);
 
   if (annotations.length > 0) {
     refreshAnnotations();
@@ -546,6 +645,7 @@ export function createMesurerWorkspaceRuntime(options: {
     selector: getElementSelector(element),
     fingerprint: getElementFingerprint(element),
     lastRect: getProjectedRectFromDom(element),
+    ...previewTargetScope(element),
   });
 
   const select = (selectors: string[]) => {
@@ -613,6 +713,10 @@ export function createMesurerWorkspaceRuntime(options: {
   };
 
   const addRegionAnnotation = (note: string, value: Rect) => {
+    if (uiRoot?.querySelector("[data-mesurer-responsive-stage]")) {
+      throw new Error("Select a preview element before adding a Responsive annotation.");
+    }
+
     const text = note.trim();
 
     if (!text) throw new Error("Annotation note cannot be empty.");
@@ -632,10 +736,6 @@ export function createMesurerWorkspaceRuntime(options: {
 
     if (!value) throw new Error("Annotation note cannot be empty.");
 
-    if (selectedElements(model).some((element) => isResponsivePreviewDocument(element.ownerDocument))) {
-      throw new Error("Context annotations are unavailable for Responsive preview targets.");
-    }
-
     const elements = selectedElements(model).filter(isInPageTarget);
 
     const region = model.current.selectionOriginRect
@@ -649,6 +749,10 @@ export function createMesurerWorkspaceRuntime(options: {
     }
 
     const targets = elements.map(makeTarget);
+
+    if (new Set(targets.map((target) => JSON.stringify(target.viewport))).size > 1) {
+      throw new Error("Select elements within one Responsive preview before adding an annotation.");
+    }
 
     return pushAnnotation({
       id: randomId(ownerWindow, "annotation"),
@@ -691,6 +795,17 @@ export function createMesurerWorkspaceRuntime(options: {
     },
     elementRect(element) {
       return getProjectedRectFromDom(element);
+    },
+    targetScope: previewTargetScope,
+    annotationVisible(id) {
+      const annotation = annotations.find((item) => item.id === id);
+
+      if (!annotation) return false;
+      const stageOpen = Boolean(uiRoot?.querySelector("[data-mesurer-responsive-stage]"));
+      const preview = annotation.anchor.kind === "elements" && annotation.anchor.targets.some((target) => target.viewport);
+
+      return stageOpen === preview && (!preview || (annotation.anchor.kind === "elements"
+        && annotation.anchor.targets.some((target) => resolveTarget(annotation.id, target))));
     },
     currentSelection() {
       return {
@@ -820,8 +935,12 @@ export function createMesurerWorkspaceRuntime(options: {
       if (annotation.anchor.kind === "region") return cloneMesurerRect(annotation.anchor.rect);
 
       const rects = annotation.anchor.targets
-        .map((target) => resolveTarget(annotation.id, target)?.getBoundingClientRect())
-        .filter((value): value is DOMRect => value !== undefined);
+        .map((target) => {
+          const element = resolveTarget(annotation.id, target);
+
+          return element ? getProjectedRectFromDom(element) : undefined;
+        })
+        .filter((value): value is Rect => value !== undefined);
 
       if (!rects.length) {
         const fallback = unionMesurerRects(annotation.anchor.targets.map((target) => target.lastRect));
@@ -901,6 +1020,8 @@ export function createMesurerWorkspaceRuntime(options: {
       stopWatching();
       unsubscribePageKey();
       modelUnsubscribe();
+      ownerWindow.removeEventListener("mesurer:responsive-stage-change", stageChanged);
+      uiRoot?.removeEventListener("scroll", scheduleRefresh, true);
       restoreCapturePresentation();
       liveTargets.clear();
       targetResolution.clear();

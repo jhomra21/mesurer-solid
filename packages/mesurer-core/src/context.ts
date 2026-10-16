@@ -21,6 +21,8 @@ export type MesurerAnnotationTarget = {
   selector: string;
   fingerprint: MesurerElementFingerprint;
   lastRect: Rect;
+  viewport?: { url: string; width: number; height: number; previewId: string };
+  domPath?: Array<{ kind: "frame" | "shadow"; selector: string }>;
 };
 
 export type MesurerAnnotationBaseline = {

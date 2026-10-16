@@ -48,6 +48,8 @@ Several notes on one target keep separate nearby markers. Opening one note does 
 
 Saved annotations also survive a same-tab reload. Context stores only its annotation records in session-scoped browser storage. On reload it restores the original ids, notes, immutable baselines, selectors, fingerprints, and last-known geometry, then conservatively rebinds each element target through the same selector/fingerprint rules used for live DOM replacement. Ambiguous or missing targets stay unresolved instead of binding to a convenient lookalike. Removing an annotation updates that stored review state immediately.
 
+Responsive preview element notes additionally store `viewport: { url, width, height, previewId }` and nested frame/shadow `domPath` evidence. They resolve only in an exact URL/width/height match, never on the root page. Their UI stays in the root overlay with projected geometry; removing a preview hides its notes and releases its watchers without deleting the records. Context targets and capture plans include viewport metadata. See [Responsive inspector](./RESPONSIVE_INSPECTOR.md) for exact rebind and lifetime rules.
+
 Context also controls the paint order between page evidence and Mesurer annotation UI. When Context owns the document-backed annotation UI, live Select hover evidence uses the lower document evidence layer even if Mesurer's outer host itself is in the browser top layer. This matters because a browser top-layer node outranks ordinary document `z-index`; keeping page evidence in the same document paint domain is what lets the opaque composer and saved cards fully occlude the blue hover fill and border.
 
 ## Read existing intent first

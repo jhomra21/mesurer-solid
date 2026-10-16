@@ -27,6 +27,10 @@ on:
       - "packages/renderer/src/core/selection.ts"
       - "packages/renderer/src/core/document-tree.ts"
       - "packages/renderer/src/runtime/xray-scope.ts"
+      - "packages/renderer/src/runtime/workspace-context.ts"
+      - "packages/renderer/src/runtime/preview-context.ts"
+      - "packages/mesurer-core/src/context.ts"
+      - "packages/mesurer/src/context.ts"
       - "packages/renderer/src/plugins/responsive/**"
       - "packages/mesurer-dom/src/index.ts"
       - "packages/mesurer/src/agent.ts"
@@ -97,6 +101,7 @@ on:
       - "tests/visual-parity/responsive-viewports-contract.mjs"
       - "tests/visual-parity/responsive-inspection-contract.mjs"
       - "tests/visual-parity/responsive-guides-contract.mjs"
+      - "tests/visual-parity/responsive-context-contract.mjs"
       - ".github/workflows/browser-contracts.yml"
   workflow_dispatch:
 
@@ -282,6 +287,21 @@ jobs:
           RESPONSIVE_GUIDES_URL: http://127.0.0.1:4174/responsive-preview.html
           RESPONSIVE_GUIDES_OUT: responsive-guides-artifacts
         run: bun tests/visual-parity/responsive-guides-contract.mjs
+
+      - name: Exercise Responsive Context
+        env:
+          RESPONSIVE_CONTEXT_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_CONTEXT_OUT: responsive-context-artifacts
+        run: bun tests/visual-parity/responsive-context-contract.mjs
+
+      - name: Upload Responsive Context evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-responsive-context-contract
+          path: responsive-context-artifacts
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload Responsive evidence
         if: always()

@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Add viewport-scoped Context notes in Responsive, with exact URL/width/height/preview identity, root-projected markers and panels, conservative rebind after preview recreation, and viewport metadata in Context and capture plans. Removing or closing previews hides their notes and releases their watchers without deleting saved review records; root-page notes remain separate.
+
 ## 0.2.3-beta.6 - 2026-10-16
 
 - Add independent per-preview Guides in Responsive, with preview-document snapping, CSS-pixel positions, selection, multi-select, Alt distance feedback, Delete, and drag-off removal. Preview guides persist across close/reopen in page memory and clear on page-key change; Layout Guides project into each preview. Rulers remain page-only and close the stage.

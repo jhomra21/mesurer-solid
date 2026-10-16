@@ -1,4 +1,5 @@
 import { render } from "@solidjs/web";
+import { createSignal, untrack } from "solid-js";
 import {
   ContextActionsSelectOwnership,
   createDocumentInspectorMount,
@@ -171,24 +172,11 @@ const createService = (
   };
 };
 
-const hasContextSelection = (runtime: MesurerWorkspaceRuntime) => {
+const hasContextSelection = (runtime: MesurerWorkspaceRuntime, rendererRoot: HTMLElement | undefined) => {
   const selection = runtime.currentSelection();
 
-  return (selection.elements.length > 0 || selection.region !== null)
-    && !selection.elements.some((element) => {
-      let current: Document | null = element.ownerDocument;
-
-      while (current) {
-        const frame: Element | null = current.defaultView?.frameElement ?? null;
-
-        if (!frame) return false;
-
-        if (frame.hasAttribute("data-mesurer-responsive-frame")) return true;
-        current = frame.ownerDocument;
-      }
-
-      return false;
-    });
+  return selection.elements.length > 0
+    || (selection.region !== null && !rendererRoot?.querySelector("[data-mesurer-responsive-stage]"));
 };
 
 export function context(options: MesurerContextPluginOptions = {}): MesurerPlugin {
@@ -226,11 +214,11 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       });
       ctx.state.register<ContextUiState>({
         id: CONTEXT_UI_STATE_ID,
-        initial: { hasSelection: hasContextSelection(runtime) },
+        initial: { hasSelection: hasContextSelection(runtime, solid.rendererRoot) },
       });
 
       const uiEnabled = () => ctx.state.get<ContextSettingsState>(MESURER_CONTEXT_SETTINGS_STATE_ID)?.ui ?? true;
-      const hasSelection = () => hasContextSelection(runtime);
+      const hasSelection = () => hasContextSelection(runtime, solid.rendererRoot);
 
       const setUiEnabled = (ui: boolean) => {
         ctx.state.update<ContextSettingsState>(MESURER_CONTEXT_SETTINGS_STATE_ID, (current) => ({ ...current, ui }));
@@ -240,6 +228,12 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       let disposeUi: (() => void) | null = null;
       let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
       let directEditObserver: MutationObserver | null = null;
+
+      const [stageOpen, setStageOpen] = createSignal(
+        Boolean(solid.rendererRoot?.querySelector("[data-mesurer-responsive-stage]")),
+      );
+
+      let uiParent: Node | null = null;
       const initialSelection = runtime.currentSelection();
 
       let previousSelection = {
@@ -276,7 +270,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
         if (runtime.selectGestureActive()) uiController?.abandonNoteComposer();
         else if (selectionChanged) uiController?.closeNoteComposer();
 
-        const next = hasContextSelection(runtime);
+        const next = hasContextSelection(runtime, solid.rendererRoot);
         const current = ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection ?? false;
 
         if (next !== current) ctx.state.update<ContextUiState>(CONTEXT_UI_STATE_ID, () => ({ hasSelection: next }));
@@ -312,6 +306,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       const createUi = () => {
         if (uiMount) return;
         uiMount = createDocumentInspectorMount(solid);
+        uiParent = uiMount.element.parentNode;
         uiMount.element.dataset.mesurerLayer = "evidence";
         uiMount.element.dataset.mesurerContextRoot = "true";
 
@@ -331,7 +326,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
           runtime,
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
-          coordinateSpace: "document",
+          get coordinateSpace() { return stageOpen() ? "viewport" : "document"; },
           rendererRoot: solid.rendererRoot,
         };
 
@@ -341,6 +336,11 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
             ownerWindow={solid.ownerWindow}
           />
         ), uiMount.element);
+
+        if (untrack(stageOpen) && solid.rendererRoot) {
+          solid.rendererRoot.append(uiMount.element);
+          uiMount.element.style.zIndex = "90";
+        }
       };
 
       const syncUi = () => {
@@ -350,6 +350,22 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
 
       syncUi();
       ctx.state.subscribe(syncUi);
+
+      const syncStage = () => {
+        const next = Boolean(solid.rendererRoot?.querySelector("[data-mesurer-responsive-stage]"));
+
+        if (next === untrack(stageOpen)) return;
+        setStageOpen(next);
+
+        if (!uiMount) return;
+        const parent = next ? solid.rendererRoot : uiParent;
+
+        if (parent && uiMount.element.parentNode !== parent) parent.appendChild(uiMount.element);
+        uiMount.element.style.zIndex = next ? "90" : "";
+        untrack(() => uiController?.closeNoteComposer());
+      };
+
+      solid.ownerWindow.addEventListener("mesurer:responsive-stage-change", syncStage);
 
       ctx.command.register("context.add-note", () => {
         if (hasSelection()) uiController?.openNoteComposer();
@@ -402,6 +418,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
 
       ctx.lifecycle.onDispose(() => {
         unsubscribeRuntime();
+        solid.ownerWindow.removeEventListener("mesurer:responsive-stage-change", syncStage);
         destroyUi();
         runtime.dispose();
       });
