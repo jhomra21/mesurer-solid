@@ -30,7 +30,10 @@ export function createEventBus<Events extends object>(): EventBus<Events> {
     async emit(type, event) {
       const queue = Array.from(listeners.get(type) ?? []);
 
-      for (const listener of queue) await listener(event);
+      // Listeners are awaited in turn, so one may be removed (e.g. its plugin disposed) before its queued call runs.
+      for (const listener of queue) {
+        if (listeners.get(type)?.has(listener)) await listener(event);
+      }
     },
     clear() {
       listeners.clear();

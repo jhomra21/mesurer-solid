@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Fix a `Mesurer renderer model is unavailable` page error when a mount is disposed while a plugin state change is still being delivered; listeners removed during delivery are no longer called.
+
 ## 0.2.3-beta.7 - 2026-10-16
 
 - Add viewport-scoped Context notes in Responsive, with exact URL/width/height/preview identity, root-projected markers and panels, conservative rebind after preview recreation, and viewport metadata in Context and capture plans. Removing or closing previews hides their notes and releases their watchers without deleting saved review records; root-page notes remain separate.
