@@ -1,11 +1,13 @@
 import { onSettled } from "solid-js";
 import { RESPONSIVE_FRAME_SANDBOX, installPreviewGuard } from "../../core/preview-guard";
 import { isEditableKeyboardEvent } from "../../core/events";
+import type { Guide } from "../../core/types";
 import { getMesurerPageKey, subscribeMesurerPageKey } from "../../runtime/page-location";
+import { mountPreviewGuides } from "./preview-guides";
 
 type Size = { width: number; height: number };
 
-type Preview = Size & { id: number; name: string };
+type Preview = Size & { id: number; name: string; guides?: Guide[] };
 
 const DEVICES: Array<Omit<Preview, "id">> = [
   { name: "iPhone SE", width: 375, height: 667 },
@@ -34,7 +36,7 @@ let nextId = 1;
 
 let savedKey = "";
 
-let savedPreviews: Preview[] = [{ ...DEVICES[2], id: nextId++ }];
+let savedPreviews: Preview[] = [{ ...DEVICES[2], id: nextId++, guides: [] }];
 
 let savedZoom: number | null = null;
 
@@ -121,6 +123,12 @@ type ResponsiveStageProps = {
   onChromePointerMove(): void;
   onPreviewRemove(): void;
   shortcutsEnabled: boolean;
+  guidesActive(): boolean;
+  guideOrientation(): Guide["orientation"];
+  altPressed(): boolean;
+  guideColor(): string;
+  guideStyle(): import("../../core/persistence").GuideStyle;
+  snapGuidesEnabled(): boolean;
 };
 
 export function ResponsiveStage(props: ResponsiveStageProps) {
@@ -130,19 +138,19 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
 
     const unsubscribePageKey = subscribeMesurerPageKey(win, (nextKey) => {
       if (nextKey === key) return;
-      savedPreviews = [{ ...DEVICES[2], id: nextId++ }];
+      savedPreviews = [{ ...DEVICES[2], id: nextId++, guides: [] }];
       savedZoom = null;
       savedKey = nextKey;
       props.onClose();
     });
 
     if (savedKey && savedKey !== key) {
-      savedPreviews = [{ ...DEVICES[2], id: nextId++ }];
+      savedPreviews = [{ ...DEVICES[2], id: nextId++, guides: [] }];
       savedZoom = null;
     }
 
     savedKey = key;
-    let previews = savedPreviews;
+    let previews = savedPreviews.map((preview) => ({ ...preview, guides: preview.guides ?? [] }));
     let zoom = savedZoom;
     const stage = doc.createElement("div");
     stage.dataset.mesurerResponsiveStage = "true";
@@ -193,7 +201,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
         row.scrollTo({ left: (sections.get(existing.id)?.offsetLeft ?? 0), behavior: "instant" });
       } else {
         const device = DEVICES.find((item) => item.width === width && item.height === height);
-        const next = { id: nextId++, name: device?.name ?? `${width}px breakpoint`, width, height };
+        const next = { id: nextId++, name: device?.name ?? `${width}px breakpoint`, width, height, guides: [] };
         previews = previews.length >= MAX_PREVIEWS ? [...previews.slice(0, MAX_PREVIEWS - 1), next] : [...previews, next];
         persist();
         renderPreviews();
@@ -245,6 +253,28 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
     const frameLoads = new Map<number, (event: Event) => void>();
     const childWheels = new Map<number, (event: WheelEvent) => void>();
     const childPresses = new Map<number, () => void>();
+    const childAltKeyups = new Map<number, (event: KeyboardEvent) => void>();
+    const previewGuideLayers = new Map<number, ReturnType<typeof mountPreviewGuides>>();
+    const layoutGuideClones = new Map<number, HTMLElement>();
+    const layoutGuideObservers = new Map<number, MutationObserver>();
+    let activePreviewId: number | undefined;
+    const rootLayoutGuides = props.host.querySelector<HTMLElement>("[data-mesurer-layout-guides-root]");
+    const oldLayoutGuideVisibility = rootLayoutGuides?.style.visibility ?? "";
+
+    if (rootLayoutGuides) rootLayoutGuides.style.visibility = "hidden";
+
+    const onGuidesActive = (event: Event) => {
+      // SAFETY: this listener receives only the internal preview-guide activation event with a numeric preview id.
+      activePreviewId = (event as CustomEvent<number>).detail;
+    };
+
+    const onGuideDelete = () => {
+      if (activePreviewId === undefined) return;
+      previewGuideLayers.get(activePreviewId)?.removeSelected();
+    };
+
+    win.addEventListener("mesurer:responsive-preview-guides-active", onGuidesActive);
+    win.addEventListener("mesurer:responsive-delete-selected-guides", onGuideDelete);
     let fitScale = 1;
     const persist = () => { savedPreviews = previews; savedZoom = zoom; savedKey = key; };
 
@@ -277,6 +307,15 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
         frame.style.width = `${item.width}px`;
         frame.style.height = `${item.height}px`;
         frame.style.transform = `scale(${scale})`;
+        previewGuideLayers.get(item.id)?.sync();
+        const projectedLayout = layoutGuideClones.get(item.id);
+
+        if (projectedLayout) {
+          projectedLayout.style.width = `${item.width}px`;
+          projectedLayout.style.height = `${item.height}px`;
+          projectedLayout.style.transform = `scale(${scale})`;
+        }
+
         const widthInput = section.querySelector<HTMLInputElement>("[data-responsive-width]");
         const heightInput = section.querySelector<HTMLInputElement>("[data-responsive-height]");
 
@@ -312,20 +351,30 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       if (oldDoc) {
         const wheelHandler = childWheels.get(id);
         const pressHandler = childPresses.get(id);
+        const altKeyup = childAltKeyups.get(id);
 
         if (wheelHandler) oldDoc.removeEventListener("wheel", wheelHandler);
 
         if (pressHandler) oldDoc.removeEventListener("pointerdown", pressHandler, true);
+
+        if (altKeyup) oldDoc.removeEventListener("keyup", altKeyup, true);
       }
 
       try { guards.get(id)?.(); } catch { /* A navigated cross-origin frame may reject guard restoration. */ }
 
       guards.delete(id);
+      previewGuideLayers.get(id)?.dispose();
+      previewGuideLayers.delete(id);
+      layoutGuideObservers.get(id)?.disconnect();
+      layoutGuideObservers.delete(id);
+      layoutGuideClones.get(id)?.remove();
+      layoutGuideClones.delete(id);
 
       if (frame) frame.remove();
       sections.get(id)?.remove();
       frames.delete(id); sections.delete(id); keyHandlers.delete(id); frameLoads.delete(id);
       childWheels.delete(id); childPresses.delete(id);
+      childAltKeyups.delete(id);
       previews = previews.filter((item) => item.id !== id);
       persist(); layout();
       win.dispatchEvent(new CustomEvent("mesurer:responsive-stage-change"));
@@ -421,6 +470,29 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
 
       const onLoad = () => {
         try {
+          const previousDocument = frame.contentDocument;
+          const previousKeyHandler = keyHandlers.get(item.id);
+          const previousAltKeyup = childAltKeyups.get(item.id);
+          const previousWheel = childWheels.get(item.id);
+          const previousPress = childPresses.get(item.id);
+
+          if (previousDocument && previousKeyHandler) previousDocument.removeEventListener("keydown", previousKeyHandler, true);
+
+          if (previousDocument && previousAltKeyup) previousDocument.removeEventListener("keyup", previousAltKeyup, true);
+
+          if (previousDocument && previousWheel) previousDocument.removeEventListener("wheel", previousWheel);
+
+          if (previousDocument && previousPress) previousDocument.removeEventListener("pointerdown", previousPress, true);
+        } catch { /* A navigation can replace the old frame document before cleanup runs. */ }
+
+        previewGuideLayers.get(item.id)?.dispose();
+        previewGuideLayers.delete(item.id);
+        layoutGuideObservers.get(item.id)?.disconnect();
+        layoutGuideObservers.delete(item.id);
+        layoutGuideClones.get(item.id)?.remove();
+        layoutGuideClones.delete(item.id);
+
+        try {
           const child = frame.contentWindow;
           const childDoc = frame.contentDocument;
 
@@ -429,11 +501,27 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
           guards.set(item.id, installPreviewGuard(child));
 
           const handler = (event: KeyboardEvent) => {
+            if (event.key === "Alt") {
+              win.dispatchEvent(new CustomEvent("mesurer:responsive-guide-alt", { detail: true }));
+
+              return;
+            }
+
             if (event.metaKey || event.ctrlKey || event.altKey) return;
 
             if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); props.onClose();
 
  return; }
+
+            if ((event.key === "Delete" || event.key === "Backspace")
+              && props.guidesActive()
+              && !isEditableKeyboardEvent(event, child)) {
+              win.dispatchEvent(new CustomEvent("mesurer:responsive-delete-selected-guides", { detail: item.id }));
+              event.preventDefault();
+              event.stopImmediatePropagation();
+
+              return;
+            }
 
             if (event.key.toLowerCase() !== "b" || !props.shortcutsEnabled || isEditableKeyboardEvent(event, child)) return;
             event.preventDefault(); event.stopImmediatePropagation();
@@ -443,13 +531,85 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
 
           keyHandlers.set(item.id, handler);
           childDoc.addEventListener("keydown", handler, true);
+
+          const altKeyup = (event: KeyboardEvent) => {
+            if (event.key === "Alt") win.dispatchEvent(new CustomEvent("mesurer:responsive-guide-alt", { detail: false }));
+          };
+
+          childAltKeyups.set(item.id, altKeyup);
+          childDoc.addEventListener("keyup", altKeyup, true);
           const wheelHandler = (event: WheelEvent) => routeFrameWheel(event, frame);
-          const pressHandler = () => win.dispatchEvent(new CustomEvent("mesurer:responsive-frame-pointerdown"));
+
+          const pressHandler = () => {
+            activePreviewId = item.id;
+            win.dispatchEvent(new CustomEvent("mesurer:responsive-frame-pointerdown"));
+          };
+
           childWheels.set(item.id, wheelHandler);
           childPresses.set(item.id, pressHandler);
           childDoc.addEventListener("wheel", wheelHandler, { passive: false });
           childDoc.addEventListener("pointerdown", pressHandler, true);
           status.style.display = "none";
+
+          const guideLayer = mountPreviewGuides({
+            document: doc,
+            frame,
+            previewId: item.id,
+            parent: frameWrap,
+            size: () => ({ width: item.width, height: item.height }),
+            scale: () => zoom ?? fitScale,
+            getGuides: () => item.guides ?? [],
+            setGuides: (guides) => { item.guides = guides; persist(); },
+            active: props.guidesActive,
+            orientation: props.guideOrientation,
+            altPressed: props.altPressed,
+            hostWindow: win,
+            color: props.guideColor,
+            style: props.guideStyle,
+            snapGuidesEnabled: props.snapGuidesEnabled,
+          });
+
+          previewGuideLayers.set(item.id, guideLayer);
+
+          const syncLayoutGuides = () => {
+            const source = props.host.querySelector<HTMLElement>(
+              "[data-mesurer-layout-guides-root] [data-mesurer-layout-guides]",
+            );
+
+            layoutGuideClones.get(item.id)?.remove();
+
+            if (!source) {
+              layoutGuideClones.delete(item.id);
+
+              return;
+            }
+
+            // SAFETY: source is narrowed to HTMLElement by querySelector and cloneNode preserves its element node type.
+            const clone = source.cloneNode(true) as HTMLElement;
+            clone.dataset.mesurerResponsiveLayoutGuides = String(item.id);
+            Object.assign(clone.style, {
+              inset: "0 auto auto 0",
+              width: `${item.width}px`,
+              height: `${item.height}px`,
+              transform: `scale(${zoom ?? fitScale})`,
+              transformOrigin: "top left",
+              zIndex: "3",
+            });
+            frameWrap.append(clone);
+            layoutGuideClones.set(item.id, clone);
+          };
+
+          syncLayoutGuides();
+          const sourceRoot = props.host.querySelector("[data-mesurer-layout-guides-root]");
+          const observer = new MutationObserver(syncLayoutGuides);
+          observer.observe(props.host, { childList: true });
+
+          if (sourceRoot) {
+            observer.observe(sourceRoot, { attributes: true, childList: true, characterData: true, subtree: true });
+          }
+
+          layoutGuideObservers.set(item.id, observer);
+
           win.dispatchEvent(new CustomEvent("mesurer:responsive-preview-ready"));
         } catch {
           status.textContent = "This page cannot be previewed in a same-origin frame.";
@@ -651,6 +811,10 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
         stage.removeEventListener("wheel", onWheel);
 
         for (const [id, frame] of frames) {
+          previewGuideLayers.get(id)?.dispose();
+          layoutGuideObservers.get(id)?.disconnect();
+          layoutGuideClones.get(id)?.remove();
+
           try {
             const childDoc = frame.contentDocument;
             const handler = keyHandlers.get(id);
@@ -660,10 +824,13 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
             if (childDoc) {
               const wheelHandler = childWheels.get(id);
               const pressHandler = childPresses.get(id);
+              const altKeyup = childAltKeyups.get(id);
 
               if (wheelHandler) childDoc.removeEventListener("wheel", wheelHandler);
 
               if (pressHandler) childDoc.removeEventListener("pointerdown", pressHandler, true);
+
+              if (altKeyup) childDoc.removeEventListener("keyup", altKeyup, true);
             }
           } catch { /* A navigated cross-origin frame no longer exposes its document. */ }
 
@@ -677,10 +844,16 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
         }
 
         guards.clear();
+        win.removeEventListener("mesurer:responsive-preview-guides-active", onGuidesActive);
+        win.removeEventListener("mesurer:responsive-delete-selected-guides", onGuideDelete);
+        previewGuideLayers.clear();
+        layoutGuideObservers.clear();
+        layoutGuideClones.clear();
         frameLoads.clear();
         keyHandlers.clear();
         childWheels.clear();
         childPresses.clear();
+        childAltKeyups.clear();
         frames.clear();
         sections.clear();
       } finally {
@@ -689,6 +862,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
         try {
           win.dispatchEvent(new CustomEvent("mesurer:responsive-stage-change"));
         } finally {
+          if (rootLayoutGuides) rootLayoutGuides.style.visibility = oldLayoutGuideVisibility;
           const style = doc.documentElement.style;
 
           if (style.getPropertyValue("overflow-x") === "hidden" && style.getPropertyPriority("overflow-x") === "important") {

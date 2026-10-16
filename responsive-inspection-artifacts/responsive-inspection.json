@@ -1,21 +1,21 @@
 {
-  "url": "http://127.0.0.1:4190/responsive-preview.html",
+  "url": "http://127.0.0.1:4192/responsive-preview.html",
   "expected": {
-    "x": 495.5782740935114,
-    "y": 260.2446590743902,
-    "width": 164.32461779354182,
-    "height": 18.43662128011689,
+    "x": 486.2910802321883,
+    "y": 324.000589346461,
+    "width": 153.7797119635662,
+    "height": 17.25352140237357,
     "selector": "#inspection-target"
   },
   "selected": {
     "schema": "mesurer.context/v1",
-    "id": "87141a2b-7a2d-4eac-8076-da104996d519",
-    "createdAt": "2026-10-16T16:20:30.123Z",
+    "id": "9ce5d131-c453-45d7-8f93-2b42447f9e66",
+    "createdAt": "2026-10-16T20:33:52.418Z",
     "scope": {
       "kind": "selection"
     },
     "page": {
-      "url": "http://127.0.0.1:4190/responsive-preview.html",
+      "url": "http://127.0.0.1:4192/responsive-preview.html",
       "title": "Responsive preview contract"
     },
     "viewport": {
@@ -28,10 +28,10 @@
     "coordinateSpace": "viewport-css-px",
     "regions": [
       {
-        "left": 495.578263,
-        "top": 260.24459325,
-        "width": 164.32455290625,
-        "height": 18.43661400000002
+        "left": 486.291072,
+        "top": 324.0005405,
+        "width": 153.77966381250008,
+        "height": 17.25351599999999
       }
     ],
     "visualState": {
@@ -50,14 +50,14 @@
           "role": null,
           "ariaLabel": null,
           "rect": {
-            "left": 495.578263,
-            "top": 260.24459325,
-            "width": 164.32455290625,
-            "height": 18.43661400000002,
-            "right": 659.90281590625,
-            "bottom": 278.68120725,
-            "x": 495.578263,
-            "y": 260.24459325
+            "left": 486.291072,
+            "top": 324.0005405,
+            "width": 153.77966381250008,
+            "height": 17.25351599999999,
+            "right": 640.0707358125001,
+            "bottom": 341.2540565,
+            "x": 486.291072,
+            "y": 324.0005405
           },
           "margin": {
             "top": 0,
@@ -123,12 +123,12 @@
       "layoutGuides": [],
       "measurements": [
         {
-          "id": "c0c2fc61-f73a-41d7-b204-c79d32107e7f",
+          "id": "23365453-2aca-49e8-9510-e577b905117d",
           "rect": {
-            "left": 495.578263,
-            "top": 260.24459325,
-            "width": 164.32455290625,
-            "height": 18.43661400000002
+            "left": 486.291072,
+            "top": 324.0005405,
+            "width": 153.77966381250008,
+            "height": 17.25351599999999
           },
           "deltaX": 0,
           "deltaY": 0,
@@ -140,13 +140,13 @@
   },
   "nestedContext": {
     "schema": "mesurer.context/v1",
-    "id": "e77ef330-634c-4862-9f78-81b77074a541",
-    "createdAt": "2026-10-16T16:20:31.997Z",
+    "id": "0cf96c0b-226b-4fab-8cf3-f6b0f4b09f69",
+    "createdAt": "2026-10-16T20:33:54.418Z",
     "scope": {
       "kind": "selection"
     },
     "page": {
-      "url": "http://127.0.0.1:4190/responsive-preview.html",
+      "url": "http://127.0.0.1:4192/responsive-preview.html",
       "title": "Responsive preview contract"
     },
     "viewport": {
@@ -159,10 +159,10 @@
     "coordinateSpace": "viewport-css-px",
     "regions": [
       {
-        "left": 546.498435,
-        "top": 329.60137925000004,
-        "width": 149.24878,
-        "height": 63.211247999999955
+        "left": 533.94364,
+        "top": 388.9066245,
+        "width": 139.67132000000004,
+        "height": 59.15491199999997
       }
     ],
     "visualState": {
@@ -181,14 +181,14 @@
           "role": null,
           "ariaLabel": null,
           "rect": {
-            "left": 546.498435,
-            "top": 329.60137925000004,
-            "width": 149.24878,
-            "height": 63.211247999999955,
-            "right": 695.747215,
-            "bottom": 392.81262725,
-            "x": 546.498435,
-            "y": 329.60137925000004
+            "left": 533.94364,
+            "top": 388.9066245,
+            "width": 139.67132000000004,
+            "height": 59.15491199999997,
+            "right": 673.61496,
+            "bottom": 448.0615365,
+            "x": 533.94364,
+            "y": 388.9066245
           },
           "margin": {
             "top": 48,
@@ -254,12 +254,12 @@
       "layoutGuides": [],
       "measurements": [
         {
-          "id": "c08dbdb9-4f25-49d3-8d1a-133786908aef",
+          "id": "f9d6be64-1dab-41e5-acf1-19fd303032e1",
           "rect": {
-            "left": 546.498435,
-            "top": 329.60137925000004,
-            "width": 149.24878,
-            "height": 63.211247999999955
+            "left": 533.94364,
+            "top": 388.9066245,
+            "width": 139.67132000000004,
+            "height": 59.15491199999997
           },
           "deltaX": 0,
           "deltaY": 0,

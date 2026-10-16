@@ -1,0 +1,5 @@
+{
+  "error": "AssertionError [ERR_ASSERTION]: Snapped guide must equal a preview element edge/center in preview CSS px: {\"storedFirst\":{\"id\":\"preview-guide-mvbdeuil-xm2ncm\",\"orientation\":\"vertical\",\"position\":242.00002319335937,\"active\":\"true\"},\"snapEdges\":[0,393,196.5,0,393,196.5,32,361,196.5,16,132,74,32,361,196.5,32,185,108.5,185,286.96875,235.984375,32,219.171875,125.5859375,32,336,184]}",
+  "stack": "AssertionError [ERR_ASSERTION]: Snapped guide must equal a preview element edge/center in preview CSS px: {\"storedFirst\":{\"id\":\"preview-guide-mvbdeuil-xm2ncm\",\"orientation\":\"vertical\",\"position\":242.00002319335937,\"active\":\"true\"},\"snapEdges\":[0,393,196.5,0,393,196.5,32,361,196.5,16,132,74,32,361,196.5,32,185,108.5,185,286.96875,235.984375,32,219.171875,125.5859375,32,336,184]}\n    at /private/tmp/mesurer-responsive-4/tests/visual-parity/responsive-guides-contract.mjs:105:3\n    at processTicksAndRejections (native:7:39)",
+  "errors": []
+}
