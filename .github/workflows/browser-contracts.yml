@@ -37,6 +37,7 @@ on:
       - "extension/active-tabs.js"
       - "extension/background.js"
       - "extension/build.mjs"
+      - "extension/manifest.json"
       - "packages/renderer/src/model/create-mesurer-model.ts"
       - "packages/renderer/src/plugins/arrange-core.ts"
       - "packages/renderer/src/plugins/arrange.ts"
@@ -86,6 +87,7 @@ on:
       - "tests/visual-parity/selection-scroll-contract.mjs"
       - "tests/visual-parity/selection-hit-testing-contract.mjs"
       - "tests/visual-parity/extension-active-tabs-contract.mjs"
+      - "tests/visual-parity/responsive-extension-assets-contract.mjs"
       - "tests/visual-parity/shortcuts-setting-contract.mjs"
       - "tests/visual-parity/text-editing-contract.mjs"
       - "tests/visual-parity/theme-contract.mjs"
@@ -125,6 +127,9 @@ jobs:
 
       - name: Build foundations
         run: bun run build:foundations
+
+      - name: Build Mesurer extension
+        run: bun run build:packages && bun run extension:build
 
       - name: Generate renderer styles
         run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
@@ -232,6 +237,12 @@ jobs:
           EXTENSION_ACTIVE_TABS_URL: http://127.0.0.1:4174/extension-active-tabs.html
           EXTENSION_ACTIVE_TABS_OUT: extension-active-tabs-artifacts
         run: bun tests/visual-parity/extension-active-tabs-contract.mjs
+
+      - name: Exercise built Responsive extension assets
+        env:
+          RESPONSIVE_EXTENSION_ASSETS_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_EXTENSION_ASSETS_OUT: responsive-extension-assets-artifacts
+        run: bun tests/visual-parity/responsive-extension-assets-contract.mjs
 
       - name: Exercise Color Picker capability
         env:
@@ -461,6 +472,7 @@ jobs:
           path: |
             selection-hit-testing-artifacts
             extension-active-tabs-artifacts
+            responsive-extension-assets-artifacts
           if-no-files-found: warn
           retention-days: 14
 
