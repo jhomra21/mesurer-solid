@@ -106,6 +106,7 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Inspect rendered typography in Select. Edit previews reversible direct copy and style changes.
 - Use Edit to move selected UI and change direct text, typography, and text color without changing source.
 - Capture page regions through the optional Screenshot plugin. It selects native host capture, the Chromium extension adapter, or browser display capture internally, and flattens transparent native captures against the renderer backdrop before preview, copy, or save.
+- Open one live iPhone 15 (393 × 852 CSS px) preview with the built-in Responsive inspector. Inspection routing into previews is not included in this initial frames-only release.
 - Record adjustable selected regions through the optional Recording plugin at 60 fps by default or 120 fps when selected and supported. Browser, extension, and Electron APIs only acquire the stream; MediaBunny owns encoding, inspection, trim, 1×/2×/3× resize, and WebM/MP4 export.
 - Read selection, measurements, guides, annotations, layout, styles, and saved human intent through Context and agent APIs.
 - Keep saved annotations across same-tab reloads and conservatively rebind them to their original DOM targets; markers, cards, and ownership evidence stay attached through scrolling, repeated-note markers stay local, Add Note remains available while a note is open, and cards/composers occlude Select hover and selection chrome.
@@ -154,6 +155,7 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | `A` | Typography |
 | `G` | Guides |
 | `L` | Layout Guides when the plugin is enabled |
+| `B` | Responsive inspector |
 | `H` / `V` | Horizontal / vertical guide orientation |
 | `Alt` / `Option` | Distance overlay |
 | `Cmd/Ctrl + ,` | Settings |
@@ -206,6 +208,7 @@ See [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/
 - [Measurements and distance geometry](https://github.com/jhomra21/mesurer-solid/blob/main/docs/MEASUREMENTS.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
 - [Recording](https://github.com/jhomra21/mesurer-solid/blob/main/docs/RECORDING.md)
+- [Responsive inspector](https://github.com/jhomra21/mesurer-solid/blob/main/docs/RESPONSIVE_INSPECTOR.md)
 - [Electron renderer example](https://github.com/jhomra21/mesurer-solid/blob/main/examples/electron-renderer/README.md)
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
 - [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md)

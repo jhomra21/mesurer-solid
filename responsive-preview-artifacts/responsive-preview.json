@@ -1,0 +1,45 @@
+{
+  "url": "http://localhost:4188/responsive-preview.html",
+  "frameEvidence": {
+    "source": "http://localhost:4188/responsive-preview.html",
+    "innerWidth": 393,
+    "innerHeight": 852,
+    "fit": 0.8779342723004695,
+    "transform": "matrix(0.877934, 0, 0, 0.877934, 0, 0)",
+    "mediaColor": "rgb(20, 150, 50)",
+    "nestedToolbar": false,
+    "nestedIsland": false,
+    "isolatedHost": true,
+    "topLayerHost": "manual",
+    "cardTransform": "none",
+    "frameRect": {
+      "x": 467.484375,
+      "y": 93.546875,
+      "width": 345.0281982421875,
+      "height": 748,
+      "top": 93.546875,
+      "right": 812.5125732421875,
+      "bottom": 841.546875,
+      "left": 467.484375
+    },
+    "header": "iPhone 15393 × 852",
+    "guards": {
+      "popupBlocked": true,
+      "alertBlocked": true,
+      "confirmBlocked": true,
+      "promptBlocked": true,
+      "submitPrevented": true,
+      "downloadPrevented": true
+    }
+  },
+  "restored": {
+    "value": "clip",
+    "priority": "important"
+  },
+  "errors": [],
+  "expectedRefusalDiagnostics": [
+    "Framing 'http://localhost:4188/' violates the following Content Security Policy directive: \"frame-ancestors 'none'\". The request has been blocked.\n",
+    "Framing 'http://localhost:4188/' violates the following Content Security Policy directive: \"frame-ancestors 'none'\". The request has been blocked.\n"
+  ],
+  "refusedStateCovered": true
+}

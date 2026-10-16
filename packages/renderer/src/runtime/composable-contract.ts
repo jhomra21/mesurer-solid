@@ -17,6 +17,7 @@ export type MesurerSolidRuntimeService = {
   rendererRoot?: HTMLDivElement;
   currentToolMode?(): MesurerModel["state"]["toolMode"];
   currentToolbarMode?(): "select" | "edit";
+  closeResponsiveStage?(): void;
   theme?(): MesurerTheme;
   subscribeTheme?(listener: (theme: MesurerTheme) => void): () => void;
   createWorkspaceRuntime(persistenceNamespace?: string): MesurerWorkspaceRuntime;
@@ -54,6 +55,7 @@ export const BUILTIN_TOOL_IDS = [
   "xray",
   "color-picker",
   "rulers",
+  "responsive",
   "text-inspector",
   "guides",
   "settings",
@@ -91,6 +93,7 @@ export const isBuiltinPluginId = (
   || value === "xray"
   || value === "color-picker"
   || value === "rulers"
+  || value === "responsive"
   || value === "text-inspector"
   || value === "guides"
   || value === "distance"

@@ -84,6 +84,7 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 - **Distance.** Measure spacing and geometry, including pairwise multi-selection spacing.
 - **X-ray, Guides, and Rulers.** Inspect page structure and alignment.
 - **Layout Guides.** Add page-scoped columns, rows, or a pixel grid through the optional `layoutGuides()` plugin. Layout Guide mutations participate in plugin history, and Context includes the current page's saved guides with their visibility state.
+- **Responsive.** Open a live iPhone 15 (393 × 852 CSS px) same-origin iframe preview. The frames-only foundation does not yet route inspection into the preview. See [Responsive inspector](./docs/RESPONSIVE_INSPECTOR.md).
 - **Typography.** Inspect rendered text and computed type styles in Select mode.
 - **Edit.** Move selected HTML elements and edit direct text, typography, and text color as reversible Desired intent.
 - **Screenshots.** Capture a dragged page region with the optional Screenshot plugin. It selects application-native capture, the Chromium extension adapter, or browser display capture internally.
@@ -129,6 +130,7 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | `A` | Typography |
 | `G` | Guides |
 | `L` | Layout Guides when the plugin is enabled |
+| `B` | Responsive inspector |
 | `H` / `V` | Horizontal / vertical guide orientation |
 | `Alt` / `Option` | Distance overlay |
 | `Cmd/Ctrl + ,` | Settings |
@@ -222,6 +224,7 @@ Start with the [documentation index](./docs/README.md).
 - [Edit](./docs/EDIT.md)
 - [Arrange compatibility](./docs/ARRANGE.md)
 - [Layout Guides](./docs/LAYOUT_GUIDES.md)
+- [Responsive inspector](./docs/RESPONSIVE_INSPECTOR.md)
 - [Measurements and distance geometry](./docs/MEASUREMENTS.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
 - [Recording](./docs/RECORDING.md)

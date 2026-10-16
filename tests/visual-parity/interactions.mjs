@@ -1,3 +1,4 @@
+import { normalizeResponsiveToolbar } from "./normalize-responsive-toolbar.mjs";
 import { chromium } from "@playwright/test";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -562,10 +563,12 @@ try {
       await page.locator(".mesurer-toolbar-surface").waitFor();
       await sleep(page, 100);
       await normalizeHistoricalToolbarMode(page, implementation, item.name);
+      await normalizeResponsiveToolbar(page, implementation, item.name);
       await item.run(page, implementation);
       // A case can reload the fixture (for example action-select-target). Remove
       // the current Select/Edit chrome again before the historical snapshot.
       await normalizeHistoricalToolbarMode(page, implementation, item.name);
+      await normalizeResponsiveToolbar(page, implementation, item.name);
       // Let the upstream 150ms switch/control transitions settle before the
       // screenshot so the comparison measures the final pressed state rather
       // than framework scheduling within the animation.

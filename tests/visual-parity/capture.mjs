@@ -1,3 +1,4 @@
+import { normalizeResponsiveToolbar } from "./normalize-responsive-toolbar.mjs";
 import { chromium } from "@playwright/test";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -545,6 +546,7 @@ try {
       await page.locator(".mesurer-toolbar-surface").waitFor();
       await page.waitForTimeout(120);
       await normalizeHistoricalToolbarMode(page, implementation);
+      await normalizeResponsiveToolbar(page, implementation, state.name);
       await state.run(page);
       await page.waitForTimeout(120);
       await normalizeSharedParitySurface(page, implementation);

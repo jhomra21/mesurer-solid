@@ -2,6 +2,7 @@ import { Show, createEffect, createMemo, createSignal, onSettled, untrack } from
 import { Portal } from "@solidjs/web";
 import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesurer-solid-core";
 import { ColorPicker } from "./components/ColorPicker";
+import { ResponsiveStage } from "./plugins/responsive/ResponsiveStage";
 import { MesurerOverlay } from "./components/MesurerOverlay";
 import { RulersOverlay } from "./components/RulersOverlay";
 import { Toolbar } from "./components/Toolbar";
@@ -91,6 +92,10 @@ export type MesurerProps = {
   onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
   isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;
   onBuiltinController?: (controller: MesurerBuiltinController | null) => void;
+  responsiveOpen?: boolean;
+  responsiveShortcutsEnabled?(): boolean;
+  onResponsiveClose?: () => void;
+  onResponsiveToggle?: () => void;
   /** Internal composable-runtime accessor that keeps Edit hover visible outside selected subtrees. */
   editSelectionHover?(): boolean;
 };
@@ -269,6 +274,14 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   const runBuiltinAction = (id: Exclude<MesurerBuiltinPluginId, "distance">, restartColorPicker = false) => {
     if (builtinActionDisabled(id)) return;
+
+    if (id === "responsive") {
+      input.onResponsiveToggle?.();
+
+      return;
+    }
+
+    if (id === "rulers" && input.responsiveOpen) input.onResponsiveClose?.();
 
     // Repeated-click inspection is one uninterrupted Select gesture. Any
     // toolbar action breaks that gesture so a later click cannot unexpectedly
@@ -1106,9 +1119,17 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
  return; }
 
-        if (model.current.colorPickerActive) { builtinController.deactivate("color-picker");
+        if (model.current.colorPickerActive) {
+          builtinController.deactivate("color-picker");
 
- return; }
+          return;
+        }
+
+        if (input.responsiveOpen) {
+          input.onResponsiveClose?.();
+
+          return;
+        }
 
         if (model.current.toolMode === "select") {
           const hasSelection = model.current.selectedMeasurements.length > 0
@@ -1353,6 +1374,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           onPluginTool={input.onPluginTool}
           onPluginToolMenuItem={input.onPluginToolMenuItem}
           isBuiltinActionDisabled={builtinActionDisabled}
+          responsiveOpen={input.responsiveOpen}
           onClearWorkspace={clearWorkspace}
           selectionSpacingStyle={props.selectionSpacingStyle}
           onSelectionSpacingStyleChange={onSelectionSpacingStyleChange}
@@ -1361,6 +1383,16 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           onPositionChange={(position) => writeToolbarPosition(ownerWindow, storageKey, position)}
           motion={{ element: motionElement }}
         />
+        <Show when={input.responsiveOpen}>
+          <ResponsiveStage
+            ownerDocument={ownerDocument}
+            ownerWindow={ownerWindow}
+            host={rootElement!}
+            onClose={() => input.onResponsiveClose?.()}
+            onFramePointerDown={() => ownerWindow.dispatchEvent(new CustomEvent("mesurer:responsive-frame-pointerdown"))}
+            shortcutsEnabled={input.responsiveShortcutsEnabled?.() ?? true}
+          />
+        </Show>
       </div>
     </Portal>
   );

@@ -32,6 +32,14 @@ declare global {
 
 const config = globalThis.__MESURER_CONFIG__ ?? {};
 
+const isResponsivePreview = (() => {
+  try {
+    return Boolean(window.frameElement?.hasAttribute("data-mesurer-responsive-frame"));
+  } catch {
+    return false;
+  }
+})();
+
 const {
   target: targetSelector,
   globalName = "__MESURER__",
@@ -42,7 +50,7 @@ const {
 
 const existing = globalThis.__MESURER_INSTANCE__;
 
-const reusableExisting = reuseExisting && existing?.element.isConnected
+const reusableExisting = !isResponsivePreview && reuseExisting && existing?.element.isConnected
   ? existing
   : undefined;
 
@@ -51,7 +59,7 @@ function mountInjectedMesurer(): MountedMesurer {
 
   if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
-  globalThis.__MESURER_INSTANCE__?.dispose();
+  if (!isResponsivePreview) globalThis.__MESURER_INSTANCE__?.dispose();
 
   return mountMesurer({
     ...options,
@@ -99,12 +107,12 @@ const installDisconnectedRecovery = (
 
 export const mesurer = reusableExisting ?? mountInjectedMesurer();
 
-globalThis.__MESURER_INSTANCE__ = mesurer;
+if (!isResponsivePreview) globalThis.__MESURER_INSTANCE__ = mesurer;
 
-globalThis.__MESURER_INJECT_RECOVERY__?.stop();
+if (!isResponsivePreview) globalThis.__MESURER_INJECT_RECOVERY__?.stop();
 
-globalThis.__MESURER_INJECT_RECOVERY__ = undefined;
+if (!isResponsivePreview) globalThis.__MESURER_INJECT_RECOVERY__ = undefined;
 
-if (recoverDisconnected) installDisconnectedRecovery(mountInjectedMesurer);
+if (recoverDisconnected && !isResponsivePreview) installDisconnectedRecovery(mountInjectedMesurer);
 
-await mesurer.ready;
+if (!isResponsivePreview) await mesurer.ready;

@@ -492,6 +492,7 @@ try {
   });
 
   const expectedAvailability = {
+    "mesurer.responsive": true,
     "mesurer.context": true,
     "mesurer.arrange": false,
     "mesurer.layout-guides": false,
