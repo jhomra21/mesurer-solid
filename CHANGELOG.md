@@ -4,9 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Fix Responsive preview inspection so measurement labels use preview CSS pixels and Typography stays above the stage.
-
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.3-beta.10 - 2026-10-17
+
+- Fix Responsive preview inspection so measurement labels use preview CSS pixels and Typography stays above the stage.
 
 ## 0.2.3-beta.9 - 2026-10-16
 
