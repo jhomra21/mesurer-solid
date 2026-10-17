@@ -239,6 +239,7 @@ export function MotionPlayer(props: {
   element: Element;
   ownerWindow: Window;
   suspended?: () => boolean;
+  inspectDetails?: () => any;
 }) {
   const [duration, setDuration] = createSignal(0);
   const [progress, setProgress] = createSignal(0);
@@ -858,6 +859,7 @@ export function MotionPlayer(props: {
               element={props.element}
               observedProperties={observedProperties()}
             />
+            {props.inspectDetails?.()}
           </Show>
         </div>
       </div>

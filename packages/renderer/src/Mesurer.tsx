@@ -917,6 +917,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       model.state.settings.colorPickerClickFormat, model.state.settings.snapEnabled,
       model.state.settings.snapGuidesEnabled, model.state.settings.selectNewGuideEnabled,
       model.state.settings.multiMeasureEnabled, model.state.settings.colorPickerFormats.join("|"),
+      model.state.settings.layoutDetailsEnabled, model.state.settings.infoCardMode,
       JSON.stringify(model.state.settings.guideStyle), JSON.stringify(model.state.settings.rulerSettings),
       JSON.stringify(props.selectionSpacingStyle),
     ],
@@ -1707,6 +1708,8 @@ export default function Mesurer(props: MesurerProps) {
     snapGuidesEnabled: props.snapGuidesEnabled ?? true,
     selectNewGuideEnabled: props.selectNewGuideEnabled ?? true,
     multiMeasureEnabled: props.multiMeasureEnabled ?? false,
+    layoutDetailsEnabled: true,
+    infoCardMode: "click",
     guideStyle: { ...DEFAULT_GUIDE_STYLE, ...props.guideStyle },
     rulerSettings: { ...DEFAULT_RULER_SETTINGS, ...props.rulerSettings },
   } satisfies MesurerSettings));

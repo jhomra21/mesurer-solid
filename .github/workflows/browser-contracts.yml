@@ -12,6 +12,9 @@ on:
       - "packages/renderer/src/components/ContextNotesPanel.tsx"
       - "packages/renderer/src/components/DistanceOverlayItem.tsx"
       - "packages/renderer/src/components/MeasurementBox.tsx"
+      - "packages/renderer/src/components/InspectInfoCard.tsx"
+      - "packages/renderer/src/components/InspectDetailRow.tsx"
+      - "packages/renderer/src/runtime/inspect-info.ts"
       - "packages/renderer/src/components/LayoutGuidesOverlay.tsx"
       - "packages/renderer/src/components/LayoutGuidesPanel.tsx"
       - "packages/renderer/src/components/MesurerOverlay.tsx"
@@ -24,6 +27,9 @@ on:
       - "packages/renderer/src/core/layout-guides.ts"
       - "packages/renderer/src/core/option-measurements.ts"
       - "packages/renderer/src/core/persistence.ts"
+      - "packages/renderer/src/core/inspect-css.ts"
+      - "packages/mesurer-core/src/domain.ts"
+      - "packages/mesurer-core/src/model.ts"
       - "packages/renderer/src/core/selection-helpers.ts"
       - "packages/renderer/src/core/selection.ts"
       - "packages/renderer/src/core/document-tree.ts"
@@ -107,6 +113,7 @@ on:
       - "tests/visual-parity/responsive-preview-contract.mjs"
       - "tests/visual-parity/responsive-viewports-contract.mjs"
       - "tests/visual-parity/responsive-inspection-contract.mjs"
+      - "tests/visual-parity/inspect-info-contract.mjs"
       - "tests/visual-parity/responsive-guides-contract.mjs"
       - "tests/visual-parity/responsive-tools-contract.mjs"
       - "tests/visual-parity/responsive-context-contract.mjs"
@@ -307,6 +314,11 @@ jobs:
           RESPONSIVE_INSPECTION_URL: http://127.0.0.1:4174/responsive-preview.html
           RESPONSIVE_INSPECTION_OUT: responsive-inspection-artifacts
         run: bun tests/visual-parity/responsive-inspection-contract.mjs
+      - name: Exercise Inspect information card
+        env:
+          INSPECT_INFO_URL: http://127.0.0.1:4174/responsive-preview.html
+          INSPECT_INFO_OUT: inspect-info-artifacts
+        run: bun tests/visual-parity/inspect-info-contract.mjs
       - name: Exercise Responsive Guides
         env:
           RESPONSIVE_GUIDES_URL: http://127.0.0.1:4174/responsive-preview.html
@@ -381,6 +393,14 @@ jobs:
         with:
           name: mesurer-responsive-inspection-contract
           path: responsive-inspection-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload Inspect information evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-inspect-info-contract
+          path: inspect-info-artifacts
           if-no-files-found: warn
           retention-days: 14
       - name: Upload Responsive Guides evidence

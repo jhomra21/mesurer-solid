@@ -16,6 +16,9 @@ const isColorPickerFormat = (value: string): value is ColorPickerFormat =>
 const isMesurerTheme = (value: string): value is MesurerTheme =>
   value === "system" || value === "light" || value === "dark";
 
+const isInfoCardMode = (value: string): value is "click" | "hover" =>
+  value === "click" || value === "hover";
+
 const GUIDE_PATTERNS: Array<{ value: GuideStyle["pattern"]; label: string }> = [
   { value: "solid", label: "Solid" },
   { value: "dashed", label: "Dashed" },
@@ -252,6 +255,23 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
           <SettingsSwitch label="Hover" checked={settings().hoverHighlightEnabled} onChange={(hoverHighlightEnabled) => props.model.updateSettings({ hoverHighlightEnabled })} />
           <SettingsSwitch label="Element snap" checked={settings().snapEnabled} onChange={(snapEnabled) => props.model.updateSettings({ snapEnabled })} />
           <SettingsSwitch label="Stack" checked={settings().multiMeasureEnabled} onChange={(multiMeasureEnabled) => props.model.updateSettings({ multiMeasureEnabled })} />
+          <label class="msr:col-span-2 msr:grid msr:h-6 msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-[12px] msr:text-ink-700">
+            <span>Info card mode</span>
+            <select
+              aria-label="Info card mode"
+              value={settings().infoCardMode}
+              class="msr:h-6 msr:w-full msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-surface msr:px-1.5 msr:text-[11px]"
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+
+                if (isInfoCardMode(value)) props.model.updateSettings({ infoCardMode: value });
+              }}
+            >
+              <option value="click">Click</option>
+              <option value="hover">Hover</option>
+            </select>
+          </label>
+          <SettingsSwitch label="Layout details" checked={settings().layoutDetailsEnabled} onChange={(layoutDetailsEnabled) => props.model.updateSettings({ layoutDetailsEnabled })} />
         <div data-mesurer-distance="true" class="msr:col-span-2 msr:mt-1 msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-1 msr:border-t msr:border-ink-100 msr:pt-2">
           <div class="msr:col-span-2 msr:text-[10px] msr:font-semibold msr:text-ink-500">Selection spacing</div>
           <SettingsSwitch label="Show" checked={props.selectionSpacingStyle.enabled} onChange={(enabled) => updateSpacing({ enabled })} />

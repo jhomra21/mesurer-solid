@@ -19,6 +19,7 @@ function Fixture() {
       <style>{`
         body { margin: 0 }
         #root-only-target { position: fixed; left: 16px; top: 260px; width: 116px; height: 48px; z-index: 2; }
+        #inspection-target { color: rgb(23, 45, 67); padding: 13px 17px; }
         [data-testid="breakpoint-label"] { color: rgb(200, 30, 30); }
         @media (max-width: 500px) {
           [data-testid="breakpoint-label"] { color: rgb(20, 150, 50); }
