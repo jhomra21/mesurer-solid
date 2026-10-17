@@ -6,6 +6,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 - Fixed toolbar dragging while Responsive is open, including drags over the preview stage and iframe.
 - Fixed compact toolbar mode hiding the active Select tool.
+- Keep Responsive open while Color Picker, Screenshot, or Recording is active, and layer those tools above preview content.
+- Add per-preview device/breakpoint sizing, duplicate previews, and a six-preview limit; preserve sibling frames when resizing.
+- Route Escape from a Responsive preview through the root surface-dismissal order.
 
 <!-- Add user-facing changes here before preparing a release. -->
 

@@ -597,8 +597,6 @@ export const screenshotPlugin = (
     };
 
     const start = async () => {
-      runtime.closeResponsiveStage?.();
-
       if (!settings().toolEnabled) return;
 
       if (active()) {

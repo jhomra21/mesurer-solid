@@ -17,6 +17,49 @@ const errors = [];
 
 page.on("pageerror", (error) => errors.push(String(error)));
 
+await page.addInitScript(() => {
+  const recordingCanvas = document.createElement("canvas");
+  recordingCanvas.width = 640;
+  recordingCanvas.height = 360;
+  const recordingContext = recordingCanvas.getContext("2d");
+  let frameNumber = 0;
+
+  const drawRecordingFrame = () => {
+    recordingContext.fillStyle = `rgb(${frameNumber % 255} 40 180)`;
+    recordingContext.fillRect(0, 0, recordingCanvas.width, recordingCanvas.height);
+    frameNumber += 1;
+    requestAnimationFrame(drawRecordingFrame);
+  };
+
+  drawRecordingFrame();
+  Object.defineProperty(navigator.mediaDevices, "getDisplayMedia", {
+    configurable: true,
+    value: async () => recordingCanvas.captureStream(60),
+  });
+  window.__MESURER_HOST__ = {
+    captureScreenshot: async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = innerWidth * 2;
+      canvas.height = innerHeight * 2;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#5eead4";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      return await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    },
+  };
+  Object.defineProperty(window, "EyeDropper", {
+    configurable: true,
+    value: class {
+      async open() { return { sRGBHex: "#5eead4" }; }
+    },
+  });
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: async () => undefined },
+  });
+});
+
 page.on("console", (message) => {
   if (message.type() === "error" && !message.text().includes("frame-ancestors 'none'")) errors.push(message.text());
 });
@@ -176,6 +219,168 @@ try {
   await page.keyboard.up("Alt");
 
   await page.locator("button[data-mesurer-builtin='responsive']").click();
+  await page.locator("button[data-mesurer-builtin='responsive']").click();
+  await page.getByLabel("Add a size").selectOption("375x667");
+  assert.equal(await page.locator("iframe[data-mesurer-responsive-frame]").count(), 2);
+
+  const initialFrames = await page.locator("iframe[data-mesurer-responsive-frame]").evaluateAll((items) =>
+    items.map((item) => item.getAttribute("data-mesurer-responsive-preview-id")));
+
+  const screenshotButton = page.locator("[data-mesurer-tool-id='screenshot'] button").first();
+  await screenshotButton.click();
+  const screenshotOverlay = page.locator("[data-mesurer-screenshot-select='true']");
+  await screenshotOverlay.waitFor({ state: "visible" });
+  assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1,
+    "Screenshot selection keeps Responsive open");
+  assert.deepEqual(await page.locator("iframe[data-mesurer-responsive-frame]").evaluateAll((items) =>
+    items.map((item) => item.getAttribute("data-mesurer-responsive-preview-id"))), initialFrames,
+    "Starting Screenshot keeps preview iframe identities");
+  const firstPreviewBox = await page.locator("iframe[data-mesurer-responsive-frame]").first().boundingBox();
+  assert(firstPreviewBox, "Responsive preview has bounds for capture-selection hit testing");
+
+  const screenshotHit = await page.evaluate(({ x, y }) => {
+    const root = document.querySelector("[data-mesurer-island]")?.shadowRoot;
+    const hit = root?.elementFromPoint(x, y);
+
+    return { isSelection: Boolean(hit?.closest?.("[data-mesurer-screenshot-select='true']")),
+      stage: Boolean(hit?.closest?.("[data-mesurer-responsive-stage]")) };
+  }, { x: firstPreviewBox.x + 12, y: firstPreviewBox.y + 12 });
+
+  assert.equal(screenshotHit.isSelection, true, `Screenshot selection must own hit testing over preview pixels: ${JSON.stringify(screenshotHit)}`);
+  assert.equal(screenshotHit.stage, false);
+  await page.mouse.move(firstPreviewBox.x + 10, firstPreviewBox.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(firstPreviewBox.x + 180, firstPreviewBox.y + 130, { steps: 5 });
+  await page.mouse.up();
+  const screenshotPreview = page.locator("[data-mesurer-screenshot-preview='true']");
+  await screenshotPreview.waitFor({ state: "visible" });
+  assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1,
+    "Completing Screenshot selection keeps Responsive open");
+  assert.deepEqual(await page.locator("iframe[data-mesurer-responsive-frame]").evaluateAll((items) =>
+    items.map((item) => item.getAttribute("data-mesurer-responsive-preview-id"))), initialFrames,
+  "Screenshot capture retains both preview iframe identities");
+
+  const capturedPreviewSize = await page.locator("[data-mesurer-screenshot-preview-image='true']").evaluate((image) =>
+    [image.naturalWidth, image.naturalHeight]);
+
+  assert.deepEqual(capturedPreviewSize, [340, 240], "Screenshot selection over the preview produced a cropped capture");
+  await page.locator("[data-mesurer-screenshot-preview-dismiss='true']").click();
+  await screenshotPreview.waitFor({ state: "hidden" });
+  assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1);
+  await page.keyboard.press("Shift+S");
+  await screenshotOverlay.waitFor({ state: "visible" });
+  await page.keyboard.press("Escape");
+  await screenshotOverlay.waitFor({ state: "hidden" });
+
+  const recordButton = page.locator("[data-mesurer-tool-id='recording'] button").first();
+  await recordButton.click();
+  const recordingOverlay = page.locator("[data-mesurer-recording-select='true']");
+  await recordingOverlay.waitFor({ state: "visible" });
+  assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1,
+    "Recording selection keeps Responsive open");
+
+  const recordingHit = await page.evaluate(({ x, y }) => {
+    const root = document.querySelector("[data-mesurer-island]")?.shadowRoot;
+    const hit = root?.elementFromPoint(x, y);
+
+    return { isSelection: Boolean(hit?.closest?.("[data-mesurer-recording-select='true']")),
+      stage: Boolean(hit?.closest?.("[data-mesurer-responsive-stage]")) };
+  }, { x: firstPreviewBox.x + 14, y: firstPreviewBox.y + 14 });
+
+  assert.equal(recordingHit.isSelection, true, `Recording selection must own hit testing over preview pixels: ${JSON.stringify(recordingHit)}`);
+  assert.equal(recordingHit.stage, false);
+
+  await page.mouse.move(firstPreviewBox.x + 12, firstPreviewBox.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(firstPreviewBox.x + 182, firstPreviewBox.y + 132, { steps: 5 });
+  await page.mouse.up();
+  const recordRegionStart = page.locator("[data-mesurer-recording-start='true']");
+  await recordRegionStart.waitFor({ state: "visible" });
+  await recordRegionStart.click();
+  const recordStop = page.locator("[data-mesurer-recording-stop='true']");
+  await recordStop.waitFor({ state: "visible" });
+  await page.waitForTimeout(500);
+  await recordStop.click();
+  const recordingPreview = page.locator("[data-mesurer-recording-preview='true']");
+  await recordingPreview.waitFor({ state: "visible", timeout: 120000 });
+  assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1,
+    "Capturing a selected preview region leaves Responsive open");
+  assert.deepEqual(await page.locator("iframe[data-mesurer-responsive-frame]").evaluateAll((items) =>
+    items.map((item) => item.getAttribute("data-mesurer-responsive-preview-id"))), initialFrames,
+  "Recording capture preserves the live preview iframe identities");
+  const discardRecording = page.locator("[data-mesurer-recording-discard='true']");
+  await recordingPreview.hover();
+  await discardRecording.click();
+  await recordingPreview.waitFor({ state: "hidden" });
+
+  await recordButton.click();
+  await recordingOverlay.waitFor({ state: "visible" });
+  await page.keyboard.press("Shift+R");
+  await recordingOverlay.waitFor({ state: "hidden" });
+  assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1);
+
+  const colorButton = page.getByRole("button", { name: "Color picker (P)" });
+
+  if (await colorButton.count()) {
+    await colorButton.click();
+    const colorTarget = page.locator("[data-mesurer-color-picker-target='true']");
+    await colorTarget.waitFor({ state: "visible" });
+
+    const colorHit = await page.evaluate(({ x, y }) => {
+      const root = document.querySelector("[data-mesurer-island]")?.shadowRoot;
+      const hit = root?.elementFromPoint(x, y);
+
+      return { picker: Boolean(hit?.closest?.("[data-mesurer-color-picker-target='true']")),
+        stage: Boolean(hit?.closest?.("[data-mesurer-responsive-stage]")) };
+    }, { x: firstPreviewBox.x + 16, y: firstPreviewBox.y + 16 });
+
+    assert.equal(colorHit.picker, true, `Color Picker must be above the stage: ${JSON.stringify(colorHit)}`);
+    assert.equal(colorHit.stage, false);
+    await page.mouse.click(firstPreviewBox.x + 16, firstPreviewBox.y + 16);
+
+    const colorPanel = page.locator(".mesurer-color-picker");
+    await colorPanel.waitFor({ state: "visible" });
+    assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1,
+      "Color Picker keeps Responsive open");
+    assert.match(await colorPanel.textContent(), /#5eead4/i, "Color Picker sampled the host capture over the visible preview");
+    const colorPanelBox = await colorPanel.boundingBox();
+    assert(colorPanelBox, "Color Picker surface is visible while Responsive is open");
+
+    const colorSurfaceHit = await page.evaluate(({ x, y }) => {
+      const island = document.querySelector("[data-mesurer-island]");
+      const root = island?.shadowRoot;
+      const hit = root?.elementFromPoint(x, y);
+
+      return { picker: Boolean(hit?.closest?.(".mesurer-color-picker")),
+        stage: Boolean(hit?.closest?.("[data-mesurer-responsive-stage]")) };
+    }, { x: colorPanelBox.x + colorPanelBox.width / 2, y: colorPanelBox.y + colorPanelBox.height / 2 });
+
+    assert.equal(colorSurfaceHit.picker, true, `Color Picker must be above the stage: ${JSON.stringify(colorSurfaceHit)}`);
+    assert.equal(colorSurfaceHit.stage, false);
+    await page.keyboard.press("Escape");
+    await colorPanel.waitFor({ state: "hidden" });
+    await colorTarget.waitFor({ state: "hidden" });
+    assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1);
+    await page.keyboard.press("p");
+    await colorTarget.waitFor({ state: "visible" });
+    await page.mouse.click(firstPreviewBox.x + 18, firstPreviewBox.y + 18);
+    await colorPanel.waitFor({ state: "visible" });
+    await page.keyboard.press("Escape");
+    await colorPanel.waitFor({ state: "hidden" });
+  }
+
+  const settingsButton = page.locator("button[data-mesurer-builtin='settings']");
+  await settingsButton.click();
+  await page.getByText("General", { exact: true }).waitFor({ state: "visible" });
+  await page.locator("iframe[data-mesurer-responsive-frame]").first().evaluate((item) => item.contentWindow.focus());
+  await page.keyboard.press("Escape");
+  await page.getByText("General", { exact: true }).waitFor({ state: "hidden" });
+  assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1,
+    "First Escape from a focused preview dismisses Settings, not Responsive");
+  await page.locator("iframe[data-mesurer-responsive-frame]").first().evaluate((item) => item.contentWindow.focus());
+  await page.keyboard.press("Escape");
+  await page.locator("[data-mesurer-responsive-stage]").waitFor({ state: "detached" });
+
   await typographyButton.click();
   assert.equal(await typographyButton.getAttribute("aria-pressed"), "true",
     "Typography should be enabled before opening Responsive");

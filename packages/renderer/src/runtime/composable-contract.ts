@@ -17,7 +17,6 @@ export type MesurerSolidRuntimeService = {
   rendererRoot?: HTMLDivElement;
   currentToolMode?(): MesurerModel["state"]["toolMode"];
   currentToolbarMode?(): "select" | "edit";
-  closeResponsiveStage?(): void;
   theme?(): MesurerTheme;
   subscribeTheme?(listener: (theme: MesurerTheme) => void): () => void;
   createWorkspaceRuntime(persistenceNamespace?: string): MesurerWorkspaceRuntime;

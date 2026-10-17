@@ -244,7 +244,7 @@ export default function ComposableMesurer(props: MesurerProps) {
   });
 
   const closeResponsiveForTool = (toolId: string) => {
-    if (responsiveOpen() && ["arrange", "edit", "rulers", "screenshot", "recording"].includes(toolId)) {
+    if (responsiveOpen() && ["arrange", "edit", "rulers"].includes(toolId)) {
       setResponsiveOpen(false);
     }
   };
@@ -267,8 +267,6 @@ export default function ComposableMesurer(props: MesurerProps) {
     builtinController?.clearSelection();
     setResponsiveOpen(true);
   };
-
-  const closeResponsiveStage = () => setResponsiveOpen(false);
 
   const runToolWithResponsiveClose = (
     tool: ToolContribution,
@@ -495,7 +493,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (
         responsiveOpen()
         && (arrangeActive() || host.tools().some((tool) =>
-          ["screenshot", "recording", "rulers"].includes(tool.id) && (tool.active?.() ?? false)))
+          tool.id === "rulers" && (tool.active?.() ?? false)))
       ) setResponsiveOpen(false);
 
       if (event.reason === "state" || event.reason === "history" || event.reason === "remove" || event.reason === "replace") {
@@ -742,7 +740,7 @@ export default function ComposableMesurer(props: MesurerProps) {
         return;
       }
 
-      if (responsiveOpen() && ["rulers", "color-picker"].includes(id)) setResponsiveOpen(false);
+      if (responsiveOpen() && id === "rulers") setResponsiveOpen(false);
 
       const sharedEditBuiltin = id === "rulers" || id === "guides";
 
@@ -791,7 +789,6 @@ export default function ComposableMesurer(props: MesurerProps) {
             rendererRoot: requireRendererRoot(),
             currentToolMode: () => requireModel().current.toolMode,
             currentToolbarMode: () => arrangeActive() ? "edit" : "select",
-            closeResponsiveStage,
             theme,
             subscribeTheme,
             createWorkspaceRuntime,

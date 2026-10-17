@@ -176,6 +176,23 @@ try {
   assert.deepEqual((await page.evaluate((id) => window.__MESURER__.capturePlan({ annotation: id }), a.id)).previewViewport, scope);
   assert.equal(await frames.first().evaluate((frame) => frame.contentDocument.querySelectorAll("[data-mesurer-context-root]").length), 0);
 
+  await page.getByLabel("Add a size").selectOption("393x852");
+  await page.frameLocator("iframe[data-mesurer-responsive-frame]").nth(1).locator("#inspection-target").waitFor();
+  await selectPreview(1);
+  const duplicate = await save("Duplicate viewport note");
+  assert.equal(duplicate.anchor.targets[0].viewport.width, scope.width);
+  assert.equal(duplicate.anchor.targets[0].viewport.height, scope.height);
+  assert.notEqual(duplicate.anchor.targets[0].viewport.previewId, scope.previewId,
+    "Duplicate-size previews retain distinct Context preview identities");
+  assert.deepEqual(
+    (await page.evaluate((id) => window.__MESURER__.context({ annotation: id }), duplicate.id)).previewViewport,
+    duplicate.anchor.targets[0].viewport,
+    "Context binds the note to its duplicate preview rather than the matching-size sibling",
+  );
+  await click(page.locator(`[data-mesurer-annotation-marker='true'][data-mesurer-annotation-id='${duplicate.id}']`));
+  await click(page.getByRole("button", { name: "Delete annotation", exact: true }));
+  await page.getByLabel("Remove preview").nth(1).click();
+
   const nestedTarget = page.frameLocator("iframe[data-mesurer-responsive-frame]")
     .frameLocator("[data-testid='nested-preview-frame']").getByTestId("nested-inspection-target");
 

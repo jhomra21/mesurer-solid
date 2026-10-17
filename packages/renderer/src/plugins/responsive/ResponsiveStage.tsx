@@ -195,14 +195,11 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       const height = isBreakpoint ? previews[0]?.height ?? 852 : optionHeight;
 
       if (!width || !height) return;
-      const existing = previews.find((item) => item.width === width && item.height === height);
 
-      if (existing) {
-        row.scrollTo({ left: (sections.get(existing.id)?.offsetLeft ?? 0), behavior: "instant" });
-      } else {
+      if (previews.length < MAX_PREVIEWS) {
         const device = DEVICES.find((item) => item.width === width && item.height === height);
         const next = { id: nextId++, name: device?.name ?? `${width}px breakpoint`, width, height, guides: [] };
-        previews = previews.length >= MAX_PREVIEWS ? [...previews.slice(0, MAX_PREVIEWS - 1), next] : [...previews, next];
+        previews = [...previews, next];
         persist();
         renderPreviews();
         row.scrollTo({ left: row.scrollWidth, behavior: "instant" });
@@ -330,6 +327,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
         if (removeButton) removeButton.disabled = previews.length <= 1;
       }
 
+      preset.disabled = previews.length >= MAX_PREVIEWS;
       win.dispatchEvent(new CustomEvent("mesurer:responsive-stage-change"));
     };
 
@@ -392,9 +390,10 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       setStyles(header, { height: "40px", minHeight: "40px", display: "flex", alignItems: "center", gap: "4px", padding: "0 5px", boxSizing: "border-box", borderRadius: "8px", background: "var(--msr-surface, #fff)", boxShadow: "var(--msr-shadow-floating)", fontSize: "11px" });
       const name = doc.createElement("span");
       name.textContent = item.name;
-      setStyles(name, { flex: "1", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", paddingLeft: "4px" });
+      setStyles(name, { flex: "1", minWidth: "0", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", paddingLeft: "4px" });
       const dimensions = doc.createElement("span");
       dimensions.dataset.responsiveDimensions = "";
+      setStyles(dimensions, { flexShrink: "0", whiteSpace: "nowrap", fontSize: "9px", color: "var(--msr-color-ink-500, #737373)" });
       dimensions.textContent = `${item.width} × ${item.height}`;
       const widthInput = doc.createElement("input");
       widthInput.type = "number"; widthInput.min = String(MIN_SIZE); widthInput.max = String(MAX_SIZE); widthInput.value = String(item.width);
@@ -403,7 +402,46 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       heightInput.type = "number"; heightInput.min = String(MIN_SIZE); heightInput.max = String(MAX_SIZE); heightInput.value = String(item.height);
       heightInput.setAttribute("aria-label", "Height"); heightInput.dataset.responsiveHeight = "";
 
-      for (const input of [widthInput, heightInput]) setStyles(input, { width: "52px", height: "24px", boxSizing: "border-box", border: "1px solid var(--msr-color-ink-200, #ddd)", borderRadius: "4px", background: "var(--msr-surface-raised, #fff)", color: "inherit", font: "inherit", padding: "2px 3px" });
+      for (const input of [widthInput, heightInput]) setStyles(input, { width: "34px", height: "24px", boxSizing: "border-box", border: "1px solid var(--msr-color-ink-200, #ddd)", borderRadius: "4px", background: "var(--msr-surface-raised, #fff)", color: "inherit", font: "inherit", padding: "2px 2px" });
+
+      const sizeSelect = doc.createElement("select");
+      sizeSelect.setAttribute("aria-label", "Size");
+      setStyles(sizeSelect, { width: "60px", minWidth: "56px", height: "24px", border: "0", borderRadius: "4px", color: "inherit", background: "transparent", font: "inherit" });
+      sizeSelect.add(new Option("Custom", ""));
+
+      for (const choice of [...DEVICES, ...breakpoints(doc).map((width) => ({ name: `${clamp(width)}px breakpoint`, width: clamp(width), height: item.height }))]) {
+        sizeSelect.add(new Option(choice.name, `${choice.width}x${choice.height}`));
+      }
+
+      const syncSizeChoice = () => {
+        const device = DEVICES.find((candidate) => candidate.width === item.width && candidate.height === item.height);
+
+        const breakpoint = [...sizeSelect.options].find((option) =>
+          option.textContent?.includes("breakpoint") && Number(option.value.split("x")[0]) === item.width);
+
+        sizeSelect.value = device
+          ? `${device.width}x${device.height}`
+          : breakpoint?.value ?? "";
+      };
+
+      syncSizeChoice();
+
+      sizeSelect.addEventListener("change", () => {
+        const selected = sizeSelect.selectedOptions[0];
+
+        if (!selected?.value) return;
+        const [width, presetHeight] = selected.value.split("x").map(Number);
+        const isBreakpoint = selected.textContent?.includes("breakpoint") ?? false;
+        item.width = clamp(width);
+
+        if (!isBreakpoint) item.height = clamp(presetHeight);
+        item.name = isBreakpoint ? `${item.width}px breakpoint` :
+          (DEVICES.find((device) => device.width === item.width && device.height === item.height)?.name ?? "Custom");
+        name.textContent = item.name;
+        section.setAttribute("aria-label", `${item.name}, ${item.width} × ${item.height}`);
+        persist();
+        layout();
+      });
 
       const updateSize = () => {
         item.width = clamp(Number(widthInput.value)); item.height = clamp(Number(heightInput.value));
@@ -411,6 +449,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
         widthInput.value = String(item.width); heightInput.value = String(item.height);
         name.textContent = item.name;
         section.setAttribute("aria-label", `${item.name}, ${item.width} × ${item.height}`);
+        syncSizeChoice();
         persist(); layout();
       };
 
@@ -512,9 +551,14 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
 
             if (event.metaKey || event.ctrlKey || event.altKey) return;
 
-            if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); props.onClose();
+            if (event.key === "Escape") {
+              if (isEditableKeyboardEvent(event, child)) return;
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              doc.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
 
- return; }
+              return;
+            }
 
             if ((event.key === "Delete" || event.key === "Backspace")
               && props.guidesActive()
@@ -627,7 +671,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       frame.addEventListener("pointerdown", () => win.dispatchEvent(new CustomEvent("mesurer:responsive-frame-pointerdown")));
       frameWrap.append(frame, status);
       shell.append(frameWrap);
-      header.append(drag, moveLeft, moveRight, name, dimensions, widthInput, doc.createTextNode("×"), heightInput, remove);
+      header.append(drag, moveLeft, moveRight, name, sizeSelect, dimensions, widthInput, doc.createTextNode("×"), heightInput, remove);
       section.append(header, shell);
       section.addEventListener("pointerdown", (event) => event.stopPropagation());
       section.addEventListener("click", (event) => { event.stopPropagation(); win.dispatchEvent(new CustomEvent("mesurer:responsive-frame-pointerdown")); });
@@ -661,6 +705,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
             item.name = DEVICES.find((device) => device.width === item.width && device.height === item.height)?.name ?? "Custom";
             name.textContent = item.name;
             section.setAttribute("aria-label", `${item.name}, ${item.width} × ${item.height}`);
+            syncSizeChoice();
             persist();
             layout();
           };
@@ -686,6 +731,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
           item.name = DEVICES.find((device) => device.width === item.width && device.height === item.height)?.name ?? "Custom";
           name.textContent = item.name;
           section.setAttribute("aria-label", `${item.name}, ${item.width} × ${item.height}`);
+          syncSizeChoice();
           persist();
           layout();
         });

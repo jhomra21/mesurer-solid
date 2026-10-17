@@ -308,18 +308,11 @@ try {
   }, "Agent inspection remains rooted at the top page while Responsive is open");
   await close();
 
-  for (const mode of ["edit", "screenshot", "recording"]) {
+  for (const mode of ["edit"]) {
     await open();
 
     if (mode === "edit") {
       await page.locator("button[data-mesurer-tool-id='arrange']").click();
-    } else if (mode === "screenshot") {
-      await page.evaluate(async () => {
-        await window.__responsiveMount.pluginHost.service.get("screenshot").start().catch(() => undefined);
-      });
-    } else {
-      await page.getByRole("button", { name: "Record options" }).click();
-      await page.getByRole("menuitem", { name: "New recording" }).click();
     }
 
     await frame.waitFor({ state: "detached" });

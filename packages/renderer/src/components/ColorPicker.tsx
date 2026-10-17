@@ -116,7 +116,7 @@ export function ColorPicker(props: {
           data-mesurer-color-picker-target="true"
           data-mesurer-inspector-ui="true"
           aria-hidden="true"
-          class="msr:pointer-events-auto msr:fixed msr:inset-0 msr:z-[60] msr:cursor-crosshair"
+          class="msr:pointer-events-auto msr:fixed msr:inset-0 msr:z-[90] msr:cursor-crosshair"
           onPointerDown={(event) => {
             if (event.button !== 0) return;
             event.preventDefault();
@@ -130,7 +130,7 @@ export function ColorPicker(props: {
       <Show when={props.model.state.colorPickerActive && props.model.state.colorPickerSample}>{(sample) =>
         <div
           ref={(element) => { panel = element; }}
-          class="mesurer-color-picker msr:pointer-events-auto msr:fixed msr:z-[80] msr:min-w-36 msr:rounded-lg msr:border msr:border-black/10 msr:bg-white msr:px-2 msr:py-2 msr:font-mono msr:text-[10px] msr:leading-4 msr:shadow-lg"
+          class="mesurer-color-picker msr:pointer-events-auto msr:fixed msr:z-[90] msr:min-w-36 msr:rounded-lg msr:border msr:border-black/10 msr:bg-white msr:px-2 msr:py-2 msr:font-mono msr:text-[10px] msr:leading-4 msr:shadow-lg"
           role="dialog"
           aria-label="Selected color values"
           aria-description={hostPicker()

@@ -19,6 +19,17 @@ const expectedRefusalDiagnostics = [];
 
 page.on("pageerror", (error) => errors.push(String(error)));
 
+await page.addInitScript(() => {
+  window.__MESURER_HOST__ = {
+    captureScreenshot: async () => new Promise((resolve) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = innerWidth * 2;
+      canvas.height = innerHeight * 2;
+      canvas.toBlob(resolve, "image/png");
+    }),
+  };
+});
+
 page.on("console", (message) => {
   if (message.type() !== "error") return;
 
@@ -183,32 +194,43 @@ try {
   await page.locator("[data-mesurer-responsive-stage]").click({ position: { x: 4, y: 4 } });
   await page.locator("[data-mesurer-responsive-frame]").waitFor({ state: "detached" });
   await open();
+  const screenshotFrame = await page.locator("[data-mesurer-responsive-frame]").getAttribute("data-mesurer-responsive-preview-id");
   await page.evaluate(async () => {
     const screenshot = window.__responsiveMount.pluginHost.service.get("screenshot");
     await screenshot.start().catch(() => undefined);
   });
-  await page.locator("[data-mesurer-responsive-frame]").waitFor({ state: "detached" });
+  await page.locator("[data-mesurer-screenshot-select='true']").waitFor({ state: "visible" });
+  assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1,
+    "Screenshot selection keeps Responsive open");
+  assert.equal(await page.locator("[data-mesurer-responsive-frame]").getAttribute("data-mesurer-responsive-preview-id"), screenshotFrame,
+    "Screenshot selection preserves the live preview iframe");
   await page.keyboard.press("Escape");
+  await page.locator("[data-mesurer-screenshot-select='true']").waitFor({ state: "hidden" });
   await page.waitForTimeout(80);
 
-  await open();
+  const recordingFrame = await page.locator("[data-mesurer-responsive-frame]").getAttribute("data-mesurer-responsive-preview-id");
   await page.getByRole("button", { name: "Record options" }).click();
   await page.getByRole("menuitem", { name: "New recording" }).click();
-  await page.locator("[data-mesurer-responsive-frame]").waitFor({ state: "detached" });
+  await page.locator("[data-mesurer-recording-select='true']").waitFor({ state: "visible" });
+  assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1,
+    "Recording selection keeps Responsive open");
+  assert.equal(await page.locator("[data-mesurer-responsive-frame]").getAttribute("data-mesurer-responsive-preview-id"), recordingFrame,
+    "Recording selection preserves the live preview iframe");
   await page.keyboard.press("Escape");
+  await page.locator("[data-mesurer-recording-select='true']").waitFor({ state: "hidden" });
   await page.waitForTimeout(80);
 
-  await open();
   await page.evaluate(async () => {
     const mounted = window.__responsiveMount;
     const host = await mounted.ready;
     await host.command.execute("recording.toggle");
   });
-  await page.locator("[data-mesurer-responsive-frame]").waitFor({ state: "detached" });
+  await page.locator("[data-mesurer-recording-select='true']").waitFor({ state: "visible" });
+  assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1,
+    "Recording toolbar shortcut selection keeps Responsive open");
   await page.keyboard.press("Escape");
+  await page.locator("[data-mesurer-recording-select='true']").waitFor({ state: "hidden" });
   await page.waitForTimeout(80);
-  await button.click();
-  await page.locator("[data-mesurer-responsive-frame]").waitFor();
   await button.click();
   await page.locator("[data-mesurer-responsive-frame]").waitFor({ state: "detached" });
   await open();
