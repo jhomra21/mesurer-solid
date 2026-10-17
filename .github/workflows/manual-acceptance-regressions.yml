@@ -24,6 +24,11 @@ on:
       - ".github/workflows/manual-acceptance-regressions.yml"
   workflow_dispatch:
 
+# Keep only the latest run for each PR; non-PR runs are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   rejected-manual-ui:
     runs-on: ubuntu-24.04
@@ -46,8 +51,22 @@ jobs:
       - name: Generate renderer styles
         run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
 
+      - name: Resolve Playwright version
+        id: playwright_version
+        run: echo "version=$(bunx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      # The resolved Playwright version is part of the key, so dependency bumps cannot reuse a mismatched browser.
+      - name: Cache Playwright Chromium
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright_version.outputs.version }}-chromium
+
+      - name: Install Linux browser dependencies
+        run: bunx playwright install-deps chromium
+
       - name: Install Chromium
-        run: bunx playwright install --with-deps chromium
+        run: bunx playwright install chromium
 
       - name: Start normal renderer playground
         shell: bash

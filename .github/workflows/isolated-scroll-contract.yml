@@ -71,6 +71,25 @@ jobs:
       - name: Generate renderer styles
         run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
 
+      - name: Resolve Playwright version
+        id: playwright_version
+        run: echo "version=$(bunx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      # The resolved Playwright version is part of the key, so dependency bumps cannot reuse a mismatched browser.
+      - name: Cache Playwright Chromium on Linux
+        if: runner.os == 'Linux'
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright_version.outputs.version }}-chromium
+
+      - name: Cache Playwright Chromium on macOS
+        if: runner.os == 'macOS'
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/Library/Caches/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright_version.outputs.version }}-chromium
+
       - name: Install Chromium
         run: bunx playwright install chromium
 
