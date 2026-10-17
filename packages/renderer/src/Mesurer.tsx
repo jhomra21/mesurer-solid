@@ -216,15 +216,31 @@ const sanitizeStoredSettings = (ownerWindow: Window, settings: MesurerStoredSett
 const unionSelection = (items: InspectMeasurement[], origin: Rect | null): InspectMeasurement | null => {
   if (items.length <= 1) return null;
   let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+  let cssLeft = Infinity, cssTop = Infinity, cssRight = -Infinity, cssBottom = -Infinity;
+  const sourceDocument = items[0].sourceDocument;
+  const shareSourceDocument = Boolean(sourceDocument && items.every((item) => item.sourceDocument === sourceDocument));
 
   for (const item of items) {
     left = Math.min(left, item.rect.left);
     top = Math.min(top, item.rect.top);
     right = Math.max(right, item.rect.left + item.rect.width);
     bottom = Math.max(bottom, item.rect.top + item.rect.height);
+
+    if (shareSourceDocument) {
+      const cssRect = item.cssRect ?? item.rect;
+      cssLeft = Math.min(cssLeft, cssRect.left);
+      cssTop = Math.min(cssTop, cssRect.top);
+      cssRight = Math.max(cssRight, cssRect.left + cssRect.width);
+      cssBottom = Math.max(cssBottom, cssRect.top + cssRect.height);
+    }
   }
 
   const rect = { left, top, width: right - left, height: bottom - top };
+
+  const cssRect = shareSourceDocument
+    ? { left: cssLeft, top: cssTop, width: cssRight - cssLeft, height: cssBottom - cssTop }
+    : undefined;
+
   const base = items[items.length - 1];
 
   return {
@@ -232,6 +248,8 @@ const unionSelection = (items: InspectMeasurement[], origin: Rect | null): Inspe
     id: `group-${items.map((item) => item.id).join("|")}`,
     label: `${items.length} elements`,
     rect,
+    cssRect,
+    sourceDocument: shareSourceDocument ? sourceDocument : undefined,
     paddingRect: rect,
     marginRect: rect,
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
@@ -1252,6 +1270,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     if (textInspectorPortalTarget !== env.portalTarget) ensureMesurerStyles(MESURER_STYLES, textInspectorPortalTarget);
     textInspector = createTextInspector({
       portalTarget: textInspectorPortalTarget,
+      getPortalTarget: () => untrack(() =>
+        input.responsiveOpen ? env.portalTarget : textInspectorPortalTarget),
       projectRect: (element, rect) => {
         if (!isResponsivePreviewDocument(element.ownerDocument)) return rect;
         const projected = getRectFromDom(element);

@@ -103,6 +103,7 @@ on:
       - "tests/visual-parity/responsive-viewports-contract.mjs"
       - "tests/visual-parity/responsive-inspection-contract.mjs"
       - "tests/visual-parity/responsive-guides-contract.mjs"
+      - "tests/visual-parity/responsive-tools-contract.mjs"
       - "tests/visual-parity/responsive-context-contract.mjs"
       - ".github/workflows/browser-contracts.yml"
   workflow_dispatch:
@@ -298,6 +299,11 @@ jobs:
           RESPONSIVE_GUIDES_URL: http://127.0.0.1:4174/responsive-preview.html
           RESPONSIVE_GUIDES_OUT: responsive-guides-artifacts
         run: bun tests/visual-parity/responsive-guides-contract.mjs
+      - name: Exercise Responsive preview tools
+        env:
+          RESPONSIVE_TOOLS_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_TOOLS_OUT: responsive-tools-artifacts
+        run: bun tests/visual-parity/responsive-tools-contract.mjs
 
       - name: Exercise Responsive Context
         env:
@@ -344,6 +350,14 @@ jobs:
         with:
           name: mesurer-responsive-guides-contract
           path: responsive-guides-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload Responsive tools evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-responsive-tools-contract
+          path: responsive-tools-artifacts
           if-no-files-found: warn
           retention-days: 14
 

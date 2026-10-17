@@ -260,7 +260,7 @@ export default function ComposableMesurer(props: MesurerProps) {
 
     if (arrangeActive()) await leaveEditMode("responsive-open");
 
-    if (rendererModel?.current.toolMode !== "select") {
+    if (rendererModel?.current.toolMode !== "select" && rendererModel?.current.toolMode !== "text-inspector") {
       await builtinController?.run("select");
     }
 
