@@ -30,6 +30,8 @@ export {
 export type {
   MesurerAnnotation,
   MesurerAnnotationBaseline,
+  MesurerAnnotationReply,
+  MesurerAnnotationStatus,
   MesurerAnnotationTarget,
   MesurerContextRequest,
   MesurerResolvedAnnotation,

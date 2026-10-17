@@ -756,6 +756,8 @@ export {
 export type {
   MesurerAnnotation,
   MesurerAnnotationBaseline,
+  MesurerAnnotationReply,
+  MesurerAnnotationStatus,
   MesurerAnnotationTarget,
   MesurerCapturePlanV1,
   MesurerContextDistance,

@@ -2,6 +2,7 @@ import {
   MESURER_CONTEXT_SERVICE_ID,
   type MesurerContextService,
 } from "../../context-plugin";
+import { formatMesurerContext } from "../../context";
 import {
   type MesurerPlugin,
   type Registration,
@@ -290,6 +291,8 @@ type UiDeliveryState = {
   clientUserMessageId: string | null;
   dispatch: MesurerCodexDispatchStatus | null;
   dispatchError: string | null;
+  annotationSnapshots?: Array<{ id: string; note: string; replies: Array<{ id: string; text: string; createdAt: number }> }>;
+  message?: string;
 };
 
 type PersistedCodexUiState = {
@@ -305,6 +308,8 @@ type PersistedCodexUiState = {
     clientUserMessageId?: string | null;
     dispatch?: MesurerCodexDispatchStatus | null;
     dispatchError?: string | null;
+    annotationSnapshots?: Array<{ id: string; note: string; replies: Array<{ id: string; text: string; createdAt: number }> }>;
+    message?: string;
   } | null;
 };
 
@@ -356,6 +361,8 @@ const readBrowserState = (): PersistedCodexUiState | null => {
           clientUserMessageId: delivery.clientUserMessageId?.trim() || null,
           dispatch: delivery.dispatch ?? null,
           dispatchError: delivery.dispatchError?.trim() || null,
+          annotationSnapshots: Array.isArray(delivery.annotationSnapshots) ? delivery.annotationSnapshots : undefined,
+          message: delivery.message,
         }
       : null;
 
@@ -710,7 +717,7 @@ const feedbackPayload = async (
   const saved = await context.annotations();
   const requestedIds = request?.annotationIds;
 
-  const annotations = requestedIds
+  const requestedAnnotations = requestedIds
     ? requestedIds.flatMap((id) => {
         const annotation = saved.find((candidate) => candidate.id === id);
 
@@ -718,10 +725,21 @@ const feedbackPayload = async (
       })
     : saved;
 
+  const annotations = requestedAnnotations.filter((annotation) => annotation.status !== "resolved");
+
   const evidence: string[] = [];
+  const annotationSnapshots: NonNullable<UiDeliveryState["annotationSnapshots"]> = [];
 
   for (const annotation of annotations) {
-    evidence.push(await context.contextText({ annotation: annotation.id }));
+    const value = await context.context({ annotation: annotation.id });
+
+    if (value.scope.kind !== "annotation") continue;
+    evidence.push(formatMesurerContext(value));
+    annotationSnapshots.push({
+      id: annotation.id,
+      note: value.scope.note,
+      replies: (value.scope.replies ?? []).map((reply) => ({ ...reply })),
+    });
   }
 
   if (evidence.length === 0) {
@@ -734,6 +752,7 @@ const feedbackPayload = async (
 
   return {
     annotationIds: annotations.map((annotation) => annotation.id),
+    annotationSnapshots,
     message: [
       instruction,
       "",
@@ -812,8 +831,15 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             clientUserMessageId: persistedUiState.delivery.clientUserMessageId ?? null,
             dispatch: persistedUiState.delivery.dispatch ?? null,
             dispatchError: persistedUiState.delivery.dispatchError ?? null,
+            annotationSnapshots: persistedUiState.delivery.annotationSnapshots,
+            message: persistedUiState.delivery.message,
           }
         : null;
+
+      const queueMetadata = new WeakMap<MesurerCodexQueueResult, {
+        annotationSnapshots: UiDeliveryState["annotationSnapshots"];
+        message: string;
+      }>();
 
       let deliveryPollTimer = 0;
       let completedVisibleTimer = 0;
@@ -971,26 +997,9 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         if (delivery.queuedSubmissionId) request.queuedSubmissionId = delivery.queuedSubmissionId;
 
-        if (delivery.clientUserMessageId) {
-          request.clientUserMessageId = delivery.clientUserMessageId;
-        } else if (delivery.annotationIds.length > 0) {
-          const rebuilt = await feedbackPayload(
-            contextService,
-            { annotationIds: delivery.annotationIds },
-            instruction,
-          );
+        if (delivery.clientUserMessageId) request.clientUserMessageId = delivery.clientUserMessageId;
 
-          const exactAnnotationSet = rebuilt.annotationIds.length === delivery.annotationIds.length
-            && rebuilt.annotationIds.every((id, index) => id === delivery.annotationIds[index]);
-
-          if (!exactAnnotationSet) {
-            throw new Error(
-              "Cannot safely restore this Codex delivery because one or more saved Mesurer annotations are unavailable.",
-            );
-          }
-
-          request.message = rebuilt.message;
-        }
+        if (delivery.message) request.message = delivery.message;
 
         return bridgeDelivery(await requestBridge(request));
       };
@@ -1030,6 +1039,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               clientUserMessageId: activeDelivery.clientUserMessageId,
               dispatch: activeDelivery.dispatch,
               dispatchError: activeDelivery.dispatchError,
+              annotationSnapshots: activeDelivery.annotationSnapshots,
+              message: activeDelivery.message,
             }
           : null;
 
@@ -1450,29 +1461,34 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
           if (clearCompletedAnnotations && activeDelivery.annotationIds.length > 0) {
             let cleanupFailed = false;
+            const snapshots = new Map((activeDelivery.annotationSnapshots ?? []).map((item) => [item.id, item]));
 
             for (const annotationId of activeDelivery.annotationIds) {
               try {
-                await contextService.removeAnnotation(annotationId);
+                const expected = snapshots.get(annotationId);
+
+                if (!expected) continue;
+                const current = (await contextService.annotations()).find((item) => item.id === annotationId);
+
+                if (!current) continue;
+
+                const sameContent = current.note === expected.note
+                  && (current.replies ?? []).length === expected.replies.length
+                  && expected.replies.every((reply, index) => {
+                    const candidate = current.replies?.[index];
+
+                    return candidate?.id === reply.id
+                      && candidate.text === reply.text
+                      && candidate.createdAt === reply.createdAt;
+                  });
+
+                if (sameContent) await contextService.removeAnnotation(annotationId, expected);
               } catch {
                 cleanupFailed = true;
               }
             }
 
-            let remainingAnnotationIds = activeDelivery.annotationIds;
-
-            try {
-              const savedIds = new Set(
-                (await contextService.annotations()).map((annotation) => annotation.id),
-              );
-
-              remainingAnnotationIds = activeDelivery.annotationIds
-                .filter((annotationId) => savedIds.has(annotationId));
-            } catch {
-              cleanupFailed = true;
-            }
-
-            if (cleanupFailed || remainingAnnotationIds.length > 0) {
+            if (cleanupFailed) {
               persistUiState();
               syncTool();
               deliveryPollTimer = globalThis.setTimeout(() => {
@@ -1625,6 +1641,11 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               result.dispatchError = response.dispatchError?.trim() || null;
             }
 
+            queueMetadata.set(result, {
+              annotationSnapshots: feedback.annotationSnapshots,
+              message: feedback.message,
+            });
+
             return result;
           } catch (cause) {
             if (withUi && bridgeUnavailable(cause)) {
@@ -1671,11 +1692,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           try {
             if (withUi && bridgeAvailability !== "available") await refreshRuntime(true);
             const result = await service.queue();
+            const metadata = queueMetadata.get(result);
             activeDelivery = {
               id: result.deliveryId,
               thread: result.thread,
               status: result.status,
               annotationIds: result.annotationIds,
+              annotationSnapshots: metadata?.annotationSnapshots,
+              message: metadata?.message,
               queuedSubmissionId: result.queuedSubmissionId ?? null,
               clientUserMessageId: result.clientUserMessageId ?? null,
               dispatch: result.dispatch ?? null,

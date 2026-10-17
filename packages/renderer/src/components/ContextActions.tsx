@@ -8,6 +8,7 @@ import {
   type MesurerNestedScrollCompensation,
 } from "../runtime/nested-scroll-compensation";
 import { layoutAnnotationMarkers } from "./annotation-marker-layout";
+import { AnnotationThread } from "./AnnotationThread";
 import { CloseIcon, CopyIcon, NoteIcon, SendIcon, TrashIcon } from "./Icons";
 import { createTooltip, Tooltip } from "./Tooltip";
 
@@ -29,6 +30,12 @@ export type ContextActionsProps = {
 type PositionedRect = { left: number; top: number; width: number; height: number };
 
 type ContextSelectionSnapshot = { elements: Element[]; region: PositionedRect | null };
+
+type AnnotationThreadGlobalHandlers = {
+  pointerdown(event: PointerEvent): void;
+  click(event: MouseEvent): void;
+  keydown(event: KeyboardEvent): void;
+};
 
 type AnnotationScrollBinding = {
   target: Element;
@@ -205,6 +212,29 @@ export function ContextActions(props: ContextActionsProps) {
   const annotationScrollBindings = new Map<string, AnnotationScrollBinding>();
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
+  let annotationThreadGlobalHandlers: AnnotationThreadGlobalHandlers | null = null;
+
+  const onAnnotationThreadPointerDown = (event: PointerEvent) => {
+    if (activeAnnotationId()) annotationThreadGlobalHandlers?.pointerdown(event);
+  };
+
+  const onAnnotationThreadClick = (event: MouseEvent) => {
+    if (activeAnnotationId()) annotationThreadGlobalHandlers?.click(event);
+  };
+
+  const onAnnotationThreadKeyDown = (event: KeyboardEvent) => {
+    if (activeAnnotationId()) annotationThreadGlobalHandlers?.keydown(event);
+  };
+
+  ownerWindow().document.addEventListener("pointerdown", onAnnotationThreadPointerDown, true);
+  ownerWindow().document.addEventListener("click", onAnnotationThreadClick, true);
+  ownerWindow().addEventListener("keydown", onAnnotationThreadKeyDown, true);
+  onCleanup(() => {
+    ownerWindow().document.removeEventListener("pointerdown", onAnnotationThreadPointerDown, true);
+    ownerWindow().document.removeEventListener("click", onAnnotationThreadClick, true);
+    ownerWindow().removeEventListener("keydown", onAnnotationThreadKeyDown, true);
+  });
+
   const composerTooltip = createTooltip(ownerWindow());
   const sendTooltipId = "context-annotation-send";
   const usesViewportCoordinates = () => props.coordinateSpace === "viewport";
@@ -1450,6 +1480,7 @@ export function ContextActions(props: ContextActionsProps) {
               data-mesurer-annotation-number={index() + 1}
               data-mesurer-annotation-highlighted={highlighted() ? "true" : undefined}
               data-mesurer-annotation-muted={muted() ? "true" : undefined}
+              data-mesurer-annotation-status={annotation.status ?? "open"}
               data-mesurer-annotation-scroll-mode={scrollMode(value().nativeAnchor)}
               data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
               aria-label={`Mesurer annotation ${index() + 1}: ${annotation.note}`}
@@ -1485,7 +1516,7 @@ export function ContextActions(props: ContextActionsProps) {
                 top: value().nativeAnchor
                   ? `calc(anchor(top) + ${value().anchorY}px)`
                   : `${value().top}px`,
-                opacity: muted() ? "0.36" : "1",
+                opacity: muted() || annotation.status === "resolved" ? "0.48" : "1",
                 translate: "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
                 "position-anchor": value().nativeAnchor ? value().anchorName : undefined,
                 transition: "opacity 150ms ease",
@@ -1497,9 +1528,9 @@ export function ContextActions(props: ContextActionsProps) {
                 aria-hidden="true"
                 class="msr:flex msr:h-5 msr:w-5 msr:items-center msr:justify-center msr:rounded-[6px] msr:border msr:text-[10px] msr:font-semibold msr:leading-none"
                 style={{
-                  border: "1px solid #0d99ff",
-                  color: highlighted() ? "white" : "#0d99ff",
-                  background: highlighted() ? "#0d99ff" : "white",
+                  border: annotation.status === "resolved" ? "1px solid #8b919a" : "1px solid #0d99ff",
+                  color: highlighted() && annotation.status !== "resolved" ? "white" : annotation.status === "resolved" ? "#747b84" : "#0d99ff",
+                  background: highlighted() && annotation.status !== "resolved" ? "#0d99ff" : "var(--msr-surface)",
                   transform: highlighted() ? "scale(1.2)" : "scale(1)",
                   "box-shadow": highlighted()
                     ? "0 3px 10px rgba(13, 153, 255, 0.28)"
@@ -1516,6 +1547,27 @@ export function ContextActions(props: ContextActionsProps) {
       <Show when={activeAnnotation()}>{(annotation) => {
         const placement = () => panelPlacement(annotation().id);
         const number = () => annotationNumber(annotation().id);
+        let statusPointerAction = false;
+        let panelElement: HTMLDivElement | null = null;
+
+        const closeAnnotationPanel = () => {
+          const replyComposer = panelElement?.querySelector<HTMLTextAreaElement>("[aria-label='Reply to note']");
+
+          if (replyComposer) {
+            replyComposer.value = "";
+            replyComposer.style.height = "34px";
+            replyComposer.scrollTop = 0;
+            replyComposer.style.overflowY = "hidden";
+          }
+
+          setActiveAnnotationId(null);
+          setStatus(null);
+        };
+
+        const toggleAnnotationStatus = () => props.runtime.setAnnotationStatus(
+          annotation().id,
+          annotation().status === "resolved" ? "open" : "resolved",
+        );
 
         return (
           <div
@@ -1523,9 +1575,10 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-panel="true"
             data-mesurer-annotation-id={annotation().id}
+            ref={(element) => { panelElement = element; }}
             data-mesurer-annotation-scroll-mode={scrollMode(placement().nativeAnchor)}
             data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
-            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:w-[272px] msr:max-h-[220px] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
+            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:flex msr:w-[272px] msr:max-h-[calc(100vh-16px)] msr:flex-col msr:rounded-[10px] msr:border msr:border-ink-200 msr:p-1.5"
             style={{
               position: placement().nativeAnchor || usesViewportCoordinates() ? "fixed" : "absolute",
               left: placement().nativeAnchor
@@ -1537,8 +1590,10 @@ export function ContextActions(props: ContextActionsProps) {
               translate: "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
               "position-anchor": placement().nativeAnchor ? placement().anchorName : undefined,
               "z-index": ANNOTATION_PANEL_Z_INDEX,
+              background: "var(--msr-surface)",
+              color: "var(--msr-content)",
+              "box-shadow": "var(--msr-shadow-floating)",
             }}
-            onPointerDown={captureContextButtonPointer}
             onClick={(event) => event.stopPropagation()}
           >
             <div
@@ -1555,10 +1610,31 @@ export function ContextActions(props: ContextActionsProps) {
               >{number()}</span>
               <div class="msr:min-w-0 msr:flex-1">
                 <div class="msr:text-[11px] msr:font-medium msr:text-ink-700">Note {number()}</div>
-                <div class="msr:text-[9px] msr:text-ink-500">{annotationSelectionLabel(annotation())}</div>
+                <div class="msr:text-[9px] msr:text-ink-500">{annotationSelectionLabel(annotation())}{annotation().replies?.length ? ` · ${annotation().replies!.length} replies` : ""}</div>
               </div>
               <div class="msr:flex msr:items-center msr:gap-0.5">
                 <button type="button" class={annotationButtonClass} aria-label="Copy annotation context" title="Copy context" disabled={busy()} onClick={() => void run(() => props.onCopy({ annotation: annotation().id }), "Copied")}><CopyIcon size={14} /></button>
+                <button
+                  type="button"
+                  class={annotationButtonClass}
+                  aria-label={annotation().status === "resolved" ? "Reopen note" : "Resolve note"}
+                  title={annotation().status === "resolved" ? "Reopen" : "Resolve"}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    statusPointerAction = true;
+                    toggleAnnotationStatus();
+                  }}
+                  onClick={() => {
+                    if (statusPointerAction) {
+                      statusPointerAction = false;
+
+                      return;
+                    }
+
+                    toggleAnnotationStatus();
+                  }}
+                >{annotation().status === "resolved" ? "↶" : "✓"}</button>
                 <button type="button" class={annotationButtonClass} aria-label="Delete annotation" title="Delete" onClick={() => {
                   const annotationId = annotation().id;
                   props.runtime.removeAnnotation(annotationId);
@@ -1571,16 +1647,20 @@ export function ContextActions(props: ContextActionsProps) {
                   releaseAnnotationScrollBinding(annotationId);
                   setHoveredAnnotationId((current) => current === annotationId ? null : current);
                   setFocusedAnnotationId((current) => current === annotationId ? null : current);
-                  setActiveAnnotationId(null);
-                  setStatus(null);
+                  closeAnnotationPanel();
                 }}><TrashIcon size={14} /></button>
                 <button type="button" class={annotationButtonClass} aria-label="Close annotation" title="Close" onClick={() => {
-                  setActiveAnnotationId(null);
-                  setStatus(null);
+                  closeAnnotationPanel();
                 }}><CloseIcon size={14} /></button>
               </div>
             </div>
-            <div class="msr:mx-1 msr:mt-1 msr:max-h-36 msr:overflow-auto msr:whitespace-pre-wrap msr:rounded-[7px] msr:bg-ink-50 msr:px-2 msr:py-2 msr:text-[12px] msr:leading-[1.45] msr:text-ink-800">{annotation().note}</div>
+            <AnnotationThread
+              annotation={annotation()}
+              runtime={props.runtime}
+              panelElement={() => panelElement}
+              onGlobalHandlers={(handlers) => { annotationThreadGlobalHandlers = handlers; }}
+              onClose={closeAnnotationPanel}
+            />
             <Show when={status()}>{(message) => <div class="msr:mt-1.5 msr:px-1 msr:text-[10px] msr:text-ink-500" role="status">{message()}</div>}</Show>
           </div>
         );

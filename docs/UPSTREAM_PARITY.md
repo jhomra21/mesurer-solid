@@ -48,7 +48,16 @@ These dated sections record when each decision was audited. Their decision text 
 
 The first Motion port provided the behavior but differed visibly from the current upstream player: a native browser range input replaced its thin scrub rail and playhead, its controls were 28px instead of 20px, and speed was limited to a preset menu. The follow-up restores the upstream-sized control row, pointer/keyboard scrub surface, native preset select, and custom 0.1–4× speed editor built with the shared current `ControlShell`. Inspect values now include the upstream's additional motion properties, collapsed keyframe summary, expanded grouped keyframe rows, and copying. The focused Chromium contract exercises the actual animation and measures card/control/slider/popup geometry and focus behavior. It records a screenshot, but this does **not** replace a current-upstream screenshot pixel comparison; do not cite the historical React v0.0.11 visual suite as proof of the 0.2.4 Motion visuals.
 
-Context intentionally keeps the Mesurer Solid note/composer interaction rather than upstream threaded comments. Its annotation trigger, marker and composer render in the inspected document to preserve natural scroll ownership, so unlike the main Shadow DOM toolbar they can be affected by the page's CSS. Their button size, icon fill/display, note controls and theme colors are now guarded against hostile host styles. The macOS browser contract injects broad button/SVG/textarea resets and verifies actual dimensions, icon paint and the physical save/open note lifecycle. Iframe projection/pointer-owner tests remain the adopted behavior gate; upstream's comment list and thread actions are still an explicit product divergence.
+Context keeps the Mesurer Solid target-bound note, immutable baseline, conservative identity, and source-linked presentation while adopting upstream's flat reply thread and resolve/reopen status. Reply and resolve UI remains part of the existing saved-note panel. Upstream's separate Notes list, preview reveal, drawing model, and collaboration features are not included in this adoption.
+
+### 2026-10-17 Context thread adoption
+
+| Upstream behavior | Decision | Mesurer Solid mapping |
+| --- | --- | --- |
+| Flat chronological replies, inline reply composer, reply edit/delete, and thread persistence (`5c2fdae`) | **Adopted with Context mapping** | Replies are additive on the existing annotation, persist with its page-scoped session record, and are included in annotation Context/text output. Original note, anchor, and baseline remain unchanged. |
+| Resolve/reopen and muted resolved markers | **Adopted** | Annotation status defaults to open; resolved notes remain readable, while bulk Codex delivery excludes them. There are no bulk resolve/delete controls. |
+| Codex completion cleanup for delivered notes | **Adopted with stronger content condition** | Completion removes only notes whose exact note and ordered reply snapshot still matches what was queued. Older receipts without snapshots retain evidence. |
+| Notes list, preview reveal, Inspect details card | **Deferred to sequential follow-up PRs** | Not part of this thread PR. |
 
 ### 2026-10-07 upstream 0.2.4 audit
 
@@ -175,27 +184,27 @@ Upstream `33ffecfa7682b25dff5ada2a507feedfa18c745b` is the 0.2.0 release commit.
 | Persisted `system | light | dark` appearance and public theme option | **Adopted** | Mesurer Solid now exposes `theme` on the public mount API and the Settings Appearance control. The value persists with normal Mesurer settings. |
 | Theme-aware light and dark colors, controls, shadows, and system color-scheme handling | **Adopted with Solid ownership adaptation** | The upstream palette is mapped to Mesurer theme tokens. The owning theme is also propagated to document-backed Context, Typography, direct-edit, and portaled selection UI so isolated mounts do not split into mixed themes. |
 | Dark-surface browser coverage | **Adopted with broader coverage** | The Chromium contract checks explicit Light and Dark modes, System changes through `prefers-color-scheme`, persistence, the isolated renderer, document Context, and document Typography. |
-| Copy only unresolved threaded comments and bulk Resolve all | **Intentional divergence** | Mesurer Solid uses Context annotations rather than upstream threaded comments. Codex completion already removes only the exact delivered annotations when that behavior is enabled. |
+| Copy only open threaded comments and bulk Resolve all | **Partially adopted** | Bulk Codex delivery includes open Context notes only and content-conditionally clears completed deliveries. Resolved notes remain explicitly readable/copyable; bulk resolve controls are not included. |
 | Comment overflow-menu and delete-confirmation anchor fixes | **Not applicable as a direct port** | Upstream preserves the clicked overflow action anchor while its comment menu closes. Context annotation deletion is a direct action and does not use that menu-to-confirmation path. |
 
 ### 2026-09-21 delta classification
 
 | Upstream delta | Decision | Reason |
 | --- | --- | --- |
-| Resolved-comment state, filtering, reopen/delete flows, and all-comments search | **Intentional divergence** | These changes extend upstream's threaded-comment model. Mesurer Solid intentionally uses Context annotations with target identity, immutable baselines, review APIs, and optional Codex queue delivery. The public package does not claim threaded-comment parity. |
+| Resolved-comment state, filtering, reopen/delete flows, and all-comments search | **Partially adopted** | This audit's earlier divergence is superseded for reply threads and resolve/reopen: Context annotations preserve target identity and immutable baselines while adding replies/status. The Notes list and its filters/search remain deferred. |
 | Viewport context in copied review evidence | **Adopted outcome; independently implemented** | `MesurerContextV1` already records viewport width/height, device pixel ratio, and `scrollX`/`scrollY` for workspace, selection, and annotation Context, so agents receive equivalent page-position evidence without importing upstream's comment serializer. |
 | Comment-card/list action menus and delete-confirmation anchoring | **Not applicable as a direct port** | The behavior belongs to upstream comment surfaces that Mesurer Solid does not ship. Context annotation cards have their own ownership, scroll attachment, and interaction contracts. |
 | Closing transient surfaces when another toolbar menu opens or an outside pointer takes ownership | **Adopted outcome; independently implemented and validated** | Mesurer Solid's Settings, plugin split menus, Typography dropdowns, Context cards, and other inspector surfaces already have explicit ownership and dismissal contracts covered by browser/manual acceptance tests. No React-specific upstream implementation is required. |
 | Toolbar drag/collapse interruption hardening and tooltip suppression during motion | **Adopted outcome where it matches Mesurer Solid's one-toolbar model** | Mesurer Solid independently validates toolbar dragging, compact/expanded state, reduced-motion-aware transitions, and stable active-tool ownership. Upstream's Inspect/Annotate grouping remains outside the product model. |
 | Centralized floating-surface shadow/radius polish | **Partially adopted, with shared menus current** | Mesurer Solid now matches upstream 0.2.3 for shared menu and Color Picker hairline/radius tokens. Context, Typography, Settings panel geometry, and toolbar chrome keep their accepted contracts unless a focused parity migration covers those surfaces too. |
 
-These decisions remain the current product boundary. The threaded-comment work is an explicit product divergence, while the shared interaction outcomes relevant to Mesurer Solid are covered by its own browser and host contracts.
+These decisions remain the current product boundary. Context replies and resolve/reopen are adopted within the existing annotation model; the standalone Notes list, preview reveal, full collaboration workflow, and drawing behavior remain out of scope. Shared interaction outcomes are covered by Mesurer Solid's browser and host contracts.
 
 ### 2026-09-15 delta classification
 
 | Upstream delta | Decision | Reason |
 | --- | --- | --- |
-| DOM-attached comment threads, replies, all-comments panel, persistence, and agent copy/export | **Intentional divergence** | Mesurer Solid ships the separately designed Context annotation model: target- or region-bound review notes with machine-readable baselines and agent APIs. The public package does not claim upstream threaded-comment parity. |
+| DOM-attached comment threads, replies, all-comments panel, persistence, and agent copy/export | **Partially adopted** | Thread replies, persistence, and annotation-scoped output are now adopted inside Context notes. The distinct all-comments panel and export format remain deferred; Mesurer keeps the Context schema and serializer. |
 | Iframe-aware selection, X-ray, and comment targeting | **Adopted in the 2026-10-07 0.2.4 audit** | The earlier divergence is closed for accessible same-origin frames. Mesurer Solid maps upstream comment targeting to Context annotations and keeps cross-origin frames fail-closed. |
 | Configurable Inspect info card, copyable values, and upstream Typography presentation changes | **Intentional divergence** | Mesurer Solid has its own Typography/direct-edit UI and inspection presentation. The public package does not claim the upstream card UI. |
 | Guide context menus, multi-guide removal, guide-linked measurements, and the refined `Option+S` pin workflow | **Intentional divergence** | Mesurer Solid retains its Guides/Distance workflow and does not claim `Option+S` pinning. These interactions should be adopted together, with their own browser contracts, rather than as partial behavior. |
@@ -231,7 +240,7 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | Global Shortcuts setting | Adopt the persisted master on/off switch; no per-command remapping UI is added |
 | Compact toolbar | Adopt presentation: one stable toolbar, full-height separators, active-tool retention, 150ms motion, reduced-motion support |
 | Option-distance pinning (`Option+S`) | Intentionally not adopted; Mesurer Solid retains its existing held-distance workflow |
-| DOM-attached threaded comments | Intentionally not adopted; Mesurer Solid uses Context annotations instead |
+| DOM-attached threaded comments | Replies and resolve/reopen are adopted within Context annotations; the separate Notes list/reveal is deferred |
 | Same-origin iframe selection/Context targeting | **Adopted** with projected geometry, document-tree pointer ownership, X-ray propagation, and Context mapping; cross-origin frames remain intentionally inaccessible |
 | Inspect/Annotate group switching | **Presentation adopted with different semantics.** Mesurer Solid uses the upstream grouped switch structure, icons, and width-changing motion for Select/Edit, but does not adopt upstream threaded Annotate behavior. |
 | Select/Edit mode semantics | **Mesurer Solid extension.** Select owns selection-first inspection/capture tools; Edit owns movement and direct text/style changes. Rulers, ordinary Guides, and Layout Guides remain usable in both modes, while Context and Codex remain pinned across both. Existing Arrange ids and agent contracts stay as compatibility surfaces. |

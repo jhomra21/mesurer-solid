@@ -53,7 +53,7 @@ All public plugin factories come from `mesurer-solid/plugins`.
 | Recording | `recording()` | `MesurerRecordingService` | [Recording](./RECORDING.md) |
 | Codex | `codex()` | `MesurerCodexService` | [Queue Context feedback to Codex](./CODEX.md) |
 
-- Context adds structured Context, exact selection, saved annotations, review, capture planning, Copy Context, Copy Selection, and Add Note.
+- Context adds structured Context, exact selection, saved annotations with chronological replies and resolve/reopen status, review, capture planning, Copy Context, Copy Selection, and Add Note. Annotation-scoped Context includes replies and resolved status; bulk Codex delivery queues open notes only.
 - Edit adds reversible movement plus direct text/style editing. The existing Arrange service ids and agent methods remain compatible.
 - Layout Guides adds page-scoped columns, rows, and pixel grids. Mutations run through JSON-safe plugin commands, participate in plugin history, and are available through the typed `layout-guides:v1` service.
 - Screenshot adds region capture with preview, clipboard copy, download, and programmatic capture. It selects an application-native host capability, the Chromium extension adapter, or browser display capture internally, and flattens transparent native PNGs against the renderer backdrop before output.
@@ -113,6 +113,7 @@ These methods require the Context capability.
 | `contextText(request?)` | Format the same Context evidence as text. |
 | `select(selectorOrSelectors)` | Select exact rendered targets and return selection Context. Every selector must resolve to one element. |
 | `annotations()` | List saved annotations. |
+| `context({ annotation })` | Return one saved note with its replies, status, and current target evidence. |
 | `review(annotationId?)` | Compare saved annotation baselines with the current rendered result. |
 | `capturePlan(request?)` | Return the regions needed for a Context or annotation screenshot. |
 | `prepareCapture()` | Hide or adjust Mesurer presentation before an external screenshot. |

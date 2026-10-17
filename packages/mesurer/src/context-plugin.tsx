@@ -69,7 +69,7 @@ export type MesurerContextService = {
   select(selectors: string | readonly string[]): Promise<MesurerContextV1>;
   annotations(): Promise<MesurerAnnotation[]>;
   /** Remove one saved annotation after a trusted workflow has completed it. */
-  removeAnnotation(annotationId: string): Promise<void>;
+  removeAnnotation(annotationId: string, expectedContent?: { note: string; replies: NonNullable<MesurerAnnotation["replies"]> }): Promise<void>;
   review(annotationId?: string): Promise<MesurerReviewV1 | MesurerReviewV1[]>;
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
   prepareCapture(): Promise<void>;
@@ -115,8 +115,11 @@ const createService = (
 
   const annotations = async () => runtime.annotations();
 
-  const removeAnnotation = async (annotationId: string) => {
-    runtime.removeAnnotation(annotationId);
+  const removeAnnotation = async (
+    annotationId: string,
+    expectedContent?: { note: string; replies: NonNullable<MesurerAnnotation["replies"]> },
+  ) => {
+    runtime.removeAnnotation(annotationId, expectedContent);
     await stable(ownerDocument, ownerWindow);
   };
 

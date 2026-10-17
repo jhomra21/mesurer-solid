@@ -147,6 +147,10 @@ try {
   "Context re-enabled after opening Responsive saves a preview-scoped note");
   const lateAnnotation = (await annotations()).find((item) => item.note === "Late preview note");
   await click(page.locator(`[data-mesurer-annotation-marker='true'][data-mesurer-annotation-id='${lateAnnotation.id}']`));
+  await page.keyboard.press("Escape");
+  assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1,
+    "Escape closes the preview note without closing Responsive");
+  await click(page.locator(`[data-mesurer-annotation-marker='true'][data-mesurer-annotation-id='${lateAnnotation.id}']`));
   await click(page.getByRole("button", { name: "Delete annotation", exact: true }));
   assert.equal((await annotations()).length, 1, "Late preview annotation can be saved and removed");
   const a = await save("Viewport A");

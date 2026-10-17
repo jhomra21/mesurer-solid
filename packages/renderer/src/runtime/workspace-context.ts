@@ -4,6 +4,7 @@ import type {
   Measurement,
   MesurerAnnotation,
   MesurerAnnotationBaseline,
+  MesurerAnnotationReply,
   MesurerAnnotationTarget,
   Rect,
 } from "@jhomra21/mesurer-solid-core";
@@ -36,6 +37,8 @@ import { previewDocuments, previewTargetRoot, previewTargetScope } from "./previ
 export type {
   MesurerAnnotation,
   MesurerAnnotationBaseline,
+  MesurerAnnotationReply,
+  MesurerAnnotationStatus,
   MesurerAnnotationTarget,
   MesurerContextRequest,
 } from "@jhomra21/mesurer-solid-core";
@@ -83,7 +86,11 @@ export type MesurerWorkspaceRuntime = {
   annotationRect(id: string): Rect | null;
   addSelectionAnnotation(note: string): MesurerAnnotation;
   addRegionAnnotation(note: string, rect: Rect): MesurerAnnotation;
-  removeAnnotation(id: string): void;
+  removeAnnotation(id: string, expectedContent?: { note: string; replies: MesurerAnnotationReply[] }): boolean;
+  addAnnotationReply(annotationId: string, text: string): MesurerAnnotationReply;
+  updateAnnotationReply(annotationId: string, replyId: string, text: string): MesurerAnnotationReply;
+  removeAnnotationReply(annotationId: string, replyId: string): void;
+  setAnnotationStatus(annotationId: string, status: "open" | "resolved"): void;
   subscribe(listener: () => void): () => void;
   prepareCapture(): void;
   finishCapture(): void;
@@ -102,6 +109,19 @@ type StoredWorkspaceAnnotations = {
 
 const WORKSPACE_ANNOTATION_STORAGE_VERSION = 1;
 
+const isStoredAnnotationReply = (value: unknown): value is MesurerAnnotationReply => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+
+  // SAFETY: JSON parsing yields a plain record here; the field checks below validate its reply shape.
+  const reply = value as MesurerAnnotationReply;
+
+  return typeof reply.id === "string"
+    && Boolean(reply.id.trim())
+    && typeof reply.text === "string"
+    && Boolean(reply.text.trim())
+    && Number.isFinite(reply.createdAt);
+};
+
 const readStoredAnnotations = (
   ownerWindow: Window,
   persistenceKey: string | undefined,
@@ -118,13 +138,42 @@ const readStoredAnnotations = (
 
     if (stored.version !== WORKSPACE_ANNOTATION_STORAGE_VERSION || !Array.isArray(stored.annotations)) return [];
 
-    return stored.annotations.map(copyAnnotation);
+    return stored.annotations.map((rawAnnotation) => {
+      const acceptedReplyIds = new Set<string>();
+
+      const replies = Array.isArray(rawAnnotation.replies)
+        ? rawAnnotation.replies.flatMap((reply): MesurerAnnotationReply[] => {
+            if (!isStoredAnnotationReply(reply) || acceptedReplyIds.has(reply.id)) return [];
+
+            acceptedReplyIds.add(reply.id);
+
+            return [{ id: reply.id, text: reply.text, createdAt: reply.createdAt }];
+          })
+        : undefined;
+
+
+      const annotation: MesurerAnnotation = { ...rawAnnotation };
+
+      if (replies?.length) annotation.replies = replies;
+      else delete annotation.replies;
+
+      if (rawAnnotation.status === "resolved") {
+        annotation.status = "resolved";
+
+        if (Number.isFinite(rawAnnotation.resolvedAt)) annotation.resolvedAt = rawAnnotation.resolvedAt;
+      } else if (rawAnnotation.status === "open") {
+        annotation.status = "open";
+      }
+
+      return copyAnnotation(annotation);
+    });
   } catch {
     return [];
   }
 };
 
-const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => ({
+const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => {
+  const copy: MesurerAnnotation = ({
   ...annotation,
   anchor: annotation.anchor.kind === "elements"
     ? {
@@ -163,7 +212,13 @@ const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => ({
       vertical: distance.vertical ? { ...distance.vertical } : null,
     })),
   },
-});
+  });
+
+  if (annotation.replies) copy.replies = annotation.replies.map((reply) => ({ ...reply }));
+  else delete copy.replies;
+
+  return copy;
+};
 
 const randomId = (ownerWindow: Window, prefix: string) => {
   const value = ownerWindow.crypto?.randomUUID?.()
@@ -957,10 +1012,27 @@ export function createMesurerWorkspaceRuntime(options: {
     },
     addSelectionAnnotation,
     addRegionAnnotation,
-    removeAnnotation(id) {
+    removeAnnotation(id, expectedContent) {
       const index = annotations.findIndex((annotation) => annotation.id === id);
 
-      if (index < 0) return;
+      if (index < 0) return false;
+      const current = annotations[index]!;
+
+      if (expectedContent) {
+        const replies = current.replies ?? [];
+
+        if (current.note !== expectedContent.note
+          || replies.length !== expectedContent.replies.length
+          || replies.some((reply, replyIndex) => {
+            const expected = expectedContent.replies[replyIndex];
+
+            return !expected
+              || reply.id !== expected.id
+              || reply.text !== expected.text
+              || reply.createdAt !== expected.createdAt;
+          })) return false;
+      }
+
       const [removed] = annotations.splice(index, 1);
 
       if (removed.anchor.kind === "elements") {
@@ -972,6 +1044,74 @@ export function createMesurerWorkspaceRuntime(options: {
       }
 
       if (annotations.length === 0) stopWatching();
+      persistAnnotations();
+      notify();
+
+      return true;
+    },
+    addAnnotationReply(annotationId, text) {
+      const annotation = annotations.find((item) => item.id === annotationId);
+      const value = text.trim();
+
+      if (!annotation) throw new Error(`Mesurer annotation not found: ${annotationId}`);
+
+      if (!value) throw new Error("Annotation reply cannot be empty.");
+
+      const reply = {
+        id: randomId(ownerWindow, "reply"),
+        text: value,
+        createdAt: Date.now(),
+      };
+
+      annotation.replies = [...(annotation.replies ?? []), reply];
+      persistAnnotations();
+      notify();
+
+      return { ...reply };
+    },
+    updateAnnotationReply(annotationId, replyId, text) {
+      const annotation = annotations.find((item) => item.id === annotationId);
+      const value = text.trim();
+
+      if (!annotation) throw new Error(`Mesurer annotation not found: ${annotationId}`);
+
+      if (!value) throw new Error("Annotation reply cannot be empty.");
+      const replies = annotation.replies ?? [];
+      const index = replies.findIndex((reply) => reply.id === replyId);
+
+      if (index < 0) throw new Error(`Mesurer annotation reply not found: ${replyId}`);
+      const reply = { ...replies[index]!, text: value };
+      annotation.replies = replies.map((item, current) => current === index ? reply : item);
+      persistAnnotations();
+      notify();
+
+      return { ...reply };
+    },
+    removeAnnotationReply(annotationId, replyId) {
+      const annotation = annotations.find((item) => item.id === annotationId);
+
+      if (!annotation) throw new Error(`Mesurer annotation not found: ${annotationId}`);
+      const replies = annotation.replies ?? [];
+
+      if (!replies.some((reply) => reply.id === replyId)) {
+        throw new Error(`Mesurer annotation reply not found: ${replyId}`);
+      }
+
+      const remaining = replies.filter((reply) => reply.id !== replyId);
+
+      if (remaining.length) annotation.replies = remaining;
+      else delete annotation.replies;
+      persistAnnotations();
+      notify();
+    },
+    setAnnotationStatus(annotationId, status) {
+      const annotation = annotations.find((item) => item.id === annotationId);
+
+      if (!annotation) throw new Error(`Mesurer annotation not found: ${annotationId}`);
+      annotation.status = status;
+
+      if (status === "resolved") annotation.resolvedAt = Date.now();
+      else delete annotation.resolvedAt;
       persistAnnotations();
       notify();
     },

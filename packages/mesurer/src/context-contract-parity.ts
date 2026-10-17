@@ -1,6 +1,8 @@
 import type {
   MesurerAnnotation as CoreMesurerAnnotation,
   MesurerAnnotationBaseline as CoreMesurerAnnotationBaseline,
+  MesurerAnnotationReply as CoreMesurerAnnotationReply,
+  MesurerAnnotationStatus as CoreMesurerAnnotationStatus,
   MesurerAnnotationTarget as CoreMesurerAnnotationTarget,
   MesurerContextRequest as CoreMesurerContextRequest,
   MesurerElementFingerprint as CoreMesurerElementFingerprint,
@@ -8,6 +10,8 @@ import type {
 import type {
   MesurerAnnotation,
   MesurerAnnotationBaseline,
+  MesurerAnnotationReply,
+  MesurerAnnotationStatus,
   MesurerAnnotationTarget,
   MesurerContextRequest,
   MesurerElementFingerprint,
@@ -36,5 +40,9 @@ type _FingerprintParity = Assert<Equal<MesurerElementFingerprint, CoreMesurerEle
 type _TargetParity = Assert<Equal<MesurerAnnotationTarget, CoreMesurerAnnotationTarget>>;
 
 type _BaselineParity = Assert<Equal<MesurerAnnotationBaseline, CoreMesurerAnnotationBaseline>>;
+
+type _ReplyParity = Assert<Equal<MesurerAnnotationReply, CoreMesurerAnnotationReply>>;
+
+type _StatusParity = Assert<Equal<MesurerAnnotationStatus, CoreMesurerAnnotationStatus>>;
 
 type _AnnotationParity = Assert<Equal<MesurerAnnotation, CoreMesurerAnnotation>>;

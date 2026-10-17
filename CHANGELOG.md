@@ -5,6 +5,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 ## Unreleased
 
 <!-- Add user-facing changes here before preparing a release. -->
+- Added chronological replies and resolve/reopen status to saved Context notes, including session persistence, annotation Context output, and content-safe Codex completion cleanup. Bulk Codex delivery now includes open notes only.
 
 ## 0.2.3-beta.11 - 2026-10-17
 
