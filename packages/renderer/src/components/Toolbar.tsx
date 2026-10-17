@@ -297,10 +297,11 @@ export function Toolbar(props: ToolbarProps) {
   const selectPluginActive = () => selectPluginTools().some(toolActive);
   const editPluginActive = () => editPluginTools().some(toolActive);
 
-  // The Select and Edit mode controls already show their own state, so the
-  // Select tool (the mode's default targeting) is not repeated when compact.
+  const selectBuiltinToolsActive = () =>
+    selectActive() || xrayActive() || colorPickerActive() || typographyActive() || props.responsiveOpen === true;
+
   const modeToolsActive = () => toolbarMode() === "select"
-    ? xrayActive() || colorPickerActive() || typographyActive() || selectPluginActive() || props.responsiveOpen === true
+    ? selectBuiltinToolsActive() || selectPluginActive()
     : editPluginActive();
 
   const sharedGuideToolsActive = () => rulersActive() || guidesActive();
@@ -518,6 +519,7 @@ export function Toolbar(props: ToolbarProps) {
 
       if (!dragging) {
         dragging = true;
+        surface.setPointerCapture(pointerId);
         setMotionSuspended(true);
         surface.style.willChange = "transform";
       }
@@ -537,10 +539,13 @@ export function Toolbar(props: ToolbarProps) {
       if (dragging && commit) setDetachedMotionPosition({ x: nextX, y: nextY });
       surface.style.transform = originalTransform;
       surface.style.willChange = originalWillChange;
+
+      if (surface.hasPointerCapture(pointerId)) surface.releasePointerCapture(pointerId);
+
       setMotionSuspended(false);
-      props.ownerWindow.removeEventListener("pointermove", move);
-      props.ownerWindow.removeEventListener("pointerup", end);
-      props.ownerWindow.removeEventListener("pointercancel", end);
+      props.ownerWindow.removeEventListener("pointermove", move, true);
+      props.ownerWindow.removeEventListener("pointerup", end, true);
+      props.ownerWindow.removeEventListener("pointercancel", end, true);
       cancelMotionDrag = null;
     };
 
@@ -551,9 +556,9 @@ export function Toolbar(props: ToolbarProps) {
     };
 
     cancelMotionDrag = () => finish(false);
-    props.ownerWindow.addEventListener("pointermove", move);
-    props.ownerWindow.addEventListener("pointerup", end);
-    props.ownerWindow.addEventListener("pointercancel", end);
+    props.ownerWindow.addEventListener("pointermove", move, true);
+    props.ownerWindow.addEventListener("pointerup", end, true);
+    props.ownerWindow.addEventListener("pointercancel", end, true);
   };
 
   const updateMenuAlign = () => {
@@ -727,6 +732,7 @@ export function Toolbar(props: ToolbarProps) {
         active = Math.abs(dx) > TOOLBAR_DRAG_SLOP || Math.abs(dy) > TOOLBAR_DRAG_SLOP;
 
         if (!active) return;
+        surface.setPointerCapture(pointerId);
         setGuideMenuOpen(false);
         setPluginMenuOpenId(null);
         pluginMenuAnchorElement = undefined;
@@ -771,6 +777,8 @@ export function Toolbar(props: ToolbarProps) {
       surface.style.transform = previousTransform;
       surface.style.willChange = previousWillChange;
 
+      if (surface.hasPointerCapture(pointerId)) surface.releasePointerCapture(pointerId);
+
       if (attachedMotion) {
         attachedMotion.style.transform = previousMotionTransform;
         attachedMotion.style.willChange = "";
@@ -806,9 +814,9 @@ export function Toolbar(props: ToolbarProps) {
         previousUserSelect = null;
       }
 
-      props.ownerWindow.removeEventListener("pointermove", move);
-      props.ownerWindow.removeEventListener("pointerup", end);
-      props.ownerWindow.removeEventListener("pointercancel", end);
+      props.ownerWindow.removeEventListener("pointermove", move, true);
+      props.ownerWindow.removeEventListener("pointerup", end, true);
+      props.ownerWindow.removeEventListener("pointercancel", end, true);
       cancelActiveDrag = null;
     };
 
@@ -819,9 +827,9 @@ export function Toolbar(props: ToolbarProps) {
     };
 
     cancelActiveDrag = () => finish(false);
-    props.ownerWindow.addEventListener("pointermove", move);
-    props.ownerWindow.addEventListener("pointerup", end);
-    props.ownerWindow.addEventListener("pointercancel", end);
+    props.ownerWindow.addEventListener("pointermove", move, true);
+    props.ownerWindow.addEventListener("pointerup", end, true);
+    props.ownerWindow.addEventListener("pointercancel", end, true);
   };
 
   const selectGuideOrientation = (orientation: "vertical" | "horizontal") => {
@@ -1469,7 +1477,7 @@ export function Toolbar(props: ToolbarProps) {
           >
             <div ref={(element) => { selectModePanelElement = element; }} class="mesurer-toolbar-mode-panel">
               <div role="group" aria-label="Select tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
-                <CompactItem visible={!compact()}>
+                <CompactItem visible={visibleInToolbar(selectActive())}>
                   <ToolbarButton id="select" builtin="select" active={selectActive()} label="Select" shortcut="S" onClick={() => props.onBuiltinAction("select")} {...buttonProps("select")}><CursorIcon size={20} /></ToolbarButton>
                 </CompactItem>
                 <CompactItem visible={visibleInToolbar(xrayActive())}>
@@ -1489,7 +1497,7 @@ export function Toolbar(props: ToolbarProps) {
               </div>
 
               <Show when={selectPluginTools().length > 0}>
-                <ToolbarDivider visible={!compact() || (selectPluginActive() && (xrayActive() || colorPickerActive() || typographyActive()))} marker="select-plugins" />
+                <ToolbarDivider visible={!compact() || (selectPluginActive() && selectBuiltinToolsActive())} marker="select-plugins" />
                 <div role="group" aria-label="Select plugin tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
                   <For each={selectPluginTools()}>{(tool) => renderPluginTool(tool)}</For>
                 </div>

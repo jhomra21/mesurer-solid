@@ -118,10 +118,20 @@ const visibleToolLabels = () => page.evaluate(() =>
     .flatMap((button) => {
       const item = button.closest('[data-mesurer-toolbar-compact-item="true"]');
       const rect = button.getBoundingClientRect();
+      let opacity = 1;
+      let visible = true;
+
+      for (let node = button; node && node !== item.parentElement; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        opacity *= Number(style.opacity);
+        visible &&= style.visibility !== "hidden" && style.display !== "none";
+      }
 
       const shown = item.dataset.visible === "true"
         && item.getAttribute("aria-hidden") !== "true"
         && !item.inert
+        && visible
+        && opacity > 0.1
         && rect.width > 0.5
         && rect.height > 0.5;
 
@@ -139,9 +149,19 @@ const compactItemVisible = (locator) => locator.evaluate((button) => {
 
   if (!(item instanceof HTMLElement)) return false;
   const rect = item.getBoundingClientRect();
+  let opacity = 1;
+  let visible = true;
+
+  for (let node = button; node && node !== item.parentElement; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    opacity *= Number(style.opacity);
+    visible &&= style.visibility !== "hidden" && style.display !== "none";
+  }
 
   return item.getAttribute("aria-hidden") !== "true"
     && item.dataset.visible === "true"
+    && visible
+    && opacity > 0.1
     && rect.width > 0.5
     && rect.height > 0.5;
 });
@@ -283,9 +303,18 @@ try {
 
   // Compact keeps the current mode and every active tool, with its pressed
   // (blue) state, and hides everything idle, including pinned plugin tools.
-  if ((await selectButton.getAttribute("aria-pressed")) === "true") await selectButton.click();
+  if ((await selectButton.getAttribute("aria-pressed")) !== "true") await selectButton.click();
+  assert.equal(await selectButton.getAttribute("aria-pressed"), "true", "Select should be active for the Select-only compact case");
+  await compactToggle.click();
+  await waitForSettledMotion();
+  assert.equal(await compactItemVisible(selectButton), true, "Select-only compact mode must show the pressed Select tool beside Select mode");
+  assert.equal(await selectButton.getAttribute("aria-pressed"), "true");
+  await compactToggle.click();
+  await waitForSettledMotion();
   await xrayButton.click();
   await rulersButton.click();
+  const responsiveButton = page.locator("button[data-mesurer-builtin='responsive']");
+  await responsiveButton.click();
   assert.equal(await xrayButton.getAttribute("aria-pressed"), "true");
   assert.equal(await rulersButton.getAttribute("aria-pressed"), "true");
   await waitForSettledMotion();
@@ -309,7 +338,7 @@ try {
 
   assert.deepEqual(
     compactVisible.map((entry) => entry.label).sort(),
-    ["Rulers (R)", "X-ray (X)"],
+    ["Responsive (B)", "Rulers (R)", "Select (S)", "X-ray (X)"],
     `Compact must show exactly the active tools: ${JSON.stringify(compactVisible)}`,
   );
   assert(
@@ -318,7 +347,6 @@ try {
   );
 
   for (const [name, locator] of [
-    ["Select tool", selectButton],
     ["Typography", typographyButton],
     ["Guides", guidesButton],
     ["Screenshot", screenshotButton],
@@ -329,6 +357,10 @@ try {
   ]) {
     assert.equal(await compactItemVisible(locator), false, `Idle ${name} must be hidden when compact`);
   }
+
+  assert.equal(await compactItemVisible(selectButton), true, "Active Select must remain visible beside the Select mode control");
+  assert.equal(await selectButton.getAttribute("aria-pressed"), "true", "Visible compact Select must retain its pressed state");
+  assert.equal(await compactItemVisible(responsiveButton), true, "Active Responsive must remain visible in compact mode");
 
   // A tool activated while compact appears with its pressed state; turning it
   // off removes it again.
@@ -358,7 +390,9 @@ try {
   const expandedAgainBox = await toolbar.boundingBox();
   assert(expandedAgainBox && Math.abs(expandedAgainBox.width - toolbarWithActiveToolsBox.width) <= 1, "Expanding must restore the original width");
   await xrayButton.click();
+  await responsiveButton.click();
   await rulersButton.click();
+  await selectButton.click();
   assert.equal(await xrayButton.getAttribute("aria-pressed"), "false");
   assert.equal(await rulersButton.getAttribute("aria-pressed"), "false");
 
