@@ -69,6 +69,7 @@ export type TextInspectorOptions = {
   ignoredTags?: readonly string[];
   maxPinned?: number;
   portalTarget?: HTMLElement | ShadowRoot;
+  getPortalTarget?: () => HTMLElement | ShadowRoot | undefined;
   theme?: () => MesurerTheme;
   subscribeTheme?: (listener: (theme: MesurerTheme) => void) => () => void;
   onInspect?: (element: HTMLElement, info: TypographyInfo) => void;
@@ -128,16 +129,19 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   let scrollX = win.scrollX;
   let scrollY = win.scrollY;
   let unsubscribeTheme: (() => void) | null = null;
+  const styledRoots = new Set<Document | ShadowRoot>();
   const pins: Pin[] = [];
   const history: PinSnapshot[][] = [];
   const future: PinSnapshot[][] = [];
 
-  const portal = options.portalTarget ?? doc.body;
+  const portal = () => options.getPortalTarget?.() ?? options.portalTarget ?? doc.body;
 
   const ensureStyles = () => {
     const roots: Array<Document | ShadowRoot> = [doc];
 
-    if (portal instanceof win.ShadowRoot) roots.push(portal);
+    const target = portal();
+
+    if (target instanceof win.ShadowRoot) roots.push(target);
 
     for (const root of roots) {
       if (root.querySelector(`#${styleId}`)) continue;
@@ -147,22 +151,30 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
 
       if (root === doc) doc.head.append(style);
       else root.append(style);
+      styledRoots.add(root);
     }
   };
 
   const ensureOverlay = () => {
-    if (overlay?.isConnected) return overlay;
-    overlay = doc.createElement("div");
-    overlay.id = overlayId;
-    overlay.dataset.mesurerInspectorUi = "true";
-    overlay.dataset.theme = options.theme?.() ?? "system";
-    unsubscribeTheme ??= options.subscribeTheme?.((theme) => {
-      if (overlay) overlay.dataset.theme = theme;
-    }) ?? null;
-    Object.assign(overlay.style, {
-      position: "fixed", inset: "0", pointerEvents: "none", zIndex: "2147483646",
-    });
-    portal.appendChild(overlay);
+    if (!overlay) {
+      overlay = doc.createElement("div");
+      overlay.id = overlayId;
+      overlay.dataset.mesurerInspectorUi = "true";
+      overlay.dataset.theme = options.theme?.() ?? "system";
+      unsubscribeTheme ??= options.subscribeTheme?.((theme) => {
+        if (overlay) overlay.dataset.theme = theme;
+      }) ?? null;
+      Object.assign(overlay.style, {
+        position: "fixed", inset: "0", pointerEvents: "none", zIndex: "2147483646",
+      });
+    }
+
+    const target = portal();
+
+    if (overlay.parentNode !== target) {
+      ensureStyles();
+      target.appendChild(overlay);
+    }
 
     return overlay;
   };
@@ -611,9 +623,9 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     disable();
     unsubscribeTheme?.(); unsubscribeTheme = null;
     overlay?.remove(); overlay = null;
-    doc.getElementById(styleId)?.remove();
 
-    if (portal instanceof win.ShadowRoot) portal.querySelector(`#${styleId}`)?.remove();
+    for (const root of styledRoots) root.querySelector(`#${styleId}`)?.remove();
+    styledRoots.clear();
   };
 
   return {

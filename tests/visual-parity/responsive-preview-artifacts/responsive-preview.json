@@ -1,0 +1,49 @@
+{
+  "url": "http://127.0.0.1:4192/responsive-preview.html",
+  "frameEvidence": {
+    "source": "http://127.0.0.1:4192/responsive-preview.html",
+    "innerWidth": 393,
+    "innerHeight": 852,
+    "fit": 0.8215962441314554,
+    "transform": "matrix(0.821596, 0, 0, 0.821596, 0, 0)",
+    "mediaColor": "rgb(20, 150, 50)",
+    "nestedToolbar": false,
+    "nestedIsland": false,
+    "isolatedHost": true,
+    "topLayerHost": "manual",
+    "cardTransform": "none",
+    "frameRect": {
+      "x": 460,
+      "y": 168,
+      "width": 322.8873291015625,
+      "height": 700,
+      "top": 168,
+      "right": 782.8873291015625,
+      "bottom": 868,
+      "left": 460
+    },
+    "header": "⠿←→iPhone 15393 × 852××",
+    "guards": {
+      "popupBlocked": true,
+      "alertBlocked": true,
+      "confirmBlocked": true,
+      "promptBlocked": true,
+      "submitPrevented": true,
+      "downloadPrevented": true
+    }
+  },
+  "restored": {
+    "value": "clip",
+    "priority": "important"
+  },
+  "errors": [],
+  "expectedRefusalDiagnostics": [
+    "Framing 'http://127.0.0.1:4192/' violates the following Content Security Policy directive: \"frame-ancestors 'none'\". The request has been blocked.\n",
+    "Framing 'http://127.0.0.1:4192/' violates the following Content Security Policy directive: \"frame-ancestors 'none'\". The request has been blocked.\n"
+  ],
+  "refusedStateCovered": true,
+  "refusedEvidence": {
+    "hover": 0,
+    "selected": 0
+  }
+}

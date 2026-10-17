@@ -1,0 +1,94 @@
+{
+  "geometry": {
+    "frame": {
+      "left": 46.101192474365234,
+      "top": 96,
+      "width": 402.0319519042969,
+      "height": 309.6036376953125,
+      "clientLeft": 4,
+      "clientTop": 4,
+      "matrix": {
+        "a": 0.733611,
+        "b": 0.155934,
+        "c": -0.155934,
+        "d": 0.733611
+      }
+    },
+    "target": {
+      "left": 80,
+      "top": 60,
+      "width": 220,
+      "height": 100
+    },
+    "expected": {
+      "left": 132.05022047436523,
+      "top": 156.04955999999999,
+      "width": 176.98781999999994,
+      "height": 107.66658000000001
+    }
+  },
+  "clickPoint": {
+    "x": 220.5441304743652,
+    "y": 209.88285
+  },
+  "preflight": {
+    "topHits": [
+      {
+        "tag": "BUTTON",
+        "testId": null,
+        "mesurer": null
+      },
+      {
+        "tag": "DIV",
+        "testId": null,
+        "mesurer": null
+      },
+      {
+        "tag": "DIV",
+        "testId": null,
+        "mesurer": null
+      },
+      {
+        "tag": "DIV",
+        "testId": null,
+        "mesurer": null
+      },
+      {
+        "tag": "IFRAME",
+        "testId": "same-origin-frame",
+        "mesurer": null
+      },
+      {
+        "tag": "MAIN",
+        "testId": null,
+        "mesurer": null
+      },
+      {
+        "tag": "BODY",
+        "testId": null,
+        "mesurer": null
+      },
+      {
+        "tag": "HTML",
+        "testId": null,
+        "mesurer": null
+      }
+    ],
+    "frameSelection": "<button data-testid=\"frame-target\" style=\"display:block;margin:60px 0 0 80px;width:220px;height:100px;border:0;border-radius:16px;background:#dbeafe;font:600 18px system-ui;animation:iframe-pulse 2s infinite alternate\">Frame target</button>",
+    "selected": [
+      {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 0
+        },
+        "display": "block",
+        "visibility": "visible",
+        "opacity": "1",
+        "html": "<div class=\"msr:pointer-events-none\" data-mesurer-measurement=\"true\" data-mesurer-selected-measurement=\"true\"><div data-mesurer-measurement-chrome=\"true\" class=\"msr:pointer-events-none msr:absolute\" style=\"animation: auto ease 0s 1 normal none running none; left: 132.05px; top: 156.05px; width: 176.988px; height: 107.667px; z-index: 2147482800; background-color: color-mix(in oklch, oklch(0.62 0.18 255) 15.36%, transparent); transition: none;\"><div class=\"msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full\" style=\"background-color: color-mix(in oklch, oklch(0.62 0.18 255) 96%, transparent);\"></div><!----><div class=\"msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px\" style=\"background-color: color-mix(in oklch, oklch(0.62 0.18 255) 96%, transparent);\"></div><!----><div class=\"msr:absolute msr:bottom-0 msr:left-0 msr:h-px msr:w-full\" style=\"background-color: color-mix(in oklch, oklch(0.62 0.18 255) 96%, transparent);\"></div><!----><div class=\"msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px\" style=\"background-color: color-mix(in oklch, oklch(0.62 0.18 255) 96%, transparent);\"></div><!----></div><div data-mesurer-measurement-label=\"true\" class=\"msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:-translate-x-1/2 msr:bg-ink-900/90\" style=\"white-space: nowrap; animation: auto ease 0s 1 normal none running none; left: 220.544px; top: 265.716px; z-index: 2147482800; transition: none;\">220 x 100<!----></div></div>"
+      }
+    ]
+  },
+  "errors": []
+}

@@ -26,12 +26,50 @@ export const getOptionPairOverlay = (params: { document?: Document; window?: Win
 
  if (selectedTarget.guideId && hoverTarget.guideId && selectedTarget.guideId === hoverTarget.guideId) return null;
 
- return getDistanceOverlay(selectedTarget.rect, hoverTarget.rect, selectedTarget.element ?? null, hoverTarget.element ?? null, ownerWindow); };
+ const overlay = getDistanceOverlay(selectedTarget.rect, hoverTarget.rect, selectedTarget.element ?? null, hoverTarget.element ?? null, ownerWindow);
+
+ if (selectedTarget.element && hoverTarget.element
+   && selectedTarget.element.ownerDocument === hoverTarget.element.ownerDocument) {
+   const sourceWindow = selectedTarget.element.ownerDocument.defaultView ?? ownerWindow;
+   const sourceRectA = selectedTarget.element.getBoundingClientRect();
+   const sourceRectB = hoverTarget.element.getBoundingClientRect();
+
+   const sourceOverlay = getDistanceOverlay(
+     { left: sourceRectA.left, top: sourceRectA.top, width: sourceRectA.width, height: sourceRectA.height },
+     { left: sourceRectB.left, top: sourceRectB.top, width: sourceRectB.width, height: sourceRectB.height },
+     selectedTarget.element,
+     hoverTarget.element,
+     sourceWindow,
+   );
+
+   overlay.horizontal = overlay.horizontal && sourceOverlay.horizontal
+     ? { ...overlay.horizontal, value: sourceOverlay.horizontal.value }
+     : overlay.horizontal;
+   overlay.vertical = overlay.vertical && sourceOverlay.vertical
+     ? { ...overlay.vertical, value: sourceOverlay.vertical.value }
+     : overlay.vertical;
+
+   if (overlay.diagonal && sourceOverlay.diagonal) overlay.diagonal.value = sourceOverlay.diagonal.value;
+
+   overlay.edgeDistances = overlay.edgeDistances?.map((line) => {
+     const sourceLine = sourceOverlay.edgeDistances?.find(
+       (candidate) => candidate.axis === line.axis && candidate.side === line.side,
+     );
+
+     return { ...line, value: sourceLine?.value ?? line.value };
+   });
+ }
+
+ return overlay; };
 
 export const getOptionContainerLines = (params: { document?: Document; window?: Window; altPressed: boolean; primarySelectedMeasurement: InspectMeasurement | null; optionPairOverlay: ReturnType<typeof getDistanceOverlay> | null; selectedGuideIds: string[]; selectedElement: Element | null; hoverElement: Element | null }) => { const ownerDocument = params.document ?? document; const ownerWindow = params.window ?? window;
 
  if (!params.altPressed || !params.primarySelectedMeasurement || params.optionPairOverlay || params.selectedGuideIds.length) return null; let containerElement: Element | null = params.selectedElement?.parentElement ?? null;
 
- if (params.selectedElement && params.hoverElement && params.hoverElement !== params.selectedElement && params.hoverElement.contains(params.selectedElement)) containerElement = params.hoverElement; const containerRect = containerElement && containerElement !== ownerDocument.body && containerElement !== ownerDocument.documentElement ? getPaddingBoxRect(getRectFromDom(containerElement), containerElement, ownerWindow) : { left: 0, top: 0, width: ownerWindow.innerWidth, height: ownerWindow.innerHeight }; const rect = params.primarySelectedMeasurement.rect; const right = rect.left + rect.width; const bottom = rect.top + rect.height; const centerX = rect.left + rect.width / 2; const centerY = rect.top + rect.height / 2; const containerRight = containerRect.left + containerRect.width; const containerBottom = containerRect.top + containerRect.height; const lineX = Math.max(containerRect.left, Math.min(centerX, containerRight)); const lineY = Math.max(containerRect.top, Math.min(centerY, containerBottom));
+ if (params.selectedElement && params.hoverElement && params.hoverElement !== params.selectedElement && params.hoverElement.contains(params.selectedElement)) containerElement = params.hoverElement; const projectedContainerRect = containerElement && containerElement !== ownerDocument.body && containerElement !== ownerDocument.documentElement ? getPaddingBoxRect(getRectFromDom(containerElement), containerElement, ownerWindow) : { left: 0, top: 0, width: ownerWindow.innerWidth, height: ownerWindow.innerHeight }; const rect = params.primarySelectedMeasurement.rect; const sourceRect = params.primarySelectedMeasurement.cssRect ?? rect; const right = rect.left + rect.width; const bottom = rect.top + rect.height; const centerX = rect.left + rect.width / 2; const centerY = rect.top + rect.height / 2; const containerRight = projectedContainerRect.left + projectedContainerRect.width; const containerBottom = projectedContainerRect.top + projectedContainerRect.height; const lineX = Math.max(projectedContainerRect.left, Math.min(centerX, containerRight)); const lineY = Math.max(projectedContainerRect.top, Math.min(centerY, containerBottom));
 
- return { top: { y1: containerRect.top, y2: rect.top, x: lineX, value: Math.max(0, rect.top - containerRect.top) }, bottom: { y1: bottom, y2: containerBottom, x: lineX, value: Math.max(0, containerBottom - bottom) }, left: { x1: containerRect.left, x2: rect.left, y: lineY, value: Math.max(0, rect.left - containerRect.left) }, right: { x1: right, x2: containerRight, y: lineY, value: Math.max(0, containerRight - right) } }; };
+ const sourceContainerRect = containerElement && containerElement !== ownerDocument.body && containerElement !== ownerDocument.documentElement
+   ? getPaddingBoxRect(containerElement.getBoundingClientRect(), containerElement, containerElement.ownerDocument.defaultView ?? ownerWindow)
+   : { left: 0, top: 0, width: (containerElement?.ownerDocument.defaultView ?? ownerWindow).innerWidth, height: (containerElement?.ownerDocument.defaultView ?? ownerWindow).innerHeight };
+
+ return { top: { y1: projectedContainerRect.top, y2: rect.top, x: lineX, value: Math.max(0, sourceRect.top - sourceContainerRect.top) }, bottom: { y1: bottom, y2: containerBottom, x: lineX, value: Math.max(0, sourceContainerRect.top + sourceContainerRect.height - (sourceRect.top + sourceRect.height)) }, left: { x1: projectedContainerRect.left, x2: rect.left, y: lineY, value: Math.max(0, sourceRect.left - sourceContainerRect.left) }, right: { x1: right, x2: containerRight, y: lineY, value: Math.max(0, sourceContainerRect.left + sourceContainerRect.width - (sourceRect.left + sourceRect.width)) } }; };

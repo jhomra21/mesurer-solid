@@ -611,9 +611,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
 
   const spacingStyle = () => props.selectionSpacingStyle ?? DEFAULT_SELECTION_SPACING_STYLE;
 
-  const ownerWindow = () => props.distance.elementRefA?.ownerDocument.defaultView
-    ?? props.distance.elementRefB?.ownerDocument.defaultView
-    ?? globalThis.window;
+  const ownerWindow = () => globalThis.window;
 
   // Selected distances belong to page elements, never to the viewport edge.
   // Viewport clamping or midpoint clipping shifts their pills when the model

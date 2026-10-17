@@ -1,0 +1,22 @@
+{
+  "status": "PASS",
+  "url": "http://127.0.0.1:4192/selection-hit-testing.html",
+  "transparentDescendant": true,
+  "transparentSiblingTextOverlay": true,
+  "transparentSiblingSvgOverlay": true,
+  "paintOrderPreserved": true,
+  "clippedOverlayRespected": true,
+  "highestTransparentLayerWins": true,
+  "selectOffClearsSelection": true,
+  "selectOffPersistsWithoutLatentSelection": true,
+  "physicalShiftClickMultiSelection": true,
+  "visibleMultiSelectionTargetOutlines": true,
+  "agentParity": true,
+  "nativeTargetPreserved": true,
+  "transformedGeometry": true,
+  "svgElement": true,
+  "svgContext": true,
+  "canvasSurface": true,
+  "closedShadowBoundary": true,
+  "largeDom": true
+}

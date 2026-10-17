@@ -1,0 +1,19 @@
+{
+  "status": "PASS",
+  "url": "http://127.0.0.1:4192/extension-active-tabs.html",
+  "closeDuringInitialRead": {
+    "restoreCheck": false,
+    "activeAfterClose": false,
+    "writes": [
+      []
+    ]
+  },
+  "lastPendingStateWins": {
+    "active": true,
+    "writes": [
+      [
+        11
+      ]
+    ]
+  }
+}

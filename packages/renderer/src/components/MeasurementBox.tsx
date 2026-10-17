@@ -31,6 +31,9 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   const isSelectionGroup = () => Boolean(props.measurement?.id.startsWith("group-"));
   const isSelectedMeasurement = () => Boolean(props.measurement && "paddingRect" in props.measurement);
 
+  const labelRect = (measurement: Measurement | InspectMeasurement) =>
+    "cssRect" in measurement && measurement.cssRect ? measurement.cssRect : measurement.rect;
+
   const transition = () => isSelectedMeasurement()
     ? "none"
     : `left ${MEASURE_TRANSITION_MS}ms ease, top ${MEASURE_TRANSITION_MS}ms ease, width ${MEASURE_TRANSITION_MS}ms ease, height ${MEASURE_TRANSITION_MS}ms ease`;
@@ -200,7 +203,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
         animation: "none",
         "animation-name": "none",
       }}>
-        {formatValue(measurement().rect.width)} x {formatValue(measurement().rect.height)}
+        {formatValue(labelRect(measurement()).width)} x {formatValue(labelRect(measurement()).height)}
       </div>
     </Show>
   </>;

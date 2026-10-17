@@ -1,0 +1,21 @@
+{
+  "status": "PASS",
+  "url": "http://127.0.0.1:4192/responsive-preview.html",
+  "extensionPath": "extension/dist",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabCapture"
+  ],
+  "hostPermissions": [],
+  "contract": "built extension assets exercised in a normal browser page",
+  "previewLoaded": true,
+  "previewKeys": {
+    "deleteRemovedSelectedGuide": true,
+    "escapeClosedResponsive": true
+  },
+  "reload": "built assets reinjected after reload; toolbar activation, activeTab authorization, and automatic recovery require manual verification",
+  "duplicateMounts": false,
+  "errors": []
+}

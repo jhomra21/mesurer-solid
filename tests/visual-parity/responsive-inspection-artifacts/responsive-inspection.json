@@ -1,0 +1,308 @@
+{
+  "url": "http://127.0.0.1:4192/responsive-preview.html",
+  "expected": {
+    "x": 486.2910802321883,
+    "y": 324.000589346461,
+    "width": 153.7797119635662,
+    "height": 17.25352140237357,
+    "selector": "#inspection-target"
+  },
+  "selected": {
+    "schema": "mesurer.context/v1",
+    "id": "71211ddf-e57f-4d9e-be6c-1602635ad558",
+    "createdAt": "2026-10-17T02:05:48.952Z",
+    "scope": {
+      "kind": "selection"
+    },
+    "page": {
+      "url": "http://127.0.0.1:4192/responsive-preview.html",
+      "title": "Responsive preview contract"
+    },
+    "viewport": {
+      "width": 1280,
+      "height": 900,
+      "devicePixelRatio": 1,
+      "scrollX": 0,
+      "scrollY": 0
+    },
+    "coordinateSpace": "viewport-css-px",
+    "regions": [
+      {
+        "left": 486.291072,
+        "top": 324.0005405,
+        "width": 153.77966381250008,
+        "height": 17.25351599999999
+      }
+    ],
+    "visualState": {
+      "rulersVisible": false,
+      "xrayVisible": true
+    },
+    "targets": [
+      {
+        "ref": "target-1",
+        "viewport": {
+          "url": "http://127.0.0.1:4192/responsive-preview.html",
+          "width": 393,
+          "height": 852,
+          "previewId": "1"
+        },
+        "domPath": [],
+        "inspection": {
+          "selector": "#inspection-target",
+          "tag": "button",
+          "id": "inspection-target",
+          "classes": [],
+          "text": "Responsive inspection target",
+          "role": null,
+          "ariaLabel": null,
+          "rect": {
+            "left": 486.291072,
+            "top": 324.0005405,
+            "width": 153.77966381250008,
+            "height": 17.25351599999999,
+            "right": 640.0707358125001,
+            "bottom": 341.2540565,
+            "x": 486.291072,
+            "y": 324.0005405
+          },
+          "margin": {
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          },
+          "padding": {
+            "top": 1,
+            "right": 6,
+            "bottom": 1,
+            "left": 6
+          },
+          "border": {
+            "top": 2,
+            "right": 2,
+            "bottom": 2,
+            "left": 2
+          },
+          "typography": {
+            "fontFamily": "Arial",
+            "fontSize": "13.3333px",
+            "fontWeight": "400",
+            "lineHeight": "normal",
+            "letterSpacing": "normal",
+            "textAlign": "center",
+            "color": "rgb(0, 0, 0)"
+          },
+          "appearance": {
+            "backgroundColor": "rgb(239, 239, 239)",
+            "borderColor": "rgb(0, 0, 0)",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          },
+          "layout": {
+            "display": "inline-block",
+            "position": "static",
+            "zIndex": "auto",
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "flexDirection": "row",
+            "alignItems": "normal",
+            "justifyContent": "normal",
+            "gap": "normal",
+            "gridTemplateColumns": "none",
+            "gridTemplateRows": "none",
+            "transform": "none"
+          },
+          "scroll": {
+            "clientWidth": 183,
+            "clientHeight": 17,
+            "scrollWidth": 183,
+            "scrollHeight": 17,
+            "overflowsX": false,
+            "overflowsY": false
+          }
+        }
+      }
+    ],
+    "visualContext": {
+      "guides": [],
+      "layoutGuides": [],
+      "measurements": [
+        {
+          "id": "4170fc2e-2f3b-4c16-a2af-d386cf5837da",
+          "rect": {
+            "left": 486.291072,
+            "top": 324.0005405,
+            "width": 153.77966381250008,
+            "height": 17.25351599999999
+          },
+          "deltaX": 0,
+          "deltaY": 0,
+          "targetRef": "target-1"
+        }
+      ],
+      "distances": []
+    },
+    "previewViewport": {
+      "url": "http://127.0.0.1:4192/responsive-preview.html",
+      "width": 393,
+      "height": 852,
+      "previewId": "1"
+    }
+  },
+  "nestedContext": {
+    "schema": "mesurer.context/v1",
+    "id": "8cfcf987-b50a-4da5-a377-14e738915204",
+    "createdAt": "2026-10-17T02:05:50.890Z",
+    "scope": {
+      "kind": "selection"
+    },
+    "page": {
+      "url": "http://127.0.0.1:4192/responsive-preview.html",
+      "title": "Responsive preview contract"
+    },
+    "viewport": {
+      "width": 1280,
+      "height": 900,
+      "devicePixelRatio": 1,
+      "scrollX": 0,
+      "scrollY": 0
+    },
+    "coordinateSpace": "viewport-css-px",
+    "regions": [
+      {
+        "left": 533.94364,
+        "top": 388.9066245,
+        "width": 139.67132000000004,
+        "height": 59.15491199999997
+      }
+    ],
+    "visualState": {
+      "rulersVisible": false,
+      "xrayVisible": false
+    },
+    "targets": [
+      {
+        "ref": "target-1",
+        "viewport": {
+          "url": "http://127.0.0.1:4192/responsive-preview.html",
+          "width": 393,
+          "height": 852,
+          "previewId": "1"
+        },
+        "domPath": [
+          {
+            "kind": "frame",
+            "selector": "[data-testid=\"nested-preview-frame\"]"
+          }
+        ],
+        "inspection": {
+          "selector": "[data-testid=\"nested-inspection-target\"]",
+          "tag": "button",
+          "id": null,
+          "classes": [],
+          "text": "Nested target",
+          "role": null,
+          "ariaLabel": null,
+          "rect": {
+            "left": 533.94364,
+            "top": 388.9066245,
+            "width": 139.67132000000004,
+            "height": 59.15491199999997,
+            "right": 673.61496,
+            "bottom": 448.0615365,
+            "x": 533.94364,
+            "y": 388.9066245
+          },
+          "margin": {
+            "top": 48,
+            "right": 48,
+            "bottom": 48,
+            "left": 48
+          },
+          "padding": {
+            "top": 1,
+            "right": 6,
+            "bottom": 1,
+            "left": 6
+          },
+          "border": {
+            "top": 2,
+            "right": 2,
+            "bottom": 2,
+            "left": 2
+          },
+          "typography": {
+            "fontFamily": "Arial",
+            "fontSize": "13.3333px",
+            "fontWeight": "400",
+            "lineHeight": "normal",
+            "letterSpacing": "normal",
+            "textAlign": "center",
+            "color": "rgb(0, 0, 0)"
+          },
+          "appearance": {
+            "backgroundColor": "rgb(239, 239, 239)",
+            "borderColor": "rgb(0, 0, 0)",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          },
+          "layout": {
+            "display": "inline-block",
+            "position": "static",
+            "zIndex": "auto",
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "flexDirection": "row",
+            "alignItems": "normal",
+            "justifyContent": "normal",
+            "gap": "normal",
+            "gridTemplateColumns": "none",
+            "gridTemplateRows": "none",
+            "transform": "none"
+          },
+          "scroll": {
+            "clientWidth": 166,
+            "clientHeight": 68,
+            "scrollWidth": 166,
+            "scrollHeight": 68,
+            "overflowsX": false,
+            "overflowsY": false
+          }
+        }
+      }
+    ],
+    "visualContext": {
+      "guides": [],
+      "layoutGuides": [],
+      "measurements": [
+        {
+          "id": "15d49fff-6b75-496f-8f38-6f1053c18742",
+          "rect": {
+            "left": 533.94364,
+            "top": 388.9066245,
+            "width": 139.67132000000004,
+            "height": 59.15491199999997
+          },
+          "deltaX": 0,
+          "deltaY": 0,
+          "targetRef": "target-1"
+        }
+      ],
+      "distances": []
+    },
+    "previewViewport": {
+      "url": "http://127.0.0.1:4192/responsive-preview.html",
+      "width": 393,
+      "height": 852,
+      "previewId": "1"
+    }
+  },
+  "agentResult": {
+    "inspection": "#root-only-target",
+    "selection": "#root-only-target"
+  },
+  "errors": []
+}

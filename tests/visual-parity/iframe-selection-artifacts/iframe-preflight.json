@@ -1,0 +1,7 @@
+{
+  "url": "http://127.0.0.1:4192/iframe-selection.html",
+  "title": "Mesurer iframe selection contract",
+  "hasIframe": true,
+  "hasTestHarness": true,
+  "hasInspectorIsland": true
+}
