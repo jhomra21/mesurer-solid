@@ -1,0 +1,27 @@
+{
+  "url": "http://127.0.0.1:4194/responsive-preview.html",
+  "scale": 0.8215379901960784,
+  "cssSize": {
+    "width": 102,
+    "height": 22
+  },
+  "screenSize": {
+    "width": 83.796875,
+    "height": 18.0625
+  },
+  "measurementText": "102 x 22",
+  "hoverOverSelection": {
+    "x": 579.9375,
+    "y": 283.015625,
+    "width": 39.421875,
+    "height": 18.0625
+  },
+  "cssGap": 20,
+  "distanceText": "20",
+  "hit": {
+    "node": "<span style=\"font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--msr-content, #0f172a); overflow: hidden; text-overflow: ellipsis; white-spac",
+    "stage": false,
+    "hitCard": true
+  },
+  "errors": []
+}

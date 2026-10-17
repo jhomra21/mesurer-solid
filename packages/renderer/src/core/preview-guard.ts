@@ -29,11 +29,17 @@ export function installPreviewGuard(contentWindow: Window): () => void {
   contentWindow.prompt = blockPrompt;
 
   return () => {
-    contentWindow.removeEventListener("submit", blockSubmit, true);
-    contentWindow.removeEventListener("click", blockDownload, true);
-    contentWindow.open = original.open;
-    contentWindow.alert = original.alert;
-    contentWindow.confirm = original.confirm;
-    contentWindow.prompt = original.prompt;
+    // After a cross-origin navigation the WindowProxy is no longer accessible,
+    // and the guarded document (with its listeners) is already gone.
+    try {
+      contentWindow.removeEventListener("submit", blockSubmit, true);
+      contentWindow.removeEventListener("click", blockDownload, true);
+      contentWindow.open = original.open;
+      contentWindow.alert = original.alert;
+      contentWindow.confirm = original.confirm;
+      contentWindow.prompt = original.prompt;
+    } catch {
+      // Cross-origin access throws SecurityError; nothing remains to restore.
+    }
   };
 }

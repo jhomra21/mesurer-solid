@@ -958,6 +958,7 @@ export function Toolbar(props: ToolbarProps) {
             id={`plugin:${tool.id}`}
             toolId={tool.id}
             active={tool.active?.() ?? false}
+            expanded={tool.id === "context.notes" ? tool.active?.() ?? false : undefined}
             disabled={tool.disabled?.() ?? false}
             label={tool.label}
             shortcut={tool.shortcut}
@@ -977,6 +978,7 @@ export function Toolbar(props: ToolbarProps) {
             id={`plugin:${tool.id}`}
             toolId={tool.id}
             active={tool.active?.() ?? false}
+            expanded={tool.id === "context.notes" ? tool.active?.() ?? false : undefined}
             disabled={tool.disabled?.() ?? false}
             label={tool.label}
             shortcut={tool.shortcut}

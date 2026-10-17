@@ -42,6 +42,7 @@ import {
   type StoredPluginRegistryState,
 } from "./runtime/composable-contract";
 import { createToolbarModeCoordinator } from "./runtime/toolbar-mode-coordinator";
+import { createAnnotationRevealCoordinator } from "./runtime/annotation-reveal";
 
 export type {
   MesurerPluginInput,
@@ -793,6 +794,21 @@ export default function ComposableMesurer(props: MesurerProps) {
             subscribeTheme,
             createWorkspaceRuntime,
             createInspectorMount,
+            createAnnotationRevealCoordinator: (runtime) => createAnnotationRevealCoordinator({
+              root: requireRendererRoot(),
+              ownerWindow,
+              runtime,
+              responsiveEnabled: () => builtinEnabled("responsive"),
+              responsiveOpen,
+              openResponsive: async () => {
+                if (!responsiveOpen()) await runResponsiveToggle();
+                await new Promise<void>((resolve) => ownerWindow.requestAnimationFrame(() => resolve()));
+              },
+              closeResponsive: async () => {
+                if (responsiveOpen()) setResponsiveOpen(false);
+                await new Promise<void>((resolve) => ownerWindow.requestAnimationFrame(() => resolve()));
+              },
+            }),
           };
 
           ctx.service.provide<MesurerSolidRuntimeService>("runtime:solid", runtimeService);

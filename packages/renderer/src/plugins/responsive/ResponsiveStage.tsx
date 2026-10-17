@@ -4,6 +4,11 @@ import { isEditableKeyboardEvent } from "../../core/events";
 import type { Guide } from "../../core/types";
 import { getMesurerPageKey, subscribeMesurerPageKey } from "../../runtime/page-location";
 import { mountPreviewGuides } from "./preview-guides";
+import { getAccessibleFrameDocument } from "../../core/frame-geometry";
+import {
+  registerResponsiveAnnotationRevealController,
+  type ResponsiveAnnotationRevealController,
+} from "../../runtime/annotation-reveal";
 
 type Size = { width: number; height: number };
 
@@ -150,7 +155,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
     }
 
     savedKey = key;
-    let previews = savedPreviews.map((preview) => ({ ...preview, guides: preview.guides ?? [] }));
+    let previews: Preview[] = savedPreviews.map((preview) => ({ ...preview, guides: preview.guides ?? [] }));
     let zoom = savedZoom;
     const stage = doc.createElement("div");
     stage.dataset.mesurerResponsiveStage = "true";
@@ -254,6 +259,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
     const previewGuideLayers = new Map<number, ReturnType<typeof mountPreviewGuides>>();
     const layoutGuideClones = new Map<number, HTMLElement>();
     const layoutGuideObservers = new Map<number, MutationObserver>();
+    const revealAborters = new Map<number, () => void>();
     let activePreviewId: number | undefined;
     const rootLayoutGuides = props.host.querySelector<HTMLElement>("[data-mesurer-layout-guides-root]");
     const oldLayoutGuideVisibility = rootLayoutGuides?.style.visibility ?? "";
@@ -333,6 +339,8 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
 
     const removePreview = (id: number) => {
       if (previews.length <= 1) return;
+      revealAborters.get(id)?.();
+      revealAborters.delete(id);
       const frame = frames.get(id);
 
       props.onPreviewRemove();
@@ -777,6 +785,127 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       layout();
     };
 
+    let latestRevealRequest = 0;
+
+    const ensureRevealViewport: ResponsiveAnnotationRevealController["ensureViewport"] = async (request) => {
+      if (request.signal.aborted || request.requestId < latestRevealRequest) return { status: "cancelled" };
+      latestRevealRequest = request.requestId;
+      const viewport = request.viewport;
+
+      if (!Number.isInteger(viewport.width) || !Number.isInteger(viewport.height)
+        || viewport.width < MIN_SIZE || viewport.width > MAX_SIZE
+        || viewport.height < MIN_SIZE || viewport.height > MAX_SIZE
+        || viewport.url !== win.location.href.split("#")[0]) return { status: "refused" };
+
+      const matching = previews.flatMap((preview) => {
+        const frame = frames.get(preview.id);
+        const childDocument = frame ? getAccessibleFrameDocument(frame) : null;
+
+        try {
+          const view = childDocument?.defaultView;
+
+          return view && view.location.href.split("#")[0] === viewport.url
+            && view.innerWidth === viewport.width && view.innerHeight === viewport.height
+            ? [{ preview, frame }]
+            : [];
+        } catch {
+          return [];
+        }
+      });
+
+      const original = matching.find(({ preview }) => String(preview.id) === viewport.previewId);
+
+      if (!original && matching.length > 1) return { status: "ambiguous" };
+
+      let frame = original?.frame ?? matching[0]?.frame;
+
+      if (!frame) {
+        if (previews.length >= MAX_PREVIEWS) removePreview(previews.at(-1)!.id);
+        const known = DEVICES.find((device) => device.width === viewport.width && device.height === viewport.height);
+
+        const item: Preview = {
+          id: nextId++,
+          name: known?.name ?? "Custom",
+          width: viewport.width,
+          height: viewport.height,
+          guides: [],
+        };
+
+        previews = [...previews, item];
+        persist();
+        renderPreviews();
+        frame = frames.get(item.id);
+        row.scrollTo({ left: row.scrollWidth, behavior: "instant" });
+      }
+
+      if (!frame) return { status: "refused" };
+      const previewId = frame.getAttribute("data-mesurer-responsive-preview-id");
+
+      if (!previewId) return { status: "refused" };
+      const status = frame.parentElement?.querySelector<HTMLElement>("[role='status']");
+
+      const ready = () => {
+        try {
+          const childDocument = getAccessibleFrameDocument(frame!);
+          const view = childDocument?.defaultView;
+
+          return Boolean(childDocument?.documentElement && view?.location.href.split("#")[0] === viewport.url
+            && view.innerWidth === viewport.width && view.innerHeight === viewport.height
+            && status?.dataset.mesurerResponsiveRefused !== "true" && status?.style.display === "none");
+        } catch {
+          return false;
+        }
+      };
+
+      if (!ready()) {
+        const outcome = await new Promise<"ready" | "refused" | "cancelled">((resolve) => {
+          let finished = false;
+          let timeout = 0;
+
+          const finish = (value: "ready" | "refused" | "cancelled") => {
+            if (finished) return;
+            finished = true;
+            frame?.removeEventListener("load", onLoad);
+            request.signal.removeEventListener("abort", onAbort);
+
+            if (revealAborters.get(Number(previewId)) === onAbort) revealAborters.delete(Number(previewId));
+            win.clearTimeout(timeout);
+            resolve(value);
+          };
+
+          const onLoad = () => {
+            if (request.signal.aborted || request.requestId !== latestRevealRequest) finish("cancelled");
+            else finish(ready() ? "ready" : "refused");
+          };
+
+          const onAbort = () => finish("cancelled");
+          revealAborters.set(Number(previewId), onAbort);
+          request.signal.addEventListener("abort", onAbort, { once: true });
+          timeout = win.setTimeout(() => finish("refused"), 5000);
+          frame?.addEventListener("load", onLoad);
+
+          if (request.signal.aborted) onAbort();
+        });
+
+        if (outcome !== "ready") return { status: outcome };
+      }
+
+      if (request.signal.aborted || request.requestId !== latestRevealRequest) return { status: "cancelled" };
+      const section = sections.get(Number(frame.getAttribute("data-mesurer-responsive-preview-id")));
+      const rowRect = row.getBoundingClientRect();
+      const sectionRect = section?.getBoundingClientRect();
+
+      if (sectionRect && (sectionRect.left < rowRect.left || sectionRect.right > rowRect.right)) {
+        row.scrollTo({ left: row.scrollLeft + sectionRect.left + sectionRect.width / 2 - (rowRect.left + rowRect.width / 2), behavior: "instant" });
+      }
+
+      return { status: "ready", previewId };
+    };
+
+    const unregisterReveal = registerResponsiveAnnotationRevealController(props.host, {
+      ensureViewport: ensureRevealViewport,
+    });
+
     const hasRoom = (element: Element, delta: number) => delta < 0 ? element.scrollLeft > 0 : element.scrollLeft < element.scrollWidth - element.clientWidth - 1;
 
     const routeFrameWheel = (event: WheelEvent, frame: HTMLIFrameElement) => {
@@ -854,6 +983,10 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
 
     return () => {
       unsubscribePageKey();
+      unregisterReveal();
+
+      for (const abort of revealAborters.values()) abort();
+      revealAborters.clear();
 
       try {
         win.removeEventListener("resize", onResize);

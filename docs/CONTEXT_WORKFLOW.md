@@ -33,6 +33,7 @@ Do not reinject over a live Mesurer instance merely to change configuration. Exi
 | Copy Context | `C` | Copies workspace context |
 | Copy Selection | `Shift+C` | Copies selection-scoped context |
 | Add Note | `N` | Saves a target/region annotation baseline |
+| Notes | — | Opens saved notes for search and explicit target reveal |
 
 Agents normally read the API directly instead of clicking these controls.
 
@@ -51,6 +52,10 @@ Saved annotations also survive a same-tab reload. Context stores only its annota
 Saved-note panels show the original note and flat chronological replies. Replies can be sent with Enter (Shift+Enter inserts a line break), edited, or deleted without changing the annotation id, anchor, or baseline. Resolve/Reopen is available per note; resolved markers are muted and resolved notes remain readable in annotation Context. Copying one note still includes its full thread. Codex bulk delivery includes open notes only.
 
 Saved notes support flat chronological replies and an open/resolved status. The original note and its baseline remain unchanged; replies can be edited or deleted independently. Resolved notes remain readable in `annotations()` and annotation-scoped Context. Their markers are muted. Codex and other bulk delivery include open notes only; explicitly copying a resolved note's own Context remains available.
+
+The **Notes** toolbar panel is the human-facing index of saved annotations. It searches original note and reply text, shows reply counts and saved Responsive dimensions, and filters **Open**, **Resolved**, or **All** (default **Open**). Resolved rows are muted. Selecting a row explicitly reveals its saved target and opens its note card; reading `context()`, `annotations()`, or `review()` never changes presentation, opens Responsive, or scrolls the page.
+
+Opening a root-page note closes Responsive and reveals its saved root target or region. Opening a preview note checks the exact saved URL, width, and height, prefers its original preview identity, and otherwise reuses only one unambiguous exact viewport. If none is open, Responsive creates the saved size; at the six-preview limit it replaces the last preview. Different URLs, invalid sizes, ambiguous matches, inaccessible frames, and unresolved targets fail closed and remain in the Notes list with a status. Reveal requests are transient and the latest request wins; Escape, closing Notes/Responsive, route changes, or deleting a note cancels pending reveal work. The list stays open while a note is revealed.
 
 Responsive preview element notes additionally store `viewport: { url, width, height, previewId }` and nested frame/shadow `domPath` evidence. They resolve only in an exact URL/width/height match, never on the root page. Their UI stays in the root overlay with projected geometry; removing a preview hides its notes and releases its watchers without deleting the records. Context targets and capture plans include viewport metadata. See [Responsive inspector](./RESPONSIVE_INSPECTOR.md) for exact rebind and lifetime rules.
 
