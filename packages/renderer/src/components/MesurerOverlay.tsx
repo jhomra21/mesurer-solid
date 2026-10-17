@@ -65,6 +65,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const [pinnedSpacingGroup, setPinnedSpacingGroup] = createSignal<string | null>(null);
   const [selectionDocumentTarget, setSelectionDocumentTarget] = createSignal<HTMLElement | null>(null);
   const [motionSurfaceActive, setMotionSurfaceActive] = createSignal(false);
+  const [contextSurfaceActive, setContextSurfaceActive] = createSignal(false);
 
   const spacingInteraction: SelectionSpacingInteraction = {
     expandedKey: expandedSpacingGroup,
@@ -115,7 +116,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       || (screenshotSelection
         && props.model.rendererRoot?.ownerDocument.defaultView?.getComputedStyle(screenshotSelection).display !== "none")
       || motionSurfaceActive()
-      || (motionSurface && motionSurface.getBoundingClientRect().height > 0),
+      || (motionSurface && motionSurface.getBoundingClientRect().height > 0)
+      || contextSurfaceActive(),
     );
   };
 
@@ -147,6 +149,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     const element = selected?.elementRef;
 
     if (!selected || !element?.isConnected || selected.id.startsWith("group-")) return null;
+
+    if (props.model.state.hoverElement && props.model.state.hoverElement !== element) return null;
 
     return { element, measurement: selected };
   });
@@ -406,13 +410,28 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       const surface = props.model.rendererRoot?.querySelector<HTMLElement>("[data-mesurer-motion-surface='true']");
       const active = Boolean(surface && surface.getBoundingClientRect().height > 0);
 
+      const contextSurface = props.model.rendererRoot?.querySelector(
+        "[data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
+      ) ?? ownerDocument.querySelector(
+        "[data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
+      ) ?? ownerDocument.querySelector<HTMLElement>("[data-mesurer-island='true']")
+        ?.shadowRoot?.querySelector(
+          "[data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
+        );
+
       if (active !== motionSurfaceActive()) setMotionSurfaceActive(active);
+
+      if (Boolean(contextSurface) !== contextSurfaceActive()) setContextSurfaceActive(Boolean(contextSurface));
     };
 
     const motionSurfaceObserver = new ownerWindow.MutationObserver(syncMotionSurface);
 
     if (props.model.rendererRoot) {
       motionSurfaceObserver.observe(props.model.rendererRoot, { childList: true, subtree: true });
+    }
+
+    if (ownerDocument.body && ownerDocument.body !== props.model.rendererRoot) {
+      motionSurfaceObserver.observe(ownerDocument.body, { childList: true, subtree: true });
     }
 
     syncMotionSurface();
@@ -627,7 +646,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       >{(measurement, index) => (
         <MeasurementBox
           measurement={measurement()}
-          showLabel={!(selectedCardMeasurement()?.element === measurement().elementRef)}
+          showLabel={!(props.model.state.selectedMeasurements.length === 1
+            && selectedCardMeasurement()?.element === measurement().elementRef)}
           edgeVisibility={selectedEdges()[index()]}
           outlineColor={selectedOutline()}
           fillColor={selectedFill()}

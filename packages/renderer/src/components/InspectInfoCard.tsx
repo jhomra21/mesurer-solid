@@ -43,20 +43,42 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
   const selector = () => getElementSelector(props.element);
   const dimensions = () => `${rounded(rect().width)} x ${rounded(rect().height)}`;
 
+  const contextRects = () => {
+    const root = props.ownerWindow.document
+      .querySelector<HTMLElement>("[data-mesurer-island='true']")
+      ?.shadowRoot;
+
+    return [...(root?.querySelectorAll<HTMLElement>(
+      "[data-mesurer-annotation-trigger='true'], [data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
+    ) ?? [])]
+      .flatMap((element) => {
+        const { left, top, width, height } = element.getBoundingClientRect();
+
+        return width > 0 && height > 0 ? [{ left, top, width, height }] : [];
+      });
+  };
+
   const position = () => {
     const placed = placeInspectInfoCard(
       props.rect,
       { width: cardWidth(), height: cardHeight() },
       { width: props.ownerWindow.innerWidth, height: props.ownerWindow.innerHeight },
+      props.passThrough === true,
+      contextRects(),
     );
 
     return { left: `${placed.left}px`, top: `${placed.top}px` };
   };
 
   const baseStyle = () => ({
-    "pointer-events": props.passThrough ? "none" as const : "auto" as const,
+    // Keep the card's painted surface out of the page hit-test. Its explicit
+    // controls opt back in below, so hover/selection and Context affordances
+    // underneath the card continue to receive input.
+    "pointer-events": "none" as const,
     "user-select": "text" as const,
-    "z-index": props.embedded ? "auto" : props.documentMounted ? "2147483646" : "2147482701",
+    // Keep Context's protected trigger/composer and annotation panel above the
+    // inspector even when both are source-linked in the same document.
+    "z-index": props.embedded ? "auto" : props.documentMounted ? "2147483644" : "2147482701",
     color: "var(--msr-content)",
     background: props.embedded ? "transparent" : "var(--msr-surface)",
     "box-shadow": props.embedded ? "none" : "var(--msr-shadow-floating)",
@@ -112,10 +134,14 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
     setCopiedSelector(success);
   };
 
-  const isHtmlElement = props.element instanceof (sourceWindow()?.HTMLElement ?? HTMLElement);
+  const isHtmlElement = createMemo(() => {
+    const HTMLElementConstructor = sourceWindow()?.HTMLElement;
+
+    return Boolean(HTMLElementConstructor && props.element instanceof HTMLElementConstructor);
+  });
 
   const typographyRows = createMemo(() => {
-    if (!isHtmlElement || !style()) return [];
+    if (!isHtmlElement() || !style()) return [];
     const current = style()!;
 
     const text = Array.from(props.element.childNodes)
@@ -145,7 +171,7 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
       data-mesurer-inspect-info-card="true"
       data-mesurer-inspector-ui="true"
       data-theme={props.theme}
-      class={`${props.embedded ? "msr:static msr:w-full msr:max-w-none msr:rounded-none msr:py-0" : `${props.documentMounted ? "msr:fixed" : "msr:absolute"} msr:z-[2147483646] msr:w-60 msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:py-2`} msr:flex msr:flex-col msr:overflow-visible msr:text-[10px]`}
+      class={`${props.embedded ? "msr:static msr:w-full msr:max-w-none msr:rounded-none msr:py-0" : `${props.documentMounted ? "msr:fixed" : "msr:absolute"} msr:z-[2147483644] msr:w-60 msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:py-2`} msr:flex msr:flex-col msr:overflow-visible msr:text-[10px]`}
       style={cardStyle()}
       onPointerDown={(event) => { if (!props.passThrough) event.stopPropagation(); }}
       onPointerMove={(event) => { if (!props.passThrough) event.stopPropagation(); }}
@@ -158,7 +184,8 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
           data-mesurer-inspect-selector="true"
           aria-label={`Copy selector ${selector()}`}
           title={copiedSelector() ? "Copied!" : "Click to copy"}
-          class="msr:min-w-0 msr:flex-1 msr:truncate msr:text-left msr:font-mono msr:font-medium msr:hover:underline"
+          class="msr:pointer-events-auto msr:min-w-0 msr:flex-1 msr:truncate msr:text-left msr:font-mono msr:font-medium msr:hover:underline"
+          style={{ "pointer-events": props.passThrough ? "none" : "auto" }}
           onPointerUp={(event) => {
             event.stopPropagation();
 
@@ -175,7 +202,8 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
           type="button"
           aria-label="Copy dimensions"
           title={copyError() ? "Copy failed" : "Click to copy"}
-          class="msr:shrink-0 msr:whitespace-nowrap msr:tabular-nums msr:hover:underline"
+          class="msr:pointer-events-auto msr:shrink-0 msr:whitespace-nowrap msr:tabular-nums msr:hover:underline"
+          style={{ "pointer-events": props.passThrough ? "none" : "auto" }}
           onPointerUp={(event) => {
             event.stopPropagation();
 
@@ -190,9 +218,9 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
       </div>
       <div class={`msr:mt-2 msr:min-h-0 msr:px-2 ${expanded() ? "mesurer-thin-scrollbar msr:max-h-[min(70vh,32rem)] msr:overflow-y-auto" : ""}`}>
         <div data-mesurer-inspect-details="true" class="msr:flex msr:flex-col msr:gap-0.5">
-          <For each={typographyRows()}>{(row) => <InspectDetailRow row={row} copy={copy} />}</For>
+          <For each={typographyRows()}>{(row) => <InspectDetailRow row={row} copy={copy} passThrough={props.passThrough} />}</For>
           <Show when={props.layoutDetailsEnabled}>
-            <For each={visible().visible}>{(row) => <InspectDetailRow row={row} copy={copy} />}</For>
+            <For each={visible().visible}>{(row) => <InspectDetailRow row={row} copy={copy} passThrough={props.passThrough} />}</For>
           </Show>
         </div>
       </div>
@@ -202,7 +230,8 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
             type="button"
             aria-expanded={expanded() ? "true" : "false"}
             aria-label={expanded() ? "Show less CSS details" : `Show ${visible().hiddenCount} more CSS details`}
-            class="msr:rounded-[5px] msr:text-[10px] msr:text-ink-500 msr:hover:text-ink-900"
+            class="msr:pointer-events-auto msr:rounded-[5px] msr:text-[10px] msr:text-ink-500 msr:hover:text-ink-900"
+            style={{ "pointer-events": props.passThrough ? "none" : "auto" }}
             onClick={() => { setExpanded((value) => !value); }}
           >{expanded() ? "Show less" : `Show ${visible().hiddenCount} more`}</button>
         </div>

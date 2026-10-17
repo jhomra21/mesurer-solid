@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 import type { InspectCssPart } from "../core/inspect-css";
 
-export function InspectDetailRow(props: { row: InspectCssPart; copy(value: string): Promise<boolean> }) {
+export function InspectDetailRow(props: { row: InspectCssPart; copy(value: string): Promise<boolean>; passThrough?: boolean }) {
   const [status, setStatus] = createSignal("");
   const copyValue = async () => setStatus(await props.copy(props.row.value) ? "Copied!" : "Copy failed");
 
@@ -12,7 +12,8 @@ export function InspectDetailRow(props: { row: InspectCssPart; copy(value: strin
         type="button"
         aria-label={`Copy ${props.row.label}`}
         title={status() || "Click to copy"}
-        class="msr:min-w-0 msr:truncate msr:text-right msr:tabular-nums msr:text-ink-900 msr:hover:underline msr:focus-visible:outline-none msr:focus-visible:underline"
+        class="msr:pointer-events-auto msr:min-w-0 msr:truncate msr:text-right msr:tabular-nums msr:text-ink-900 msr:hover:underline msr:focus-visible:outline-none msr:focus-visible:underline"
+        style={{ "pointer-events": props.passThrough ? "none" : "auto" }}
         onPointerUp={(event) => {
           event.stopPropagation();
 

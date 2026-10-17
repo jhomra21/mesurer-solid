@@ -107,8 +107,13 @@ try {
   const selected = page.locator("[data-mesurer-selected-measurement='true']");
   await selected.waitFor({ state: "attached" });
   const measurementText = await selected.innerText();
-  assert.match(measurementText, /102\s*x\s*22/,
-    `Selected measurement badge must report preview CSS pixels, got ${JSON.stringify(measurementText)}`);
+  const inspectCard = page.locator("[data-mesurer-inspect-info-card]");
+  await inspectCard.waitFor({ state: "visible" });
+  const dimensions = await inspectCard.getByRole("button", { name: "Copy dimensions" }).innerText();
+  assert.match(dimensions, /102\s*x\s*22/,
+    `Inspect card header must report preview CSS pixels, got ${JSON.stringify(dimensions)}`);
+  assert.equal(await selected.locator("[data-mesurer-measurement-label='true']").count(), 0,
+    "The selected measurement label is suppressed only while its Inspect card is visible");
   await page.screenshot({ path: join(output, "responsive-tools-selected.png"), fullPage: true });
 
   const inspection = frame.contentFrame().locator("#inspection-target");
@@ -143,6 +148,11 @@ try {
     "Hover outline must update to another preview element while a different element remains selected");
 
   await page.keyboard.down("Alt");
+  await inspectCard.waitFor({ state: "hidden" });
+  const selectedDimensionsLabel = page.locator("[data-mesurer-measurement-label='true']").filter({ hasText: /102\s*x\s*22/ });
+  await selectedDimensionsLabel.waitFor({ state: "visible" });
+  assert.match(await selectedDimensionsLabel.innerText(), /102\s*x\s*22/,
+    "The selected measurement label returns when the Inspect card is suppressed");
 
   await page.mouse.move(inspectionCenter.x + 1, inspectionCenter.y, { steps: 2 });
 
