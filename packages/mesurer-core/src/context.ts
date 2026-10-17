@@ -44,6 +44,14 @@ export type MesurerAnnotationBaseline = {
   }>;
 };
 
+export type MesurerAnnotationReply = {
+  id: string;
+  text: string;
+  createdAt: number;
+};
+
+export type MesurerAnnotationStatus = "open" | "resolved";
+
 export type MesurerAnnotation = {
   id: string;
   note: string;
@@ -52,6 +60,9 @@ export type MesurerAnnotation = {
     | { kind: "elements"; targets: MesurerAnnotationTarget[]; region: Rect | null }
     | { kind: "region"; rect: Rect };
   baseline: MesurerAnnotationBaseline;
+  replies?: MesurerAnnotationReply[];
+  status?: MesurerAnnotationStatus;
+  resolvedAt?: number;
 };
 
 export type MesurerEvidenceMeasurement<ElementRef = unknown> = {

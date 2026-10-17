@@ -107,6 +107,7 @@ on:
       - "tests/visual-parity/responsive-guides-contract.mjs"
       - "tests/visual-parity/responsive-tools-contract.mjs"
       - "tests/visual-parity/responsive-context-contract.mjs"
+      - "tests/visual-parity/context-thread-contract.mjs"
       - ".github/workflows/browser-contracts.yml"
   workflow_dispatch:
 
@@ -318,6 +319,19 @@ jobs:
           RESPONSIVE_CONTEXT_URL: http://127.0.0.1:4174/responsive-preview.html
           RESPONSIVE_CONTEXT_OUT: responsive-context-artifacts
         run: bun tests/visual-parity/responsive-context-contract.mjs
+      - name: Exercise Context annotation threads
+        env:
+          CONTEXT_THREAD_URL: http://127.0.0.1:4174/
+          CONTEXT_THREAD_OUT: context-thread-artifacts
+        run: bun tests/visual-parity/context-thread-contract.mjs
+      - name: Upload Context thread evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-context-thread-contract
+          path: context-thread-artifacts
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload Responsive Context evidence
         if: always()

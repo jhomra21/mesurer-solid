@@ -77,6 +77,7 @@ render(() => <App />, root);
 mountMesurer({
   target: root,
   persistKey: "mesurer-parity-playground",
+  agent: true,
   isolate: false,
   topLayer: false,
 });

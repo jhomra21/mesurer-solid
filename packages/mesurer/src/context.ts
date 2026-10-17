@@ -76,6 +76,10 @@ export type MesurerAnnotationBaseline = {
   }>;
 };
 
+export type MesurerAnnotationReply = { id: string; text: string; createdAt: number };
+
+export type MesurerAnnotationStatus = "open" | "resolved";
+
 export type MesurerAnnotation = {
   id: string;
   note: string;
@@ -84,6 +88,9 @@ export type MesurerAnnotation = {
     | { kind: "elements"; targets: MesurerAnnotationTarget[]; region: MesurerContextRect | null }
     | { kind: "region"; rect: MesurerContextRect };
   baseline: MesurerAnnotationBaseline;
+  replies?: Array<{ id: string; text: string; createdAt: number }>;
+  status?: "open" | "resolved";
+  resolvedAt?: number;
 };
 
 export type MesurerContextTarget = {
@@ -126,7 +133,7 @@ export type MesurerContextV1 = {
   scope:
     | { kind: "workspace" }
     | { kind: "selection" }
-    | { kind: "annotation"; annotationId: string; note: string; targetStatus: "connected" | "partial" | "stale" };
+    | { kind: "annotation"; annotationId: string; note: string; replies?: Array<{ id: string; text: string; createdAt: number }>; status?: "open" | "resolved"; resolvedAt?: number; targetStatus: "connected" | "partial" | "stale" };
   page: { url: string; title: string };
   viewport: { width: number; height: number; devicePixelRatio: number; scrollX: number; scrollY: number };
   coordinateSpace: "viewport-css-px";
@@ -287,7 +294,22 @@ export function captureMesurerContext(options: {
       : total === 0 || resolved === 0 ? "stale" as const
         : resolved === total ? "connected" as const : "partial" as const;
 
-    scope = { kind: "annotation", annotationId: annotation.id, note: annotation.note, targetStatus };
+    const annotationScope: Extract<MesurerContextV1["scope"], { kind: "annotation" }> = {
+      kind: "annotation",
+      annotationId: annotation.id,
+      note: annotation.note,
+      targetStatus,
+    };
+
+    if (annotation.replies?.length) annotationScope.replies = annotation.replies.map((reply) => ({ ...reply }));
+
+    if (annotation.status === "resolved") {
+      annotationScope.status = "resolved";
+
+      if (annotation.resolvedAt !== undefined) annotationScope.resolvedAt = annotation.resolvedAt;
+    }
+
+    scope = annotationScope;
   } else if (request.scope === "selection") {
     const selection = runtime.currentSelection();
     anchorElements = uniqueElements(selection.elements);
@@ -452,7 +474,16 @@ export function formatMesurerContext(context: MesurerContextV1): string {
   ];
 
   if (context.scope.kind === "annotation") {
-    lines.push("", "Annotation", context.scope.note, `Target status: ${context.scope.targetStatus}`);
+    lines.push("", "Annotation", context.scope.note);
+
+    for (const [index, reply] of (context.scope.replies ?? []).entries()) {
+      if (index === 0) lines.push("Replies");
+      lines.push(`${index + 1}. [${reply.id}] ${new Date(reply.createdAt).toISOString()}`);
+      lines.push(...reply.text.split("\n").map((line) => `   ${line}`));
+    }
+
+    if (context.scope.status === "resolved") lines.push("Status: resolved");
+    lines.push(`Target status: ${context.scope.targetStatus}`);
   } else {
     lines.push("", `Scope: ${context.scope.kind}`);
   }

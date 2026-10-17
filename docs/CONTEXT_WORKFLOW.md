@@ -46,7 +46,11 @@ Annotation presentation is source-linked rather than viewport furniture. On norm
 
 Several notes on one target keep separate nearby markers. Opening one note does not remove the Add Note trigger, so another note can be added without closing the current review first. The marker layout keeps repeated notes local to the owning target and avoids covering unrelated markers when a clear placement is available.
 
-Saved annotations also survive a same-tab reload. Context stores only its annotation records in session-scoped browser storage. On reload it restores the original ids, notes, immutable baselines, selectors, fingerprints, and last-known geometry, then conservatively rebinds each element target through the same selector/fingerprint rules used for live DOM replacement. Ambiguous or missing targets stay unresolved instead of binding to a convenient lookalike. Removing an annotation updates that stored review state immediately.
+Saved annotations also survive a same-tab reload. Context stores only its annotation records in session-scoped browser storage. On reload it restores the original ids, notes, replies, status, immutable baselines, selectors, fingerprints, and last-known geometry, then conservatively rebinds each element target through the same selector/fingerprint rules used for live DOM replacement. Older note-only records remain valid; malformed individual replies are ignored without discarding the original note. Ambiguous or missing targets stay unresolved instead of binding to a convenient lookalike. Removing an annotation updates that stored review state immediately.
+
+Saved-note panels show the original note and flat chronological replies. Replies can be sent with Enter (Shift+Enter inserts a line break), edited, or deleted without changing the annotation id, anchor, or baseline. Resolve/Reopen is available per note; resolved markers are muted and resolved notes remain readable in annotation Context. Copying one note still includes its full thread. Codex bulk delivery includes open notes only.
+
+Saved notes support flat chronological replies and an open/resolved status. The original note and its baseline remain unchanged; replies can be edited or deleted independently. Resolved notes remain readable in `annotations()` and annotation-scoped Context. Their markers are muted. Codex and other bulk delivery include open notes only; explicitly copying a resolved note's own Context remains available.
 
 Responsive preview element notes additionally store `viewport: { url, width, height, previewId }` and nested frame/shadow `domPath` evidence. They resolve only in an exact URL/width/height match, never on the root page. Their UI stays in the root overlay with projected geometry; removing a preview hides its notes and releases its watchers without deleting the records. Context targets and capture plans include viewport metadata. See [Responsive inspector](./RESPONSIVE_INSPECTOR.md) for exact rebind and lifetime rules.
 
@@ -133,7 +137,7 @@ Application code that owns the plugin host can resolve `MesurerContextService` f
 | `copyContext(request?)` | Copy formatted Context to the clipboard. |
 | `select(selectors)` | Select exact targets and return selection Context. |
 | `annotations()` | List saved annotations. |
-| `removeAnnotation(annotationId)` | Remove one saved annotation after a trusted workflow completes it. |
+| `removeAnnotation(annotationId)` | Remove one saved annotation after a trusted workflow completes it. Optional expected content makes cleanup conditional on the exact note and ordered reply snapshot that was delivered. |
 | `review(annotationId?)` | Compare one or all saved baselines with the current page. |
 | `capturePlan(request?)` | Return screenshot regions for Context or an annotation. |
 | `prepareCapture()` | Hide or adjust Mesurer presentation before an external screenshot. |
@@ -157,7 +161,7 @@ For small selections, keep useful unique pair relationships. For large selection
 
 ## Annotations and review
 
-Annotations are target- or region-bound review context rather than freeform drawing objects. A saved note carries its baseline with the rendered evidence it describes.
+Annotations are target- or region-bound review context rather than freeform drawing objects. A saved note carries its baseline with the rendered evidence it describes. Replies add conversation without changing the original note or baseline.
 
 The Add Note button is only a UI control. During an active direct text edit it is intentionally absent from the selected element, so agents and integrations must not use button visibility as a capability check. Durable annotation state remains available through `annotations()`, `context({ annotation })`, and `review()`.
 
