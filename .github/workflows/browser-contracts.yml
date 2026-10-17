@@ -9,6 +9,7 @@ on:
       - "packages/renderer/src/Mesurer.tsx"
       - "packages/renderer/src/components/Icons.tsx"
       - "packages/renderer/src/components/ContextActions.tsx"
+      - "packages/renderer/src/components/ContextNotesPanel.tsx"
       - "packages/renderer/src/components/DistanceOverlayItem.tsx"
       - "packages/renderer/src/components/MeasurementBox.tsx"
       - "packages/renderer/src/components/LayoutGuidesOverlay.tsx"
@@ -28,6 +29,8 @@ on:
       - "packages/renderer/src/core/document-tree.ts"
       - "packages/renderer/src/runtime/xray-scope.ts"
       - "packages/renderer/src/runtime/workspace-context.ts"
+      - "packages/renderer/src/runtime/annotation-reveal.ts"
+      - "packages/renderer/src/runtime/composable-contract.ts"
       - "packages/renderer/src/runtime/preview-context.ts"
       - "packages/mesurer-core/src/context.ts"
       - "packages/mesurer/src/context.ts"
@@ -108,6 +111,7 @@ on:
       - "tests/visual-parity/responsive-tools-contract.mjs"
       - "tests/visual-parity/responsive-context-contract.mjs"
       - "tests/visual-parity/context-thread-contract.mjs"
+      - "tests/visual-parity/responsive-note-reveal-contract.mjs"
       - ".github/workflows/browser-contracts.yml"
   workflow_dispatch:
 
@@ -324,6 +328,19 @@ jobs:
           CONTEXT_THREAD_URL: http://127.0.0.1:4174/
           CONTEXT_THREAD_OUT: context-thread-artifacts
         run: bun tests/visual-parity/context-thread-contract.mjs
+      - name: Exercise saved-note Responsive reveal
+        env:
+          RESPONSIVE_NOTE_REVEAL_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_NOTE_REVEAL_OUT: responsive-note-reveal-artifacts
+        run: bun tests/visual-parity/responsive-note-reveal-contract.mjs
+      - name: Upload saved-note reveal evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-responsive-note-reveal-contract
+          path: responsive-note-reveal-artifacts
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload Context thread evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

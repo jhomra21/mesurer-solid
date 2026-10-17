@@ -162,6 +162,8 @@ try {
   const markerBox = await markers.boundingBox();
   assert(markerBox);
   const context = await page.evaluate((id) => window.__MESURER__.context({ annotation: id }), a.id);
+  assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1,
+    "reading a preview annotation's Context does not close, reopen, or otherwise alter Responsive");
   assert.deepEqual(context.previewViewport, scope);
   assert.deepEqual(context.targets[0].viewport, scope);
   assert.equal(context.coordinateSpace, "viewport-css-px");

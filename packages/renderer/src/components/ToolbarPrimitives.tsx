@@ -10,6 +10,7 @@ import {
 type ToolbarButtonProps = {
   id: string;
   active: boolean;
+  expanded?: boolean;
   disabled?: boolean;
   builtin?: string;
   toolId?: string;
@@ -45,6 +46,7 @@ export function ToolbarButton(props: ToolbarButtonProps) {
         data-mesurer-builtin={props.builtin}
         data-mesurer-tool-id={props.toolId}
         aria-pressed={props.active ? "true" : "false"}
+        aria-expanded={props.expanded === undefined ? undefined : props.expanded ? "true" : "false"}
         aria-label={`${props.label}${visibleShortcut() ? ` (${visibleShortcut()})` : ""}`}
         disabled={props.disabled ?? false}
         class={`msr:flex msr:size-8 msr:select-none msr:items-center msr:justify-center msr:rounded-[8px] msr:outline-none ${props.active ? "msr:bg-[#0d99ff] msr:text-white" : inactiveClass()}`}

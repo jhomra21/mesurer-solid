@@ -48,7 +48,7 @@ These dated sections record when each decision was audited. Their decision text 
 
 The first Motion port provided the behavior but differed visibly from the current upstream player: a native browser range input replaced its thin scrub rail and playhead, its controls were 28px instead of 20px, and speed was limited to a preset menu. The follow-up restores the upstream-sized control row, pointer/keyboard scrub surface, native preset select, and custom 0.1–4× speed editor built with the shared current `ControlShell`. Inspect values now include the upstream's additional motion properties, collapsed keyframe summary, expanded grouped keyframe rows, and copying. The focused Chromium contract exercises the actual animation and measures card/control/slider/popup geometry and focus behavior. It records a screenshot, but this does **not** replace a current-upstream screenshot pixel comparison; do not cite the historical React v0.0.11 visual suite as proof of the 0.2.4 Motion visuals.
 
-Context keeps the Mesurer Solid target-bound note, immutable baseline, conservative identity, and source-linked presentation while adopting upstream's flat reply thread and resolve/reopen status. Reply and resolve UI remains part of the existing saved-note panel. Upstream's separate Notes list, preview reveal, drawing model, and collaboration features are not included in this adoption.
+Context keeps the Mesurer Solid target-bound note, immutable baseline, conservative identity, and source-linked presentation while adopting upstream's flat reply thread and resolve/reopen status. The Context-owned Notes list adopts upstream's Open/Resolved/All filter, reply-aware search, counts, and explicit saved-note reveal, mapped to Solid's Context annotations. Preview reveal preserves stricter URL/size/target ambiguity checks and the six-preview stage limit. Upstream's drawing model and collaboration features are not included.
 
 ### 2026-10-17 Context thread adoption
 
@@ -57,7 +57,8 @@ Context keeps the Mesurer Solid target-bound note, immutable baseline, conservat
 | Flat chronological replies, inline reply composer, reply edit/delete, and thread persistence (`5c2fdae`) | **Adopted with Context mapping** | Replies are additive on the existing annotation, persist with its page-scoped session record, and are included in annotation Context/text output. Original note, anchor, and baseline remain unchanged. |
 | Resolve/reopen and muted resolved markers | **Adopted** | Annotation status defaults to open; resolved notes remain readable, while bulk Codex delivery excludes them. There are no bulk resolve/delete controls. |
 | Codex completion cleanup for delivered notes | **Adopted with stronger content condition** | Completion removes only notes whose exact note and ordered reply snapshot still matches what was queued. Older receipts without snapshots retain evidence. |
-| Notes list, preview reveal, Inspect details card | **Deferred to sequential follow-up PRs** | Not part of this thread PR. |
+| Notes list with Open/Resolved/All filters and explicit preview reveal (`5c2fdae`) | **Adopted with Context mapping** | The list searches original note and reply content, reports replies and saved preview dimensions, and only reveals on an explicit row activation. Exact URL/width/height and original preview identity are respected; ambiguity and refusal remain visible rather than guessed. Context/review reads remain presentation-neutral (`ContextNotesPanel.tsx`, `runtime/annotation-reveal.ts`, `ResponsiveStage.tsx`, `responsive-note-reveal-contract.mjs`). |
+| Inspect details card | **Deferred to a sequential follow-up PR** | Not part of this Notes/reveal change. |
 
 ### 2026-10-07 upstream 0.2.4 audit
 
@@ -191,14 +192,14 @@ Upstream `33ffecfa7682b25dff5ada2a507feedfa18c745b` is the 0.2.0 release commit.
 
 | Upstream delta | Decision | Reason |
 | --- | --- | --- |
-| Resolved-comment state, filtering, reopen/delete flows, and all-comments search | **Partially adopted** | This audit's earlier divergence is superseded for reply threads and resolve/reopen: Context annotations preserve target identity and immutable baselines while adding replies/status. The Notes list and its filters/search remain deferred. |
+| Resolved-comment state, filtering, reopen/delete flows, and all-comments search | **Partially adopted** | This audit's earlier divergence is superseded for reply threads, resolve/reopen, and the Notes list's Open/Resolved/All filter plus note/reply search. Context annotations preserve target identity and immutable baselines; bulk actions and remote collaboration remain intentionally absent. |
 | Viewport context in copied review evidence | **Adopted outcome; independently implemented** | `MesurerContextV1` already records viewport width/height, device pixel ratio, and `scrollX`/`scrollY` for workspace, selection, and annotation Context, so agents receive equivalent page-position evidence without importing upstream's comment serializer. |
 | Comment-card/list action menus and delete-confirmation anchoring | **Not applicable as a direct port** | The behavior belongs to upstream comment surfaces that Mesurer Solid does not ship. Context annotation cards have their own ownership, scroll attachment, and interaction contracts. |
 | Closing transient surfaces when another toolbar menu opens or an outside pointer takes ownership | **Adopted outcome; independently implemented and validated** | Mesurer Solid's Settings, plugin split menus, Typography dropdowns, Context cards, and other inspector surfaces already have explicit ownership and dismissal contracts covered by browser/manual acceptance tests. No React-specific upstream implementation is required. |
 | Toolbar drag/collapse interruption hardening and tooltip suppression during motion | **Adopted outcome where it matches Mesurer Solid's one-toolbar model** | Mesurer Solid independently validates toolbar dragging, compact/expanded state, reduced-motion-aware transitions, and stable active-tool ownership. Upstream's Inspect/Annotate grouping remains outside the product model. |
 | Centralized floating-surface shadow/radius polish | **Partially adopted, with shared menus current** | Mesurer Solid now matches upstream 0.2.3 for shared menu and Color Picker hairline/radius tokens. Context, Typography, Settings panel geometry, and toolbar chrome keep their accepted contracts unless a focused parity migration covers those surfaces too. |
 
-These decisions remain the current product boundary. Context replies and resolve/reopen are adopted within the existing annotation model; the standalone Notes list, preview reveal, full collaboration workflow, and drawing behavior remain out of scope. Shared interaction outcomes are covered by Mesurer Solid's browser and host contracts.
+These decisions remain the current product boundary. Context replies, resolve/reopen, and explicit Notes-list preview reveal are adopted within the existing annotation model. Full collaboration workflow and drawing behavior remain out of scope. Shared interaction outcomes are covered by Mesurer Solid's browser and host contracts.
 
 ### 2026-09-15 delta classification
 
@@ -240,7 +241,7 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | Global Shortcuts setting | Adopt the persisted master on/off switch; no per-command remapping UI is added |
 | Compact toolbar | Adopt presentation: one stable toolbar, full-height separators, active-tool retention, 150ms motion, reduced-motion support |
 | Option-distance pinning (`Option+S`) | Intentionally not adopted; Mesurer Solid retains its existing held-distance workflow |
-| DOM-attached threaded comments | Replies and resolve/reopen are adopted within Context annotations; the separate Notes list/reveal is deferred |
+| DOM-attached threaded comments | Replies, resolve/reopen, and the Notes list/reveal are adopted within Context annotations; source-linked note cards and immutable baselines remain Solid-specific |
 | Same-origin iframe selection/Context targeting | **Adopted** with projected geometry, document-tree pointer ownership, X-ray propagation, and Context mapping; cross-origin frames remain intentionally inaccessible |
 | Inspect/Annotate group switching | **Presentation adopted with different semantics.** Mesurer Solid uses the upstream grouped switch structure, icons, and width-changing motion for Select/Edit, but does not adopt upstream threaded Annotate behavior. |
 | Select/Edit mode semantics | **Mesurer Solid extension.** Select owns selection-first inspection/capture tools; Edit owns movement and direct text/style changes. Rulers, ordinary Guides, and Layout Guides remain usable in both modes, while Context and Codex remain pinned across both. Existing Arrange ids and agent contracts stay as compatibility surfaces. |

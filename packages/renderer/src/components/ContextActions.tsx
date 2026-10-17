@@ -16,6 +16,7 @@ export type ContextActionsController = {
   openNoteComposer(): void;
   closeNoteComposer(): void;
   abandonNoteComposer(): void;
+  openAnnotation(annotationId: string): void;
 };
 
 export type ContextActionsProps = {
@@ -1209,6 +1210,7 @@ export function ContextActions(props: ContextActionsProps) {
     openNoteComposer,
     closeNoteComposer,
     abandonNoteComposer,
+    openAnnotation,
   };
 
   props.onController?.(controller);
