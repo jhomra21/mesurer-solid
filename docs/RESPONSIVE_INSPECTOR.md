@@ -1,6 +1,6 @@
 # Responsive inspector
 
-Responsive opens with one iPhone 15 preview at 393 × 852 CSS pixels. Add up to six previews from the preset and breakpoint list. Each preview has independent width and height controls, removable/reorderable headers, and same-origin live iframes. Width and height are rounded and clamped to 240–3840 CSS pixels. Duplicate sizes are not added; adding a seventh distinct size replaces the last preview. Preview order changes visually without moving iframe nodes, so reordering does not reload pages.
+Responsive opens with one iPhone 15 preview at 393 × 852 CSS pixels. Add up to six previews from the preset and breakpoint list. Each preview has a Size selector, independent width and height controls, removable/reorderable headers, and same-origin live iframes. The Size selector changes only that preview; choosing a page breakpoint changes its width and preserves its height. Width and height are rounded and clamped to 240–3840 CSS pixels. Duplicate sizes create separate previews with distinct identities, and Add is disabled at six previews. Preview order changes visually without moving iframe nodes, so resizing and reordering do not reload pages.
 
 Fit scales every preview by the same factor, using the largest viewport and the available stage space. Manual zoom levels are available from the control bar. Preview list, zoom, and per-preview Guides remain in memory for this page while Responsive closes and reopens. They reset when the page key (origin, pathname, or query) changes, and are never persisted to storage.
 
@@ -26,7 +26,7 @@ Previews reload the live page in same-origin iframes and run its JavaScript. Req
 
 The page behind the stage is scroll-locked while Responsive is open. Wheel input over the empty stage moves only the preview row; wheel input inside a frame scrolls that preview and hands horizontal movement to the row when possible. Closing Responsive restores the page's prior inline `overflow-x` and `overflow-y` values and priorities. A page-key change while the stage is open closes it and resets the in-memory preview state.
 
-Entering Responsive exits Edit, clears the current selection, and closes the preview when Edit, Rulers, Screenshot, or Recording is activated. B is ignored by editable controls, including open Shadow DOM inputs in the preview. Turning off global shortcuts disables B without disabling Escape.
+Entering Responsive exits Edit and clears the current selection. Edit and Rulers close the stage because they operate on the original page. Color Picker, Screenshot, and Recording remain available above the stage: color sampling includes visible previews, and capture selection can select and capture preview pixels. Cancelling a capture returns to inspection without closing or recreating the previews. B is ignored by editable controls, including open Shadow DOM inputs in the preview. Turning off global shortcuts disables B without disabling Escape.
 
 Responsive is a built-in feature and is on by default. Turn it off in **Settings > Plugins**, or omit it with `excludeBuiltins: ["responsive"]`. Press **B** to open or close it; Escape and a click on the empty stage also close it.
 

@@ -105,6 +105,70 @@ try {
     "Dragging inside an open menu must not move the toolbar",
   );
 
+  await page.goto(process.env.TOOLBAR_RESPONSIVE_URL ?? "http://127.0.0.1:4192/responsive-preview.html", { waitUntil: "networkidle" });
+  await page.waitForFunction(() => Boolean(window.__MESURER__));
+  const responsiveToolbar = page.locator("[data-mesurer-toolbar='true']").first();
+  const responsiveButton = page.locator("button[data-mesurer-builtin='responsive']").first();
+  await responsiveButton.click();
+  const preview = page.locator("iframe[data-mesurer-responsive-frame]").first();
+  await preview.waitFor();
+
+  const dragResponsiveToolbar = async (locator, label, overPreview) => {
+    const before = await box(responsiveToolbar, `${label} toolbar before`);
+    const target = await box(locator, `${label} target`);
+
+    const startPoint = overPreview
+      ? await locator.evaluate((surface) => {
+        const rect = surface.getBoundingClientRect();
+        const root = surface.getRootNode();
+        const elementFromPoint = root.elementFromPoint?.bind(root) ?? document.elementFromPoint.bind(document);
+
+        for (let inset = 1; inset <= 6; inset += 1) {
+          for (const [x, y] of [
+            [rect.left + inset, rect.top + inset],
+            [rect.right - inset, rect.top + inset],
+            [rect.left + inset, rect.bottom - inset],
+            [rect.right - inset, rect.bottom - inset],
+          ]) {
+            if (elementFromPoint(x, y) === surface) return { x, y };
+          }
+        }
+
+        return null;
+      })
+      : { x: target.x + target.width / 2, y: target.y + target.height / 2 };
+
+    assert(startPoint, `${label}: expected an exposed empty point on the toolbar surface`);
+    const startX = startPoint.x;
+    const startY = startPoint.y;
+    const previewBox = await box(preview, `${label} preview`);
+    const endX = overPreview ? previewBox.x + previewBox.width - 20 : startX + 240;
+    const endY = overPreview ? previewBox.y + previewBox.height - 20 : startY + 240;
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(endX, endY, { steps: 12 });
+    await page.mouse.up();
+
+    const after = await box(responsiveToolbar, `${label} toolbar after`);
+    assert(
+      movement(before, after) > 100,
+      `${label}: toolbar should follow the pointer across Responsive (${before.x},${before.y} -> ${after.x},${after.y}, pointer ${startX},${startY} -> ${endX},${endY})`,
+    );
+    assert.equal(await page.locator("iframe[data-mesurer-responsive-frame]").count(), 1,
+      `${label}: dropping toolbar must not close Responsive`);
+    await responsiveButton.click();
+    assert.equal(await page.locator("iframe[data-mesurer-responsive-frame]").count(), 0,
+      `${label}: a click after drag must still toggle Responsive`);
+    await responsiveButton.click();
+    await preview.waitFor();
+  };
+
+  const selectButton = page.locator("button[data-mesurer-builtin='select']").first();
+  await dragResponsiveToolbar(selectButton, "Button drag over stage", false);
+  const toolbarSurface = page.locator(".mesurer-toolbar-surface").first();
+  await dragResponsiveToolbar(toolbarSurface, "Empty-surface drag over preview", true);
+
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
 
   console.log("Toolbar drag ownership contract: PASS", {

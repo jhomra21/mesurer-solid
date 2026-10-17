@@ -83,6 +83,8 @@ on:
       - "tests/visual-parity/arrange-contract.mjs"
       - "tests/visual-parity/arrange-presentation-policy-contract.mjs"
       - "tests/visual-parity/color-picker-contract.mjs"
+      - "tests/visual-parity/toolbar-drag-contract.mjs"
+      - "tests/visual-parity/toolbar-compact-contract.mjs"
       - "tests/visual-parity/presentation-settings-contract.mjs"
       - "tests/visual-parity/selection-scroll-contract.mjs"
       - "tests/visual-parity/selection-hit-testing-contract.mjs"
@@ -169,7 +171,13 @@ jobs:
       - name: Exercise toolbar drag ownership
         env:
           TOOLBAR_DRAG_URL: http://127.0.0.1:4174/
+          TOOLBAR_RESPONSIVE_URL: http://127.0.0.1:4174/responsive-preview.html
         run: bun tests/visual-parity/toolbar-drag-contract.mjs
+
+      - name: Exercise compact toolbar visibility
+        env:
+          TOOLBAR_COMPACT_URL: http://127.0.0.1:4174/
+        run: bun tests/visual-parity/toolbar-compact-contract.mjs
 
       - name: Exercise Edit movement and drag
         env:

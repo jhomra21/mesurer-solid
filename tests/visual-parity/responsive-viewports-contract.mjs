@@ -43,8 +43,16 @@ try {
   await page.locator("[data-preview]").first().waitFor();
   assert.equal(await frames.count(), 2);
   assert.deepEqual(await frames.nth(1).evaluate((frame) => [frame.contentWindow.innerWidth, frame.contentWindow.innerHeight]), [375, 667]);
+  await frames.nth(1).evaluate((frame) => { frame.contentWindow.__responsiveSiblingStamp = "preserve-me"; });
+  await page.locator("[data-preview]").first().locator('select[aria-label="Size"]').selectOption("430x932");
+  assert.deepEqual(await frames.first().evaluate((frame) => [frame.contentWindow.innerWidth, frame.contentWindow.innerHeight]), [430, 932],
+    "A preview Size selector resizes that preview in place");
+  assert.equal(await frames.nth(1).evaluate((frame) => frame.contentWindow.__responsiveSiblingStamp), "preserve-me",
+    "Resizing one preview must not reload sibling frames");
   await page.getByLabel("Add a size").selectOption("375x667");
-  assert.equal(await frames.count(), 2, "Adding an identical viewport must not duplicate it");
+  assert.equal(await frames.count(), 3, "Adding an identical viewport creates a distinct preview");
+  assert.notEqual(await frames.nth(1).getAttribute("data-mesurer-responsive-preview-id"),
+    await frames.nth(2).getAttribute("data-mesurer-responsive-preview-id"), "Duplicate previews have distinct identities");
   const breakpointOptions = await page.getByLabel("Add a size").locator("option").allTextContents();
   assert.ok(breakpointOptions.includes("501px breakpoint"), "Accessible media-query breakpoints are offered");
   assert.ok(breakpointOptions.includes("240px breakpoint"), "Sub-minimum breakpoint is clamped to 240px");
@@ -52,20 +60,21 @@ try {
   assert.ok(breakpointOptions.includes("307px breakpoint"), "Constructable stylesheet breakpoint is discovered");
   await page.locator("[data-preview]").first().locator("input[data-responsive-height]").fill("700");
   await page.locator("[data-preview]").first().locator("input[data-responsive-height]").press("Enter");
-  await page.getByLabel("Add a size").selectOption("240x852");
-  assert.deepEqual(await frames.nth(2).evaluate((frame) => [frame.contentWindow.innerWidth, frame.contentWindow.innerHeight]),
-    [240, 700], "Breakpoint uses the current first-preview height at selection time");
-  await page.getByLabel("Remove preview").nth(2).click();
+  await page.locator("[data-preview]").first().locator('select[aria-label="Size"]').selectOption({ label: "240px breakpoint" });
+  assert.deepEqual(await frames.first().evaluate((frame) => [frame.contentWindow.innerWidth, frame.contentWindow.innerHeight]),
+    [240, 700], "Choosing a breakpoint changes width and preserves that preview's height");
   await page.getByLabel("Add a size").selectOption("501x852");
-  assert.equal(await frames.count(), 3);
-  assert.equal(await frames.nth(2).evaluate((frame) => frame.contentWindow.innerWidth), 501);
-  await page.locator("[data-preview]").nth(2).getByLabel("Remove preview").click();
+  assert.equal(await frames.count(), 4);
+  assert.equal(await frames.nth(3).evaluate((frame) => frame.contentWindow.innerWidth), 501);
+  await page.getByLabel("Remove preview").nth(3).click();
 
-  for (const option of ["430x932", "412x915", "360x780", "744x1133"]) await page.getByLabel("Add a size").selectOption(option);
+  for (const option of ["430x932", "412x915", "360x780", "744x1133"]) {
+    if (await frames.count() < 6) await page.getByLabel("Add a size").selectOption(option);
+  }
+
   assert.equal(await frames.count(), 6);
-  await page.getByLabel("Add a size").selectOption("820x1180");
-  assert.equal(await frames.count(), 6, "The seventh viewport replaces the last slot");
-  assert.deepEqual(await frames.last().evaluate((frame) => [frame.contentWindow.innerWidth, frame.contentWindow.innerHeight]), [820, 1180]);
+  assert.equal(await page.getByLabel("Add a size").isDisabled(), true, "Add is disabled at six previews");
+  assert.equal(await frames.count(), 6, "The seventh viewport is not added");
 
   const first = page.locator("[data-preview]").first();
   const width = first.locator("input[data-responsive-width]");
@@ -134,12 +143,12 @@ try {
   assert.deepEqual(await page.locator("[data-preview]").evaluateAll((sections) =>
     sections.toSorted((a, b) => Number(a.style.order) - Number(b.style.order))
       .map((section) => Number(section.querySelector("iframe").contentWindow.innerWidth))),
-  [375, 430, 400, 412, 360, 820]);
+  [375, 375, 400, 430, 412, 360]);
   await page.locator('[data-preview][style*="order: 2"]').getByLabel("Move preview right").click();
   assert.deepEqual(await page.locator("[data-preview]").evaluateAll((sections) =>
     sections.toSorted((a, b) => Number(a.style.order) - Number(b.style.order))
       .map((section) => Number(section.querySelector("iframe").contentWindow.innerWidth))),
-  [375, 430, 412, 400, 360, 820]);
+  [375, 375, 430, 400, 412, 360]);
 
   const fitGeometry = await page.evaluate(() => {
     const host = document.querySelector("[data-mesurer-island]");
@@ -156,6 +165,16 @@ try {
   await page.getByLabel("Zoom").selectOption("0.5");
   const manualScale = await frames.first().evaluate((frame) => frame.getBoundingClientRect().width / Number(frame.width));
   assert.ok(Math.abs(manualScale - 0.5) < 0.01);
+  await page.getByLabel("Zoom").selectOption("0.25");
+
+  const smallZoomHeader = await page.locator("[data-mesurer-responsive-header]").first().evaluate((header) => ({
+    width: header.clientWidth,
+    scrollWidth: header.scrollWidth,
+  }));
+
+  assert.equal(smallZoomHeader.width, 360, "Preview headers keep a 360px minimum at small zoom");
+  assert.ok(smallZoomHeader.scrollWidth <= smallZoomHeader.width,
+    `Preview header controls fit at their 360px minimum: ${JSON.stringify(smallZoomHeader)}`);
   await page.getByLabel("Zoom").selectOption("fit");
   await page.screenshot({ path: join(output, "responsive-viewports-light.png"), fullPage: true });
   await page.locator("button[data-mesurer-builtin='settings']").click();
@@ -173,13 +192,19 @@ try {
 
   while (await frames.count() > 1) await page.getByLabel("Remove preview").first().click();
   assert.equal(await page.getByLabel("Remove preview").first().isDisabled(), true);
+
+  const retainedViewportSizes = await frames.evaluateAll((items) =>
+    items.map((item) => [item.contentWindow.innerWidth, item.contentWindow.innerHeight]));
+
   const overflowDuring = await page.evaluate(() => getComputedStyle(document.documentElement).overflow);
   assert.equal(overflowDuring, "hidden");
   await page.keyboard.press("Escape");
   assert.equal(await frames.count(), 0);
   await page.keyboard.press("b");
   assert.equal(await frames.count(), 1);
-  assert.deepEqual(await frames.first().evaluate((frame) => [frame.contentWindow.innerWidth, frame.contentWindow.innerHeight]), [820, 1180], "Viewport list survives close/reopen");
+  assert.deepEqual(await frames.evaluateAll((items) =>
+    items.map((item) => [item.contentWindow.innerWidth, item.contentWindow.innerHeight])),
+  retainedViewportSizes, "Viewport list survives close/reopen");
   await page.evaluate(() => { history.pushState({}, "", `${location.pathname}?page-key=changed`); dispatchEvent(new PopStateEvent("popstate")); });
   await frames.waitFor({ state: "detached" });
   await page.keyboard.press("b");

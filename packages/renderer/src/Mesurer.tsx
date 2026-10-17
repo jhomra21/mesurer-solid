@@ -1634,6 +1634,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           model={model}
           ownerWindow={ownerWindow}
           onHostPick={(point) => { void builtinController.pickColorAt(point); }}
+          responsiveOpen={input.responsiveOpen === true}
         />
         <Toolbar
           model={model}
