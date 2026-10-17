@@ -1,5 +1,0 @@
-{
-  "error": "Error: goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:4192/responsive-preview.html\nCall log:\n  - navigating to \"http://127.0.0.1:4192/responsive-preview.html\", waiting until \"domcontentloaded\"\n",
-  "stack": "goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:4192/responsive-preview.html\nCall log:\n  - navigating to \"http://127.0.0.1:4192/responsive-preview.html\", waiting until \"domcontentloaded\"\n\n    at /private/tmp/mesurer-responsive-tools/tests/visual-parity/responsive-guides-contract.mjs:41:14\n    at processTicksAndRejections (native:7:39)",
-  "errors": []
-}
