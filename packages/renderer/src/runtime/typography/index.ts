@@ -15,6 +15,7 @@ import {
 import type { MesurerTheme } from "../../core/persistence";
 import { isMesurerInputBoundary } from "../../core/events";
 import { hasNativeScrollAnchoring } from "../native-scroll-registry";
+import { isResponsivePreviewDocument } from "../../core/document-tree";
 
 const DEFAULT_SKIP_TAGS = [
   "HTML", "BODY", "SCRIPT", "STYLE", "META", "LINK", "NOSCRIPT",
@@ -56,6 +57,9 @@ export type TextInspectorAPI = {
   destroy: () => void;
   clear: () => void;
   inspect: (element: HTMLElement) => boolean;
+  pin: (element: HTMLElement) => boolean;
+  clearHover: () => void;
+  clearResponsivePreview: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
 };
@@ -65,11 +69,14 @@ export type TextInspectorOptions = {
   ignoredTags?: readonly string[];
   maxPinned?: number;
   portalTarget?: HTMLElement | ShadowRoot;
+  getPortalTarget?: () => HTMLElement | ShadowRoot | undefined;
   theme?: () => MesurerTheme;
   subscribeTheme?: (listener: (theme: MesurerTheme) => void) => () => void;
   onInspect?: (element: HTMLElement, info: TypographyInfo) => void;
   onPin?: (element: HTMLElement, info: TypographyInfo) => void;
   onUnpin?: (element: HTMLElement) => void;
+  projectRect?: (element: HTMLElement, rect: DOMRect) => DOMRect;
+  suppressRootPointer?: () => boolean;
 };
 
 const styles = (mode: string, overlayId: string) => `
@@ -94,7 +101,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     return {
       enable: noop, disable: noop, undo: () => false, redo: () => false,
       isEnabled: () => false, cleanup: noop, destroy: noop, clear: noop,
-      inspect: () => false, canUndo: () => false, canRedo: () => false,
+      inspect: () => false, pin: () => false, clearHover: noop, clearResponsivePreview: noop, canUndo: () => false, canRedo: () => false,
     };
   }
 
@@ -108,7 +115,6 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   const maxPinned = Number.isFinite(options.maxPinned) ? Math.max(1, Math.floor(options.maxPinned!)) : Infinity;
   const typography = new TypographyInspector(doc, win);
   const HTMLElementCtor = win.HTMLElement;
-  const SVGElementCtor = win.SVGElement;
   const NodeCtor = win.Node;
 
   let enabled = false;
@@ -123,16 +129,19 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   let scrollX = win.scrollX;
   let scrollY = win.scrollY;
   let unsubscribeTheme: (() => void) | null = null;
+  const styledRoots = new Set<Document | ShadowRoot>();
   const pins: Pin[] = [];
   const history: PinSnapshot[][] = [];
   const future: PinSnapshot[][] = [];
 
-  const portal = options.portalTarget ?? doc.body;
+  const portal = () => options.getPortalTarget?.() ?? options.portalTarget ?? doc.body;
 
   const ensureStyles = () => {
     const roots: Array<Document | ShadowRoot> = [doc];
 
-    if (portal instanceof win.ShadowRoot) roots.push(portal);
+    const target = portal();
+
+    if (target instanceof win.ShadowRoot) roots.push(target);
 
     for (const root of roots) {
       if (root.querySelector(`#${styleId}`)) continue;
@@ -142,22 +151,30 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
 
       if (root === doc) doc.head.append(style);
       else root.append(style);
+      styledRoots.add(root);
     }
   };
 
   const ensureOverlay = () => {
-    if (overlay?.isConnected) return overlay;
-    overlay = doc.createElement("div");
-    overlay.id = overlayId;
-    overlay.dataset.mesurerInspectorUi = "true";
-    overlay.dataset.theme = options.theme?.() ?? "system";
-    unsubscribeTheme ??= options.subscribeTheme?.((theme) => {
-      if (overlay) overlay.dataset.theme = theme;
-    }) ?? null;
-    Object.assign(overlay.style, {
-      position: "fixed", inset: "0", pointerEvents: "none", zIndex: "2147483646",
-    });
-    portal.appendChild(overlay);
+    if (!overlay) {
+      overlay = doc.createElement("div");
+      overlay.id = overlayId;
+      overlay.dataset.mesurerInspectorUi = "true";
+      overlay.dataset.theme = options.theme?.() ?? "system";
+      unsubscribeTheme ??= options.subscribeTheme?.((theme) => {
+        if (overlay) overlay.dataset.theme = theme;
+      }) ?? null;
+      Object.assign(overlay.style, {
+        position: "fixed", inset: "0", pointerEvents: "none", zIndex: "2147483646",
+      });
+    }
+
+    const target = portal();
+
+    if (overlay.parentNode !== target) {
+      ensureStyles();
+      target.appendChild(overlay);
+    }
 
     return overlay;
   };
@@ -180,10 +197,17 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     (node) => node.nodeType === NodeCtor.TEXT_NODE && !!node.nodeValue?.trim(),
   );
 
-  const inspectable = (el: Element | null): el is HTMLElement =>
-    !!el && el instanceof HTMLElementCtor && !(el instanceof SVGElementCtor) &&
-    !ignored.has(el.tagName) && hasDirectText(el) &&
-    !el.closest("[data-mesurer-root], [data-mesurer-inspector-ui='true']");
+  const inspectable = (el: Element | null): el is HTMLElement => {
+    const elementWindow = el?.ownerDocument.defaultView;
+
+    return !!el && !!elementWindow && el instanceof elementWindow.HTMLElement
+      && !(el instanceof elementWindow.SVGElement)
+      && !ignored.has(el.tagName) && hasDirectText(el)
+      && !el.closest("[data-mesurer-root], [data-mesurer-inspector-ui='true']");
+  };
+
+  const rectFor = (element: HTMLElement) =>
+    options.projectRect?.(element, element.getBoundingClientRect()) ?? element.getBoundingClientRect();
 
   const pick = (x: number, y: number) => {
     for (const element of doc.elementsFromPoint(x, y)) {
@@ -201,6 +225,19 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     visible(hoverCard, false);
   };
 
+  const clearHover = () => {
+    win.clearTimeout(enrichmentTimer);
+    hideHover();
+  };
+
+  const clearResponsivePreview = () => {
+    if (hoveredEl && isResponsivePreviewDocument(hoveredEl.ownerDocument)) hideHover();
+
+    for (const pin of pins.slice()) {
+      if (isResponsivePreviewDocument(pin.sourceEl.ownerDocument)) removePin(pin, false, false);
+    }
+  };
+
   const pointInsideCard = (card: HTMLElement | null, x: number, y: number) => {
     if (!card || card.dataset.state !== "visible") return false;
     const rect = card.getBoundingClientRect();
@@ -214,7 +251,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   const inspect = (element: HTMLElement) => {
     if (!enabled || !inspectable(element)) return false;
     ensureHover();
-    const rect = element.getBoundingClientRect();
+    const rect = rectFor(element);
     const fast = typography.getFast(element);
     hoveredEl = element;
     populateCard(doc, hoverCard!, fast, false);
@@ -227,7 +264,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       if (!enabled || hoveredEl !== element || !hoverCard) return;
       const full = typography.getFull(element, fast);
       populateCard(doc, hoverCard, full, false);
-      positionCard(win, hoverCard, element.getBoundingClientRect());
+      positionCard(win, hoverCard, rectFor(element));
       options.onInspect?.(element, full);
     }, 24);
 
@@ -333,7 +370,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     const info = typography.getFull(sourceEl);
     populateCard(doc, card, info, true);
     root.append(box, card);
-    const rect = sourceEl.getBoundingClientRect();
+    const rect = rectFor(sourceEl);
     positionBox(box, rect);
     positionCard(win, card, rect);
 
@@ -362,6 +399,13 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     if (notify) options.onPin?.(sourceEl, info);
   };
 
+  const pin = (element: HTMLElement) => {
+    if (!enabled || !inspectable(element)) return false;
+    createPin(element);
+
+    return true;
+  };
+
   const restore = (states: PinSnapshot[]) => {
     clearPins(false);
 
@@ -386,7 +430,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     for (const pin of pins.slice()) {
       if (!pin.sourceEl.isConnected) { removePin(pin, false, false); continue; }
 
-      const rect = pin.sourceEl.getBoundingClientRect();
+      const rect = rectFor(pin.sourceEl);
       positionBox(pin.box, rect);
 
       if (!pin.userPlaced) positionCard(win, pin.card, rect);
@@ -403,7 +447,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       if (!hoveredEl.isConnected) {
         hideHover();
       } else {
-        const rect = hoveredEl.getBoundingClientRect();
+        const rect = rectFor(hoveredEl);
         positionBox(hoverBox, rect);
         positionCard(win, hoverCard, rect);
         const isVisible = rect.bottom >= 0 && rect.right >= 0 && rect.left <= win.innerWidth && rect.top <= win.innerHeight;
@@ -421,7 +465,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     if (!target) hideHover();
     else if (target !== hoveredEl) inspect(target);
     else if (hoverBox && hoverCard) {
-      const rect = target.getBoundingClientRect();
+      const rect = rectFor(target);
       positionBox(hoverBox, rect); positionCard(win, hoverCard, rect);
     }
 
@@ -438,6 +482,8 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
 
   const onMove = (event: MouseEvent) => {
     pointer = { x: event.clientX, y: event.clientY };
+
+    if (options.suppressRootPointer?.()) return;
 
     if (uiEvent(event) || pointInsidePinnedCard(event.clientX, event.clientY)) {
       hideHover();
@@ -577,13 +623,13 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     disable();
     unsubscribeTheme?.(); unsubscribeTheme = null;
     overlay?.remove(); overlay = null;
-    doc.getElementById(styleId)?.remove();
 
-    if (portal instanceof win.ShadowRoot) portal.querySelector(`#${styleId}`)?.remove();
+    for (const root of styledRoots) root.querySelector(`#${styleId}`)?.remove();
+    styledRoots.clear();
   };
 
   return {
-    enable, disable, undo, redo, clear, inspect,
+    enable, disable, undo, redo, clear, inspect, pin, clearHover, clearResponsivePreview,
     isEnabled: () => enabled,
     canUndo: () => history.length > 0,
     canRedo: () => future.length > 0,

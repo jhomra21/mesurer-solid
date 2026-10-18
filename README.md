@@ -10,7 +10,7 @@ Mesurer Solid ports [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thi
 
 The renderer carries its own isolated Solid 2 runtime. Your application can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without installing Solid for Mesurer.
 
-**Current stable:** `mesurer-solid@0.2.1` on the `latest` dist-tag.
+**Current stable:** `mesurer-solid@0.2.2` on the `latest` dist-tag.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jhomra21/mesurer-solid/main/docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">
@@ -80,17 +80,19 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 
 ## Features
 
-- **Select.** Inspect one or more rendered HTML or SVG elements. Turning Select off clears the current element and Guide selection instead of retaining hidden selection state.
+- **Select.** Inspect one or more rendered HTML or SVG elements. Motion inspection is built in and follows the selected element, with a live preview and keyframe details. Select, measurement geometry, X-ray, Motion, and Context work across same-origin iframes; cross-origin frame contents are inaccessible. Turning Select off clears the current element and Guide selection instead of retaining hidden selection state.
 - **Distance.** Measure spacing and geometry, including pairwise multi-selection spacing.
 - **X-ray, Guides, and Rulers.** Inspect page structure and alignment.
 - **Layout Guides.** Add page-scoped columns, rows, or a pixel grid through the optional `layoutGuides()` plugin. Layout Guide mutations participate in plugin history, and Context includes the current page's saved guides with their visibility state.
+- **Responsive.** Open the built-in, default-on live viewport inspector with **B**. It supports up to six independently sized and reorderable same-origin previews, preview-routed inspection and Guides, Layout Guides projection, and viewport-scoped Context notes. Turn it off in **Settings > Plugins** or omit it with `excludeBuiltins: ["responsive"]`. See [Responsive inspector](./docs/RESPONSIVE_INSPECTOR.md) for page-script side effects and limits.
 - **Typography.** Inspect rendered text and computed type styles in Select mode.
 - **Edit.** Move selected HTML elements and edit direct text, typography, and text color as reversible Desired intent.
 - **Screenshots.** Capture a dragged page region with the optional Screenshot plugin. It selects application-native capture, the Chromium extension adapter, or browser display capture internally.
 - **Recording.** Select and adjust a page region, then record the live application while it remains interactive. Recording defaults to 60 fps with an optional 120 fps setting; MediaBunny owns encoding, trim, 1×/2×/3× resize, format detection, and WebM/MP4 export while browser, extension, and Electron APIs only acquire the live source.
 - **Context and annotations.** Expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotations persist across same-tab reloads, conservatively rebind to their original DOM targets, stay attached through scrolling, keep repeated-note markers local, leave Add Note available while a saved note is open, and keep cards/composers above Select hover and selection chrome.
 - **Plugins.** Add tools, commands, overlays, settings, state, hooks, and services at runtime.
-- **Compact toolbar.** Collapse inactive controls while every active tool remains visible. Expanding restores the same toolbar order and state.
+- **Compact toolbar.** Keep the current Select/Edit mode, active tools in their pressed state, and the expand control visible while hiding inactive tools. The Settings shortcut remains available while compact when shortcuts are enabled.
+- **Toolbar docking.** Free dragging remains the default. Choose **Settings > General > Dock > Snap to edges** for edge/corner docking and vertical side layouts. Optional **Auto-hide** reveals the toolbar near its edge and hides it after 600 ms away; open surfaces and keyboard focus keep it visible. Placement and alignment survive tab reloads.
 - **Appearance.** Use System, Light, or Dark without changing the inspected page. The same theme applies to the isolated toolbar and document-backed Context and Typography UI.
 - **Color Picker.** Native hosts with `window.__MESURER_HOST__.captureScreenshot` use a current-window picker that captures once when the user chooses a pixel. Other supported browser hosts use the native `EyeDropper`. A successful sample is copied to the clipboard in the configured format.
 
@@ -128,6 +130,7 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | `A` | Typography |
 | `G` | Guides |
 | `L` | Layout Guides when the plugin is enabled |
+| `B` | Responsive inspector |
 | `H` / `V` | Horizontal / vertical guide orientation |
 | `Alt` / `Option` | Distance overlay |
 | `Cmd/Ctrl + ,` | Settings |
@@ -221,6 +224,7 @@ Start with the [documentation index](./docs/README.md).
 - [Edit](./docs/EDIT.md)
 - [Arrange compatibility](./docs/ARRANGE.md)
 - [Layout Guides](./docs/LAYOUT_GUIDES.md)
+- [Responsive inspector](./docs/RESPONSIVE_INSPECTOR.md)
 - [Measurements and distance geometry](./docs/MEASUREMENTS.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
 - [Recording](./docs/RECORDING.md)

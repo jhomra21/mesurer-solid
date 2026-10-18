@@ -408,3 +408,23 @@ export const projectRect = (
     height: bottom - top,
   };
 };
+
+export const projectRectToDocument = (
+  rect: Rect,
+  source: Document,
+  target: Document,
+): Rect => {
+  const points = [
+    projectPoint({ x: rect.left, y: rect.top }, source, target),
+    projectPoint({ x: rect.left + rect.width, y: rect.top }, source, target),
+    projectPoint({ x: rect.left, y: rect.top + rect.height }, source, target),
+    projectPoint({ x: rect.left + rect.width, y: rect.top + rect.height }, source, target),
+  ];
+
+  const left = Math.min(...points.map((point) => point.x));
+  const top = Math.min(...points.map((point) => point.y));
+  const right = Math.max(...points.map((point) => point.x));
+  const bottom = Math.max(...points.map((point) => point.y));
+
+  return { left, top, width: right - left, height: bottom - top };
+};

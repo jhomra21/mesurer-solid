@@ -1,0 +1,277 @@
+{
+  "url": "http://127.0.0.1:4192/responsive-preview.html",
+  "expected": {
+    "x": 486.2910802321883,
+    "y": 324.000589346461,
+    "width": 153.7797119635662,
+    "height": 17.25352140237357,
+    "selector": "#inspection-target"
+  },
+  "selected": {
+    "schema": "mesurer.context/v1",
+    "id": "9ce5d131-c453-45d7-8f93-2b42447f9e66",
+    "createdAt": "2026-10-16T20:33:52.418Z",
+    "scope": {
+      "kind": "selection"
+    },
+    "page": {
+      "url": "http://127.0.0.1:4192/responsive-preview.html",
+      "title": "Responsive preview contract"
+    },
+    "viewport": {
+      "width": 1280,
+      "height": 900,
+      "devicePixelRatio": 1,
+      "scrollX": 0,
+      "scrollY": 0
+    },
+    "coordinateSpace": "viewport-css-px",
+    "regions": [
+      {
+        "left": 486.291072,
+        "top": 324.0005405,
+        "width": 153.77966381250008,
+        "height": 17.25351599999999
+      }
+    ],
+    "visualState": {
+      "rulersVisible": false,
+      "xrayVisible": true
+    },
+    "targets": [
+      {
+        "ref": "target-1",
+        "inspection": {
+          "selector": "#inspection-target",
+          "tag": "button",
+          "id": "inspection-target",
+          "classes": [],
+          "text": "Responsive inspection target",
+          "role": null,
+          "ariaLabel": null,
+          "rect": {
+            "left": 486.291072,
+            "top": 324.0005405,
+            "width": 153.77966381250008,
+            "height": 17.25351599999999,
+            "right": 640.0707358125001,
+            "bottom": 341.2540565,
+            "x": 486.291072,
+            "y": 324.0005405
+          },
+          "margin": {
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          },
+          "padding": {
+            "top": 1,
+            "right": 6,
+            "bottom": 1,
+            "left": 6
+          },
+          "border": {
+            "top": 2,
+            "right": 2,
+            "bottom": 2,
+            "left": 2
+          },
+          "typography": {
+            "fontFamily": "Arial",
+            "fontSize": "13.3333px",
+            "fontWeight": "400",
+            "lineHeight": "normal",
+            "letterSpacing": "normal",
+            "textAlign": "center",
+            "color": "rgb(0, 0, 0)"
+          },
+          "appearance": {
+            "backgroundColor": "rgb(239, 239, 239)",
+            "borderColor": "rgb(0, 0, 0)",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          },
+          "layout": {
+            "display": "inline-block",
+            "position": "static",
+            "zIndex": "auto",
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "flexDirection": "row",
+            "alignItems": "normal",
+            "justifyContent": "normal",
+            "gap": "normal",
+            "gridTemplateColumns": "none",
+            "gridTemplateRows": "none",
+            "transform": "none"
+          },
+          "scroll": {
+            "clientWidth": 183,
+            "clientHeight": 17,
+            "scrollWidth": 183,
+            "scrollHeight": 17,
+            "overflowsX": false,
+            "overflowsY": false
+          }
+        }
+      }
+    ],
+    "visualContext": {
+      "guides": [],
+      "layoutGuides": [],
+      "measurements": [
+        {
+          "id": "23365453-2aca-49e8-9510-e577b905117d",
+          "rect": {
+            "left": 486.291072,
+            "top": 324.0005405,
+            "width": 153.77966381250008,
+            "height": 17.25351599999999
+          },
+          "deltaX": 0,
+          "deltaY": 0,
+          "targetRef": "target-1"
+        }
+      ],
+      "distances": []
+    }
+  },
+  "nestedContext": {
+    "schema": "mesurer.context/v1",
+    "id": "0cf96c0b-226b-4fab-8cf3-f6b0f4b09f69",
+    "createdAt": "2026-10-16T20:33:54.418Z",
+    "scope": {
+      "kind": "selection"
+    },
+    "page": {
+      "url": "http://127.0.0.1:4192/responsive-preview.html",
+      "title": "Responsive preview contract"
+    },
+    "viewport": {
+      "width": 1280,
+      "height": 900,
+      "devicePixelRatio": 1,
+      "scrollX": 0,
+      "scrollY": 0
+    },
+    "coordinateSpace": "viewport-css-px",
+    "regions": [
+      {
+        "left": 533.94364,
+        "top": 388.9066245,
+        "width": 139.67132000000004,
+        "height": 59.15491199999997
+      }
+    ],
+    "visualState": {
+      "rulersVisible": false,
+      "xrayVisible": false
+    },
+    "targets": [
+      {
+        "ref": "target-1",
+        "inspection": {
+          "selector": "[data-testid=\"nested-inspection-target\"]",
+          "tag": "button",
+          "id": null,
+          "classes": [],
+          "text": "Nested target",
+          "role": null,
+          "ariaLabel": null,
+          "rect": {
+            "left": 533.94364,
+            "top": 388.9066245,
+            "width": 139.67132000000004,
+            "height": 59.15491199999997,
+            "right": 673.61496,
+            "bottom": 448.0615365,
+            "x": 533.94364,
+            "y": 388.9066245
+          },
+          "margin": {
+            "top": 48,
+            "right": 48,
+            "bottom": 48,
+            "left": 48
+          },
+          "padding": {
+            "top": 1,
+            "right": 6,
+            "bottom": 1,
+            "left": 6
+          },
+          "border": {
+            "top": 2,
+            "right": 2,
+            "bottom": 2,
+            "left": 2
+          },
+          "typography": {
+            "fontFamily": "Arial",
+            "fontSize": "13.3333px",
+            "fontWeight": "400",
+            "lineHeight": "normal",
+            "letterSpacing": "normal",
+            "textAlign": "center",
+            "color": "rgb(0, 0, 0)"
+          },
+          "appearance": {
+            "backgroundColor": "rgb(239, 239, 239)",
+            "borderColor": "rgb(0, 0, 0)",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          },
+          "layout": {
+            "display": "inline-block",
+            "position": "static",
+            "zIndex": "auto",
+            "overflowX": "visible",
+            "overflowY": "visible",
+            "flexDirection": "row",
+            "alignItems": "normal",
+            "justifyContent": "normal",
+            "gap": "normal",
+            "gridTemplateColumns": "none",
+            "gridTemplateRows": "none",
+            "transform": "none"
+          },
+          "scroll": {
+            "clientWidth": 166,
+            "clientHeight": 68,
+            "scrollWidth": 166,
+            "scrollHeight": 68,
+            "overflowsX": false,
+            "overflowsY": false
+          }
+        }
+      }
+    ],
+    "visualContext": {
+      "guides": [],
+      "layoutGuides": [],
+      "measurements": [
+        {
+          "id": "f9d6be64-1dab-41e5-acf1-19fd303032e1",
+          "rect": {
+            "left": 533.94364,
+            "top": 388.9066245,
+            "width": 139.67132000000004,
+            "height": 59.15491199999997
+          },
+          "deltaX": 0,
+          "deltaY": 0,
+          "targetRef": "target-1"
+        }
+      ],
+      "distances": []
+    }
+  },
+  "agentResult": {
+    "inspection": "#root-only-target",
+    "selection": "#root-only-target"
+  },
+  "errors": []
+}

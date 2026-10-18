@@ -32,6 +32,10 @@ export type BoxEdges = {
 export type InspectMeasurement = {
   id: string;
   rect: Rect;
+  /** Source-document CSS-pixel bounds, before projecting through scaled frames. */
+  cssRect?: Rect;
+  /** Document that owns cssRect. */
+  sourceDocument?: Document;
   paddingRect: Rect;
   marginRect: Rect;
   padding: BoxEdges;
@@ -89,3 +93,5 @@ export type ToolMode =
   | "text-inspector"
   | "xray"
   | "rulers";
+
+export type InfoCardMode = "off" | "hover" | "click";

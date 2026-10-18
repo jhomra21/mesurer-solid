@@ -1,4 +1,5 @@
-import { render } from "@solidjs/web";
+import { Portal, render } from "@solidjs/web";
+import { createSignal, untrack } from "solid-js";
 import {
   ContextActionsSelectOwnership,
   createDocumentInspectorMount,
@@ -7,6 +8,7 @@ import {
   type MesurerSolidRuntimeService,
   type MesurerWorkspaceRuntime,
 } from "@jhomra21/mesurer-solid-renderer";
+import { ContextNotesPanel } from "@jhomra21/mesurer-solid-renderer";
 import type { MesurerPlugin, PluginValue } from "./core";
 import {
   captureMesurerContext,
@@ -32,6 +34,8 @@ export const MESURER_CONTEXT_SETTINGS_STATE_ID = "mesurer.context.settings";
 
 const CONTEXT_UI_STATE_ID = "context.ui";
 
+const CONTEXT_NOTES_OPEN_STATE_ID = "context.notes-open";
+
 const DIRECT_EDIT_ACTIVE_ATTRIBUTE = "data-mesurer-direct-text-edit-active";
 
 const COPY_ICON = {
@@ -47,6 +51,11 @@ const COPY_SELECTION_ICON = {
 const NOTE_ICON = {
   viewBox: "0 0 256 256",
   paths: ["M229.66,58.34l-32-32a8,8,0,0,0-11.32,0l-96,96A8,8,0,0,0,88,128v32a8,8,0,0,0,8,8h32a8,8,0,0,0,5.66-2.34l96-96A8,8,0,0,0,229.66,58.34ZM124.69,152H104V131.31l64-64L188.69,88ZM200,76.69,179.31,56,192,43.31,212.69,64ZM224,128v80a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32h80a8,8,0,0,1,0,16H48V208H208V128a8,8,0,0,1,16,0Z"],
+};
+
+const NOTES_ICON = {
+  viewBox: "0 0 256 256",
+  paths: ["M40 40h176v16H40zm0 48h176v16H40zm0 48h112v16H40zm0 48h112v16H40zM184 144l40 40-48 48-40-40z"],
 };
 
 type ContextUiState = { hasSelection: boolean };
@@ -68,7 +77,7 @@ export type MesurerContextService = {
   select(selectors: string | readonly string[]): Promise<MesurerContextV1>;
   annotations(): Promise<MesurerAnnotation[]>;
   /** Remove one saved annotation after a trusted workflow has completed it. */
-  removeAnnotation(annotationId: string): Promise<void>;
+  removeAnnotation(annotationId: string, expectedContent?: { note: string; replies: NonNullable<MesurerAnnotation["replies"]> }): Promise<void>;
   review(annotationId?: string): Promise<MesurerReviewV1 | MesurerReviewV1[]>;
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
   prepareCapture(): Promise<void>;
@@ -114,8 +123,11 @@ const createService = (
 
   const annotations = async () => runtime.annotations();
 
-  const removeAnnotation = async (annotationId: string) => {
-    runtime.removeAnnotation(annotationId);
+  const removeAnnotation = async (
+    annotationId: string,
+    expectedContent?: { note: string; replies: NonNullable<MesurerAnnotation["replies"]> },
+  ) => {
+    runtime.removeAnnotation(annotationId, expectedContent);
     await stable(ownerDocument, ownerWindow);
   };
 
@@ -171,10 +183,11 @@ const createService = (
   };
 };
 
-const hasContextSelection = (runtime: MesurerWorkspaceRuntime) => {
+const hasContextSelection = (runtime: MesurerWorkspaceRuntime, rendererRoot: HTMLElement | undefined) => {
   const selection = runtime.currentSelection();
 
-  return selection.elements.length > 0 || selection.region !== null;
+  return selection.elements.length > 0
+    || (selection.region !== null && !rendererRoot?.querySelector("[data-mesurer-responsive-stage]"));
 };
 
 export function context(options: MesurerContextPluginOptions = {}): MesurerPlugin {
@@ -187,11 +200,30 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       const solid = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
 
       if (!solid) throw new Error("Mesurer context plugin requires the renderer runtime service.");
+      const notesMount = solid.rendererRoot;
+
+      if (!notesMount) throw new Error("Mesurer Notes requires the renderer root.");
 
       // Annotation markers/cards are page evidence, not viewport furniture. Put
       // their interactive root in the same document scroll tree as the selected
       // page element; the canonical toolbar remains isolated in its normal root.
       const runtime = solid.createWorkspaceRuntime(MESURER_CONTEXT_PLUGIN_ID);
+      const revealCoordinator = solid.createAnnotationRevealCoordinator(runtime);
+      // The published plugins and renderer entries are separate bundles, each
+      // with its own Solid runtime. The panel renders from this plugin's signal;
+      // the toolbar can only track the mirrored host state.
+      const [notesOpen, setLocalNotesOpen] = createSignal(false);
+      ctx.state.register<boolean>({ id: CONTEXT_NOTES_OPEN_STATE_ID, initial: false });
+
+      const setNotesOpen = (open: boolean) => {
+        setLocalNotesOpen(open);
+
+        if (ctx.state.get<boolean>(CONTEXT_NOTES_OPEN_STATE_ID) !== open) {
+          ctx.state.update<boolean>(CONTEXT_NOTES_OPEN_STATE_ID, () => open);
+        }
+      };
+
+      const notesOpenForToolbar = () => ctx.state.get<boolean>(CONTEXT_NOTES_OPEN_STATE_ID) ?? false;
 
       const layoutGuides = (): MesurerContextLayoutGuide[] =>
         ctx.service.get<MesurerLayoutGuidesService>(MESURER_LAYOUT_GUIDES_SERVICE_ID)?.list() ?? [];
@@ -212,13 +244,18 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       });
       ctx.state.register<ContextUiState>({
         id: CONTEXT_UI_STATE_ID,
-        initial: { hasSelection: hasContextSelection(runtime) },
+        initial: { hasSelection: hasContextSelection(runtime, solid.rendererRoot) },
       });
 
       const uiEnabled = () => ctx.state.get<ContextSettingsState>(MESURER_CONTEXT_SETTINGS_STATE_ID)?.ui ?? true;
-      const hasSelection = () => ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection === true;
+      const hasSelection = () => hasContextSelection(runtime, solid.rendererRoot);
 
       const setUiEnabled = (ui: boolean) => {
+        if (!ui) {
+          setNotesOpen(false);
+          revealCoordinator.cancel();
+        }
+
         ctx.state.update<ContextSettingsState>(MESURER_CONTEXT_SETTINGS_STATE_ID, (current) => ({ ...current, ui }));
       };
 
@@ -226,6 +263,12 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       let disposeUi: (() => void) | null = null;
       let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
       let directEditObserver: MutationObserver | null = null;
+
+      const [stageOpen, setStageOpen] = createSignal(
+        Boolean(solid.rendererRoot?.querySelector("[data-mesurer-responsive-stage]")),
+      );
+
+      let uiParent: Node | null = null;
       const initialSelection = runtime.currentSelection();
 
       let previousSelection = {
@@ -262,7 +305,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
         if (runtime.selectGestureActive()) uiController?.abandonNoteComposer();
         else if (selectionChanged) uiController?.closeNoteComposer();
 
-        const next = nextSelection.elements.length > 0 || nextSelection.region !== null;
+        const next = hasContextSelection(runtime, solid.rendererRoot);
         const current = ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection ?? false;
 
         if (next !== current) ctx.state.update<ContextUiState>(CONTEXT_UI_STATE_ID, () => ({ hasSelection: next }));
@@ -298,6 +341,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       const createUi = () => {
         if (uiMount) return;
         uiMount = createDocumentInspectorMount(solid);
+        uiParent = uiMount.element.parentNode;
         uiMount.element.dataset.mesurerLayer = "evidence";
         uiMount.element.dataset.mesurerContextRoot = "true";
 
@@ -317,16 +361,46 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
           runtime,
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
-          coordinateSpace: "document",
+          get coordinateSpace() { return stageOpen() ? "viewport" : "document"; },
           rendererRoot: solid.rendererRoot,
         };
 
         disposeUi = render(() => (
-          <ContextActionsSelectOwnership
-            {...actionProps}
-            ownerWindow={solid.ownerWindow}
-          />
+          <>
+            <ContextActionsSelectOwnership {...actionProps} ownerWindow={solid.ownerWindow} />
+            <Portal mount={notesMount}>
+              <ContextNotesPanel
+                runtime={runtime}
+                ownerWindow={solid.ownerWindow}
+                rendererRoot={solid.rendererRoot}
+                open={notesOpen()}
+                onOpenChange={(open) => {
+                  setNotesOpen(open);
+
+                  if (!open) revealCoordinator.cancel();
+                }}
+                onReveal={revealCoordinator.reveal}
+                onCancel={revealCoordinator.cancel}
+                onOpenAnnotation={(id) => {
+                  if (uiController) {
+                    uiController.openAnnotation(id);
+
+                    return;
+                  }
+
+                  solid.ownerDocument.querySelector<HTMLButtonElement>(
+                    `[data-mesurer-annotation-marker='true'][data-mesurer-annotation-id="${CSS.escape(id)}"]`,
+                  )?.click();
+                }}
+              />
+            </Portal>
+          </>
         ), uiMount.element);
+
+        if (untrack(stageOpen) && solid.rendererRoot) {
+          solid.rendererRoot.append(uiMount.element);
+          uiMount.element.style.zIndex = "90";
+        }
       };
 
       const syncUi = () => {
@@ -337,7 +411,31 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       syncUi();
       ctx.state.subscribe(syncUi);
 
-      ctx.command.register("context.add-note", () => uiController?.openNoteComposer());
+      const syncStage = () => {
+        const next = Boolean(solid.rendererRoot?.querySelector("[data-mesurer-responsive-stage]"));
+
+        if (next === untrack(stageOpen)) return;
+        setStageOpen(next);
+
+        if (!uiMount) return;
+        const parent = next ? solid.rendererRoot : uiParent;
+
+        if (parent && uiMount.element.parentNode !== parent) parent.appendChild(uiMount.element);
+        uiMount.element.style.zIndex = next ? "90" : "";
+        untrack(() => uiController?.closeNoteComposer());
+      };
+
+      solid.ownerWindow.addEventListener("mesurer:responsive-stage-change", syncStage);
+
+      ctx.command.register("context.add-note", () => {
+        if (hasSelection()) uiController?.openNoteComposer();
+      });
+      ctx.command.register("context.notes", () => {
+        if (!uiEnabled()) return;
+
+        if (notesOpen()) revealCoordinator.cancel();
+        setNotesOpen(!untrack(notesOpen));
+      });
       ctx.tool.register({
         id: "context.copy",
         label: "Copy context",
@@ -370,6 +468,17 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
         hidden: () => !uiEnabled(),
         disabled: () => !hasSelection(),
       });
+      ctx.tool.register({
+        id: "context.notes",
+        label: "Notes",
+        command: "context.notes",
+        order: 73,
+        toolbarMode: "always",
+        compactPinned: true,
+        icon: NOTES_ICON,
+        active: notesOpenForToolbar,
+        hidden: () => !uiEnabled(),
+      });
       ctx.settings.register({
         id: "context",
         label: "Context",
@@ -385,7 +494,9 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       });
 
       ctx.lifecycle.onDispose(() => {
+        revealCoordinator.dispose();
         unsubscribeRuntime();
+        solid.ownerWindow.removeEventListener("mesurer:responsive-stage-change", syncStage);
         destroyUi();
         runtime.dispose();
       });

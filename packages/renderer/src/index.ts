@@ -15,6 +15,8 @@ export { ContextActionsSelectOwnership } from "./components/ContextActionsSelect
 
 export type { ContextActionsSelectOwnershipProps } from "./components/ContextActionsSelectOwnership";
 
+export { ContextNotesPanel } from "./components/ContextNotesPanel";
+
 export { createDocumentInspectorMount } from "./runtime/document-inspector-mount";
 
 export type { DocumentInspectorMount } from "./runtime/document-inspector-mount";
@@ -30,6 +32,8 @@ export {
 export type {
   MesurerAnnotation,
   MesurerAnnotationBaseline,
+  MesurerAnnotationReply,
+  MesurerAnnotationStatus,
   MesurerAnnotationTarget,
   MesurerContextRequest,
   MesurerResolvedAnnotation,

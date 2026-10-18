@@ -10,6 +10,7 @@ import {
 type ToolbarButtonProps = {
   id: string;
   active: boolean;
+  expanded?: boolean;
   disabled?: boolean;
   builtin?: string;
   toolId?: string;
@@ -19,7 +20,7 @@ type ToolbarButtonProps = {
   onClick: () => void;
   tooltipVisible: boolean;
   tooltipInstant: boolean;
-  tooltipSide: "top" | "bottom";
+  tooltipSide: "top" | "bottom" | "left" | "right";
   onTooltipEnter: (id: string) => void;
   onTooltipLeave: () => void;
   children: any;
@@ -45,6 +46,7 @@ export function ToolbarButton(props: ToolbarButtonProps) {
         data-mesurer-builtin={props.builtin}
         data-mesurer-tool-id={props.toolId}
         aria-pressed={props.active ? "true" : "false"}
+        aria-expanded={props.expanded === undefined ? undefined : props.expanded ? "true" : "false"}
         aria-label={`${props.label}${visibleShortcut() ? ` (${visibleShortcut()})` : ""}`}
         disabled={props.disabled ?? false}
         class={`msr:flex msr:size-8 msr:select-none msr:items-center msr:justify-center msr:rounded-[8px] msr:outline-none ${props.active ? "msr:bg-[#0d99ff] msr:text-white" : inactiveClass()}`}
@@ -95,7 +97,7 @@ export function ToolbarModeSwitch(props: {
   shortcutsEnabled: boolean;
   tooltipVisibleId: string | null;
   tooltipInstant: boolean;
-  tooltipSide: "top" | "bottom";
+  tooltipSide: "top" | "bottom" | "left" | "right";
   onTooltipEnter: (id: string) => void;
   onTooltipLeave: () => void;
   onSelect: () => void;

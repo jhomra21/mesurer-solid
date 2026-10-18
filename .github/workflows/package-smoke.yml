@@ -415,7 +415,7 @@ jobs:
           mkdir -p /tmp/mesurer-solid2/src
           cd /tmp/mesurer-solid2
           npm init -y >/dev/null
-          npm install "$PACKAGE_TGZ" solid-js@2.0.0-rc.0 @solidjs/web@2.0.0-rc.0 vite@8.1.5 @solidjs/vite-plugin@3.0.0-next.29 >/dev/null
+          npm install "$PACKAGE_TGZ" solid-js@2.0.0-rc.15 @solidjs/web@2.0.0-rc.15 vite@8.1.5 @solidjs/vite-plugin@3.0.0-next.50 >/dev/null
           cat > index.html <<'HTML'
           <!doctype html><html><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
           HTML
@@ -632,6 +632,7 @@ jobs:
           bun tests/package-smoke/typography-hover-occlusion.mjs
           bun tests/package-smoke/annotation-draft-handoff.mjs
           bun tests/package-smoke/annotation-adjacent-handoff.mjs
+          bun tests/package-smoke/notes-toolbar-state.mjs
 
       - name: Upload packed browser Color Picker evidence
         if: always()
@@ -718,6 +719,23 @@ jobs:
           cd /tmp/mesurer-electron-macos
           ./node_modules/.bin/electron main-bundled.cjs
           cat artifacts/result.json
+
+      - name: Verify native toolbar docking window topologies
+        if: always()
+        run: |
+          cd /tmp/mesurer-electron-macos
+          bun build toolbar-docking-renderer.ts --target browser --format esm --outfile=toolbar-docking-renderer.js
+          MESURER_ELECTRON_DOCKING_OUT=/tmp/mesurer-electron-macos/docking-artifacts \
+            ./node_modules/.bin/electron toolbar-docking.cjs
+
+      - name: Upload native docking evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: macos-electron-docking
+          path: /tmp/mesurer-electron-macos/docking-artifacts
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload macOS Electron evidence
         if: always()

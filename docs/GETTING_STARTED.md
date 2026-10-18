@@ -1,6 +1,6 @@
 # Getting started
 
-Mesurer runs in the browser. Mount it once from the browser entry for the page or renderer you want to inspect. The current stable package is `mesurer-solid@0.2.1` on `latest`.
+Mesurer runs in the browser. Mount it once from the browser entry for the page or renderer you want to inspect. The current stable package is `mesurer-solid@0.2.2` on `latest`.
 
 ## Install
 
@@ -150,8 +150,8 @@ Once mounted:
 - hold `Alt` / `Option` for the distance overlay;
 - Context and Codex remain visible when switching between Select and Edit;
 - use `Shift+R` to select a Recording region when the plugin is enabled; MediaBunny owns encoding and export while the browser or extension only provides the live stream;
-- keep Rulers, Guides, and Layout Guides available while Edit is active; X-ray, Color Picker, Typography, Screenshot, and Recording stay in Select;
-- use the compact control to hide inactive toolbar items without changing active mode;
+- keep Rulers, Guides, and Layout Guides available while Edit is active; X-ray, Color Picker, Typography, Screenshot, Recording, and Motion inspection stay in Select;
+- use the compact control to keep the current mode, every active tool (including Select) in its pressed state, and the expand control visible while hiding inactive tools; the Settings shortcut remains available while compact when shortcuts are enabled;
 - drag the toolbar from its chrome or tool triggers; menus, dialogs, form controls, editable regions, and sliders keep pointer ownership.
 
 The base inspector includes Select, X-ray, Color Picker, Rulers, Typography, Guides, Distance, Settings, direct text editing, and plugin hosting. Typography is read-only inspection in Select. Enter Edit before changing text or typography. Rulers and ordinary Guides remain usable in Edit, and the optional Layout Guides plugin does too.

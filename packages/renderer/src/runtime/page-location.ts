@@ -1,13 +1,15 @@
 type PageLocationListener = (pageKey: string) => void;
 
 type Tracker = {
+  document: Document;
+  releaseNativeListeners: () => void;
   listeners: Set<PageLocationListener>;
   pushState: History["pushState"];
   replaceState: History["replaceState"];
   handleNativeChange: () => void;
 };
 
-const trackers = new WeakMap<Window, Tracker>();
+const trackers = new WeakMap<Document, Tracker>();
 
 export const getMesurerPageKey = (ownerWindow: Window) => {
   const path = ownerWindow.location.pathname.replace(/\/+$/, "") || "/";
@@ -27,15 +29,21 @@ const notify = (ownerWindow: Window, tracker: Tracker) => {
 };
 
 const ensureTracker = (ownerWindow: Window) => {
-  const current = trackers.get(ownerWindow);
+  const current = trackers.get(ownerWindow.document);
 
   if (current) return current;
 
   const history = ownerWindow.history;
   const pushState = history.pushState;
   const replaceState = history.replaceState;
+  const removeListener = ownerWindow.removeEventListener.bind(ownerWindow);
 
   const tracker: Tracker = {
+    document: ownerWindow.document,
+    releaseNativeListeners: () => {
+      removeListener("popstate", tracker.handleNativeChange);
+      removeListener("hashchange", tracker.handleNativeChange);
+    },
     listeners: new Set(),
     pushState,
     replaceState,
@@ -60,19 +68,23 @@ const ensureTracker = (ownerWindow: Window) => {
 
   ownerWindow.addEventListener("popstate", tracker.handleNativeChange);
   ownerWindow.addEventListener("hashchange", tracker.handleNativeChange);
-  trackers.set(ownerWindow, tracker);
+  trackers.set(ownerWindow.document, tracker);
 
   return tracker;
 };
 
 const releaseTracker = (ownerWindow: Window, tracker: Tracker) => {
-  if (tracker.listeners.size > 0 || trackers.get(ownerWindow) !== tracker) return;
+  if (tracker.listeners.size > 0 || trackers.get(tracker.document) !== tracker) return;
 
-  ownerWindow.history.pushState = tracker.pushState;
-  ownerWindow.history.replaceState = tracker.replaceState;
-  ownerWindow.removeEventListener("popstate", tracker.handleNativeChange);
-  ownerWindow.removeEventListener("hashchange", tracker.handleNativeChange);
-  trackers.delete(ownerWindow);
+  // A frame's WindowProxy survives navigation; an old document must not undo
+  // the new document's history subscription.
+  if (tracker.document.defaultView === ownerWindow) {
+    ownerWindow.history.pushState = tracker.pushState;
+    ownerWindow.history.replaceState = tracker.replaceState;
+  }
+
+  tracker.releaseNativeListeners();
+  trackers.delete(tracker.document);
 };
 
 export const subscribeMesurerPageKey = (

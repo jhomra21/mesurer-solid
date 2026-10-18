@@ -53,13 +53,14 @@ describe("Mesurer host integration", () => {
     });
 
     const labels = [...toolbar!.querySelectorAll<HTMLButtonElement>("button[aria-label]")].map((button) => button.getAttribute("aria-label"));
-    expect(labels.slice(0, 9)).toEqual([
+    expect(labels.slice(0, 10)).toEqual([
       "Select mode (1)",
       "Edit mode (2)",
       "Select (S)",
       "X-ray (X)",
       "Color picker (P)",
       "Typography (A)",
+      "Responsive (B)",
       "Rulers (R)",
       "Guides (G)",
       "Guide orientation menu",

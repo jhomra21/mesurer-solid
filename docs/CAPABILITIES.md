@@ -1,21 +1,27 @@
 # Capabilities
 
-This page lists the public Mesurer features and the APIs that expose them for `mesurer-solid@0.2.1` stable. Feature guides contain the detailed interaction rules.
+This page lists the public Mesurer features and the APIs that expose them for `mesurer-solid@0.2.2` stable. Feature guides contain the detailed interaction rules.
 
 ## Built-in tools
 
 | Tool | What it does |
 | --- | --- |
-| Select | Select one or many rendered HTML or SVG elements and report exact geometry. Invoking Select clears the current element and Guide selection before toggling the tool. |
+| Select | Select one or many rendered HTML or SVG elements and report exact geometry, including accessible same-origin iframe documents. Invoking Select clears the current element and Guide selection before toggling the tool. |
+| Inspect info card | Show a compact selector, source CSS-pixel dimensions, typography, and ordered nondefault CSS details for a selected element. **Settings > Select** chooses Off, Click (default), or Hover; Hover previews are pass-through, while the selected card remains interactive for copying and expanding CSS details. |
 | X-ray | Show page structure without changing application source. |
+| Motion | Built into Select; inspect motion on the selected element with a live preview, play/pause, scrubbing, preset or custom speed, Web Animations API targets, and grouped, copyable keyframe details. The expandable inspection panel also embeds the selected element's Inspect CSS details. Observed JavaScript motion is read-only. |
+| Same-origin iframes | Select, measurement geometry, X-ray, Motion, and Context work across accessible same-origin frames, including 2D-scaled or transformed frame ancestry. Cross-origin frames are inaccessible and fail closed. |
 | Color Picker | Sample a rendered color from the current application window when a host capture capability exists; otherwise use the browser `EyeDropper` when operational. Copy the sample in the configured `colorPickerClickFormat`. |
 | Rulers | Show viewport rulers and ruler settings. |
+| Responsive | Built in and on by default. Press **B** to open an iPhone 15 (393 × 852 CSS px) live same-origin iframe preview. Add up to six device or page-breakpoint sizes, use each preview's Size selector or width/height fields, and reorder them without reloading sibling frames. Duplicate sizes have separate preview identities; Add disables at six previews. Use shared Fit or manual zoom. Select, marquee selection, measurements, X-ray, Typography, Inspect CSS/copy, and per-preview Guides route to accessible preview documents, with evidence projected over each scaled frame. The selected Inspect card stays interactive in the protected root overlay and reads CSS and dimensions from the preview source document; Mesurer never mounts it in the preview. Color Picker, Screenshot, and Recording keep the stage open and layer their sampling/selection UI above previews. Layout Guides project using shared page settings. Rulers remain page-only and close the stage. Context notes map preview comments into viewport-scoped annotations with exact URL/width/height/preview identity, stay in the root overlay, and rebind only to a unique matching viewport. Context/capture output includes viewport metadata; selector-based agent methods remain root-scoped. Context Notes explicitly reveals a saved note's root target or exact saved preview URL/width/height; it reuses only an unambiguous exact viewport, creates a missing viewport, and replaces the last preview at the six-preview limit. Context reads never reveal notes. Turn Responsive off in Settings or omit it with `excludeBuiltins: ["responsive"]`. Preview pages rerun their JavaScript and require same-origin access. |
 | Typography | Inspect rendered typography and computed type styles in Select mode. |
 | Guides | Add horizontal and vertical guides, including snapping behavior. |
 | Distance | Show spacing between rendered targets. Box-to-box lines use shared-overlap anchors, guide distances use the guide as line geometry, and container spacing uses the padding box. Multi-selection Context also reports pairwise distances. |
-| Settings | Control Mesurer preferences, plugin availability, shortcuts, appearance, and presentation options. |
+| Settings | Control Mesurer preferences, plugin availability, shortcuts, appearance, presentation options, Inspect card mode, and whether CSS layout details are shown. |
 
 The default keyboard shortcuts are listed in the root [README](../README.md).
+
+Responsive reloads the live page and runs its JavaScript. Requests and other side effects repeat; the iframe sandbox is not a security boundary. See [Responsive inspector](./RESPONSIVE_INSPECTOR.md).
 
 ## Renderer capabilities
 
@@ -23,7 +29,9 @@ The default keyboard shortcuts are listed in the root [README](../README.md).
 | --- | --- |
 | Direct text editing | In Edit mode, double-click or double-tap a valid direct text run in an HTML element. Mixed inline copy can target the exact run under the pointer while preserving inline children. Typography in Select remains inspection-only. SVG selection does not enable direct text editing. |
 | Select/Edit modes | Select owns selection-first inspection/capture tools such as X-ray, Color Picker, Typography, Screenshot, and Recording. Edit owns movement and direct text/style editing. Rulers, Guides, and Layout Guides remain available in both modes; Context and Codex remain visible in both. The grouped toolbar changes mode in 150 ms and respects reduced-motion preferences. |
-| Compact toolbar | Hide inactive controls without changing mode or active state. Expanding restores the same controls. Toolbar dragging starts after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. |
+| Compact toolbar | Keep the current Select/Edit mode, every active tool (including Select) in its pressed state, and the expand control; hide inactive tools. The Settings shortcut remains available while compact when shortcuts are enabled. Toolbar dragging starts after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. |
+| Toolbar docking | Free by default. Settings > General > Dock offers Snap to edges, with 16px edge/corner insets, start/center/end alignment, vertical left/right layouts, and tab-session placement persistence. Native window-control exclusions remain respected. |
+| Toolbar auto-hide | Optional, off by default, and shown only in Snap mode. After first reach, hides 600ms after leaving; a 48px edge hot zone reveals it. Open toolbar surfaces, Motion, active tools, and keyboard focus keep it visible. |
 | Multi-selection | Extend Select across multiple targets and inspect group geometry plus pairwise relationships. |
 | Visual hit testing | Select and agent point inspection share the rendered-point resolver. It follows the native front-to-back hit stack, traverses open shadow roots, and can recover visible `pointer-events:none` descendants that native hit testing would otherwise skip. |
 | Presentation ownership | Edit movement and text previews restore only values Mesurer still owns. Host-authored changes remain untouched. |
@@ -46,7 +54,7 @@ All public plugin factories come from `mesurer-solid/plugins`.
 | Recording | `recording()` | `MesurerRecordingService` | [Recording](./RECORDING.md) |
 | Codex | `codex()` | `MesurerCodexService` | [Queue Context feedback to Codex](./CODEX.md) |
 
-- Context adds structured Context, exact selection, saved annotations, review, capture planning, Copy Context, Copy Selection, and Add Note.
+- Context adds structured Context, exact selection, saved annotations with chronological replies and resolve/reopen status, review, capture planning, Copy Context, Copy Selection, Add Note, and the searchable Notes list with Open/Resolved/All filters. Annotation-scoped Context includes replies and resolved status; bulk Codex delivery queues open notes only. Opening a list row explicitly reveals its target; Context reads remain presentation-neutral.
 - Edit adds reversible movement plus direct text/style editing. The existing Arrange service ids and agent methods remain compatible.
 - Layout Guides adds page-scoped columns, rows, and pixel grids. Mutations run through JSON-safe plugin commands, participate in plugin history, and are available through the typed `layout-guides:v1` service.
 - Screenshot adds region capture with preview, clipboard copy, download, and programmatic capture. It selects an application-native host capability, the Chromium extension adapter, or browser display capture internally, and flattens transparent native PNGs against the renderer backdrop before output.
@@ -106,6 +114,7 @@ These methods require the Context capability.
 | `contextText(request?)` | Format the same Context evidence as text. |
 | `select(selectorOrSelectors)` | Select exact rendered targets and return selection Context. Every selector must resolve to one element. |
 | `annotations()` | List saved annotations. |
+| `context({ annotation })` | Return one saved note with its replies, status, and current target evidence. |
 | `review(annotationId?)` | Compare saved annotation baselines with the current rendered result. |
 | `capturePlan(request?)` | Return the regions needed for a Context or annotation screenshot. |
 | `prepareCapture()` | Hide or adjust Mesurer presentation before an external screenshot. |
@@ -171,7 +180,7 @@ Renderer-only services remain private. Public plugins request them by service id
 
 When `agent` is an object instead of `true`, `AgentBridgeOptions` also accepts `globalName` and `root`. The returned `mounted.agent` exists regardless; `agent` controls whether that interface is also installed on the owning window.
 
-`excludeBuiltins` uses the public built-in names `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, and `settings`. The older `excludePlugins` option and `onPluginsReady` callback remain compatibility surfaces; new code should use `excludeBuiltins` and `await mounted.ready`.
+`excludeBuiltins` uses the public built-in names `select`, `xray`, `colorPicker`, `rulers`, `responsive`, `typography`, `guides`, `distance`, and `settings`. The older `excludePlugins` option and `onPluginsReady` callback remain compatibility surfaces; new code should use `excludeBuiltins` and `await mounted.ready`.
 
 A supplied `pluginHost` is caller-owned. Mount disposal removes the renderer but does not dispose that host. `onPluginHost` runs when the host becomes available, before configured plugin startup settles.
 

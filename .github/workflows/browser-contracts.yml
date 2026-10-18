@@ -9,8 +9,12 @@ on:
       - "packages/renderer/src/Mesurer.tsx"
       - "packages/renderer/src/components/Icons.tsx"
       - "packages/renderer/src/components/ContextActions.tsx"
+      - "packages/renderer/src/components/ContextNotesPanel.tsx"
       - "packages/renderer/src/components/DistanceOverlayItem.tsx"
       - "packages/renderer/src/components/MeasurementBox.tsx"
+      - "packages/renderer/src/components/InspectInfoCard.tsx"
+      - "packages/renderer/src/components/InspectDetailRow.tsx"
+      - "packages/renderer/src/runtime/inspect-info.ts"
       - "packages/renderer/src/components/LayoutGuidesOverlay.tsx"
       - "packages/renderer/src/components/LayoutGuidesPanel.tsx"
       - "packages/renderer/src/components/MesurerOverlay.tsx"
@@ -23,13 +27,26 @@ on:
       - "packages/renderer/src/core/layout-guides.ts"
       - "packages/renderer/src/core/option-measurements.ts"
       - "packages/renderer/src/core/persistence.ts"
+      - "packages/renderer/src/core/inspect-css.ts"
+      - "packages/mesurer-core/src/domain.ts"
+      - "packages/mesurer-core/src/model.ts"
       - "packages/renderer/src/core/selection-helpers.ts"
       - "packages/renderer/src/core/selection.ts"
+      - "packages/renderer/src/core/document-tree.ts"
+      - "packages/renderer/src/runtime/xray-scope.ts"
+      - "packages/renderer/src/runtime/workspace-context.ts"
+      - "packages/renderer/src/runtime/annotation-reveal.ts"
+      - "packages/renderer/src/runtime/composable-contract.ts"
+      - "packages/renderer/src/runtime/preview-context.ts"
+      - "packages/mesurer-core/src/context.ts"
+      - "packages/mesurer/src/context.ts"
+      - "packages/renderer/src/plugins/responsive/**"
       - "packages/mesurer-dom/src/index.ts"
       - "packages/mesurer/src/agent.ts"
       - "extension/active-tabs.js"
       - "extension/background.js"
       - "extension/build.mjs"
+      - "extension/manifest.json"
       - "packages/renderer/src/model/create-mesurer-model.ts"
       - "packages/renderer/src/plugins/arrange-core.ts"
       - "packages/renderer/src/plugins/arrange.ts"
@@ -63,6 +80,8 @@ on:
       - "examples/basic/src/multi-spacing.ts"
       - "examples/basic/plugin-settings.html"
       - "examples/basic/layout-guides.html"
+      - "examples/basic/responsive-preview.html"
+      - "examples/basic/src/responsive-preview.tsx"
       - "examples/basic/src/layout-guides-contract.ts"
       - "examples/basic/src/plugin-settings.ts"
       - "examples/basic/selection-hit-testing.html"
@@ -73,10 +92,13 @@ on:
       - "tests/visual-parity/arrange-contract.mjs"
       - "tests/visual-parity/arrange-presentation-policy-contract.mjs"
       - "tests/visual-parity/color-picker-contract.mjs"
+      - "tests/visual-parity/toolbar-drag-contract.mjs"
+      - "tests/visual-parity/toolbar-compact-contract.mjs"
       - "tests/visual-parity/presentation-settings-contract.mjs"
       - "tests/visual-parity/selection-scroll-contract.mjs"
       - "tests/visual-parity/selection-hit-testing-contract.mjs"
       - "tests/visual-parity/extension-active-tabs-contract.mjs"
+      - "tests/visual-parity/responsive-extension-assets-contract.mjs"
       - "tests/visual-parity/shortcuts-setting-contract.mjs"
       - "tests/visual-parity/text-editing-contract.mjs"
       - "tests/visual-parity/theme-contract.mjs"
@@ -88,6 +110,15 @@ on:
       - "tests/visual-parity/multi-spacing.mjs"
       - "tests/visual-parity/plugin-settings-contract.mjs"
       - "tests/visual-parity/layout-guides-contract.mjs"
+      - "tests/visual-parity/responsive-preview-contract.mjs"
+      - "tests/visual-parity/responsive-viewports-contract.mjs"
+      - "tests/visual-parity/responsive-inspection-contract.mjs"
+      - "tests/visual-parity/inspect-info-contract.mjs"
+      - "tests/visual-parity/responsive-guides-contract.mjs"
+      - "tests/visual-parity/responsive-tools-contract.mjs"
+      - "tests/visual-parity/responsive-context-contract.mjs"
+      - "tests/visual-parity/context-thread-contract.mjs"
+      - "tests/visual-parity/responsive-note-reveal-contract.mjs"
       - ".github/workflows/browser-contracts.yml"
   workflow_dispatch:
 
@@ -117,6 +148,9 @@ jobs:
 
       - name: Build foundations
         run: bun run build:foundations
+
+      - name: Build Mesurer extension
+        run: bun run build:packages && bun run extension:build
 
       - name: Generate renderer styles
         run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
@@ -150,7 +184,7 @@ jobs:
             echo $! > ../../browser-contracts-vite.pid
           )
 
-          for path in index.html self-hosting.html multi-spacing.html plugin-settings.html selection-hit-testing.html extension-active-tabs.html layout-guides.html; do
+          for path in index.html self-hosting.html multi-spacing.html plugin-settings.html selection-hit-testing.html extension-active-tabs.html layout-guides.html responsive-preview.html; do
             ready=0
             for attempt in $(seq 1 45); do
               if curl --fail --silent --show-error "http://127.0.0.1:4174/${path}" >/dev/null; then
@@ -169,7 +203,13 @@ jobs:
       - name: Exercise toolbar drag ownership
         env:
           TOOLBAR_DRAG_URL: http://127.0.0.1:4174/
+          TOOLBAR_RESPONSIVE_URL: http://127.0.0.1:4174/responsive-preview.html
         run: bun tests/visual-parity/toolbar-drag-contract.mjs
+
+      - name: Exercise compact toolbar visibility
+        env:
+          TOOLBAR_COMPACT_URL: http://127.0.0.1:4174/
+        run: bun tests/visual-parity/toolbar-compact-contract.mjs
 
       - name: Exercise Edit movement and drag
         env:
@@ -239,6 +279,12 @@ jobs:
           EXTENSION_ACTIVE_TABS_OUT: extension-active-tabs-artifacts
         run: bun tests/visual-parity/extension-active-tabs-contract.mjs
 
+      - name: Exercise built Responsive extension assets
+        env:
+          RESPONSIVE_EXTENSION_ASSETS_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_EXTENSION_ASSETS_OUT: responsive-extension-assets-artifacts
+        run: bun tests/visual-parity/responsive-extension-assets-contract.mjs
+
       - name: Exercise Color Picker capability
         env:
           COLOR_PICKER_URL: http://127.0.0.1:4174/
@@ -272,6 +318,127 @@ jobs:
         env:
           LAYOUT_GUIDES_URL: http://127.0.0.1:4174/layout-guides.html
         run: bun tests/visual-parity/layout-guides-contract.mjs
+
+      - name: Exercise Responsive preview lifecycle
+        env:
+          RESPONSIVE_PREVIEW_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_PREVIEW_OUT: responsive-preview-artifacts
+        run: bun tests/visual-parity/responsive-preview-contract.mjs
+      - name: Exercise Responsive viewport controls
+        env:
+          RESPONSIVE_VIEWPORTS_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_VIEWPORTS_OUT: responsive-viewports-artifacts
+        run: bun tests/visual-parity/responsive-viewports-contract.mjs
+      - name: Exercise Responsive inspection routing
+        env:
+          RESPONSIVE_INSPECTION_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_INSPECTION_OUT: responsive-inspection-artifacts
+        run: bun tests/visual-parity/responsive-inspection-contract.mjs
+      - name: Exercise Inspect information card
+        env:
+          INSPECT_INFO_URL: http://127.0.0.1:4174/
+          INSPECT_INFO_OUT: inspect-info-artifacts
+        run: bun tests/visual-parity/inspect-info-contract.mjs
+      - name: Exercise Responsive Guides
+        env:
+          RESPONSIVE_GUIDES_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_GUIDES_OUT: responsive-guides-artifacts
+        run: bun tests/visual-parity/responsive-guides-contract.mjs
+      - name: Exercise Responsive preview tools
+        env:
+          RESPONSIVE_TOOLS_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_TOOLS_OUT: responsive-tools-artifacts
+        run: bun tests/visual-parity/responsive-tools-contract.mjs
+
+      - name: Exercise Responsive Context
+        env:
+          RESPONSIVE_CONTEXT_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_CONTEXT_OUT: responsive-context-artifacts
+        run: bun tests/visual-parity/responsive-context-contract.mjs
+      - name: Exercise Context annotation threads
+        env:
+          CONTEXT_THREAD_URL: http://127.0.0.1:4174/
+          CONTEXT_THREAD_OUT: context-thread-artifacts
+        run: bun tests/visual-parity/context-thread-contract.mjs
+      - name: Exercise saved-note Responsive reveal
+        env:
+          RESPONSIVE_NOTE_REVEAL_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_NOTE_REVEAL_OUT: responsive-note-reveal-artifacts
+        run: bun tests/visual-parity/responsive-note-reveal-contract.mjs
+      - name: Upload saved-note reveal evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-responsive-note-reveal-contract
+          path: responsive-note-reveal-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload Context thread evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-context-thread-contract
+          path: context-thread-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Responsive Context evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-responsive-context-contract
+          path: responsive-context-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Responsive evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-responsive-preview-contract
+          path: responsive-preview-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload Responsive viewport evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-responsive-viewports-contract
+          path: responsive-viewports-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload Responsive inspection evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-responsive-inspection-contract
+          path: responsive-inspection-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload Inspect information evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-inspect-info-contract
+          path: inspect-info-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload Responsive Guides evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-responsive-guides-contract
+          path: responsive-guides-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload Responsive tools evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-responsive-tools-contract
+          path: responsive-tools-artifacts
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Add rendered contract summary
         if: always()
@@ -398,6 +565,7 @@ jobs:
           path: |
             selection-hit-testing-artifacts
             extension-active-tabs-artifacts
+            responsive-extension-assets-artifacts
           if-no-files-found: warn
           retention-days: 14
 

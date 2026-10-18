@@ -1,5 +1,5 @@
-import { createEffect, onCleanup } from "solid-js";
-import { getMotionAnimations, motionCssProperty } from "../core/motion";
+import { createEffect, onCleanup, untrack } from "solid-js";
+import { scopedMotionAnimations, motionCssProperty } from "../core/motion";
 import { createMotionDependencies, cssVariables } from "../core/motion-dependencies";
 import { fitMotionPreview } from "../core/motion-preview";
 import { createMotionSnapshot } from "../core/motion-snapshot";
@@ -287,7 +287,7 @@ export function MotionPreview(props: {
         needsSize = true;
       }
 
-      const animations = getMotionAnimations(element);
+      const animations = scopedMotionAnimations(element);
 
       let changed = animations.length !== previousAnimations.length
         || animations.some((animation, index) => animation !== previousAnimations[index]);
@@ -469,7 +469,7 @@ export function MotionPreview(props: {
       };
     }
 
-    scan();
+    untrack(scan);
     size(false);
     needsSize = effects.length > 0 && !observedTargets.length;
     lastSize = ownerWindow.performance.now();

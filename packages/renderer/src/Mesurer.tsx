@@ -2,16 +2,17 @@ import { Show, createEffect, createMemo, createSignal, onSettled, untrack } from
 import { Portal } from "@solidjs/web";
 import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesurer-solid-core";
 import { ColorPicker } from "./components/ColorPicker";
+import { ResponsiveStage } from "./plugins/responsive/ResponsiveStage";
 import { MesurerOverlay } from "./components/MesurerOverlay";
 import { RulersOverlay } from "./components/RulersOverlay";
 import { Toolbar } from "./components/Toolbar";
 import type { ColorPickerFormat } from "./core/colors";
 import { GUIDE_DRAG_HOLD_MS } from "./core/constants";
 import { getDistanceOverlay, updateDistanceForResize } from "./core/distances";
-import { getInspectMeasurement, updateMeasurementForResize } from "./core/dom";
+import { getInspectMeasurement, getRectFromDom, updateMeasurementForResize } from "./core/dom";
 import { isEditableKeyboardEvent, trySetPointerCapture } from "./core/events";
 import { getRectFromPoints, getViewportSize, normalizeRect } from "./core/geometry";
-import { getAccessibleDocuments } from "./core/document-tree";
+import { getAccessibleDocuments, isResponsivePreviewDocument } from "./core/document-tree";
 import { projectPoint } from "./core/frame-geometry";
 import { getGuideRect, getSnapGuidePosition } from "./core/guides";
 import {
@@ -91,6 +92,10 @@ export type MesurerProps = {
   onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
   isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;
   onBuiltinController?: (controller: MesurerBuiltinController | null) => void;
+  responsiveOpen?: boolean;
+  responsiveShortcutsEnabled?(): boolean;
+  onResponsiveClose?: () => void;
+  onResponsiveToggle?: () => void;
   /** Internal composable-runtime accessor that keeps Edit hover visible outside selected subtrees. */
   editSelectionHover?(): boolean;
 };
@@ -105,6 +110,8 @@ type Environment = {
 
 type MesurerPointerInput = {
   currentTarget: HTMLDivElement;
+  sourceDocument?: Document;
+  sourcePoint?: Point;
   clientX: number;
   clientY: number;
   button: number;
@@ -117,6 +124,8 @@ type MesurerPointerInput = {
 };
 
 type MesurerPointerMoveInput = {
+  sourceDocument?: Document;
+  sourcePoint?: Point;
   clientX: number;
   clientY: number;
   altKey: boolean;
@@ -144,7 +153,12 @@ const readToolbarPosition = (ownerWindow: Window, storageKey: string): ToolbarPo
 
     if (!Number.isFinite(value.x) || !Number.isFinite(value.y)) return undefined;
 
-    return { x: value.x!, y: value.y! };
+    return {
+      x: value.x!, y: value.y!,
+      edge: value.edge === "top" || value.edge === "bottom" || value.edge === "left" || value.edge === "right" ? value.edge : null,
+      align: value.align === "start" || value.align === "end" ? value.align : "center",
+      vertical: value.vertical === true,
+    };
   } catch {
     return undefined;
   }
@@ -202,15 +216,31 @@ const sanitizeStoredSettings = (ownerWindow: Window, settings: MesurerStoredSett
 const unionSelection = (items: InspectMeasurement[], origin: Rect | null): InspectMeasurement | null => {
   if (items.length <= 1) return null;
   let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+  let cssLeft = Infinity, cssTop = Infinity, cssRight = -Infinity, cssBottom = -Infinity;
+  const sourceDocument = items[0].sourceDocument;
+  const shareSourceDocument = Boolean(sourceDocument && items.every((item) => item.sourceDocument === sourceDocument));
 
   for (const item of items) {
     left = Math.min(left, item.rect.left);
     top = Math.min(top, item.rect.top);
     right = Math.max(right, item.rect.left + item.rect.width);
     bottom = Math.max(bottom, item.rect.top + item.rect.height);
+
+    if (shareSourceDocument) {
+      const cssRect = item.cssRect ?? item.rect;
+      cssLeft = Math.min(cssLeft, cssRect.left);
+      cssTop = Math.min(cssTop, cssRect.top);
+      cssRight = Math.max(cssRight, cssRect.left + cssRect.width);
+      cssBottom = Math.max(cssBottom, cssRect.top + cssRect.height);
+    }
   }
 
   const rect = { left, top, width: right - left, height: bottom - top };
+
+  const cssRect = shareSourceDocument
+    ? { left: cssLeft, top: cssTop, width: cssRight - cssLeft, height: cssBottom - cssTop }
+    : undefined;
+
   const base = items[items.length - 1];
 
   return {
@@ -218,6 +248,8 @@ const unionSelection = (items: InspectMeasurement[], origin: Rect | null): Inspe
     id: `group-${items.map((item) => item.id).join("|")}`,
     label: `${items.length} elements`,
     rect,
+    cssRect,
+    sourceDocument: shareSourceDocument ? sourceDocument : undefined,
     paddingRect: rect,
     marginRect: rect,
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
@@ -247,6 +279,10 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   let switchingPage = false;
   let hoverFrame = 0;
   let hoverPoint: Point | null = null;
+  let hoverSourceDocument: Document | null = null;
+  let hoverSourcePoint: Point | null = null;
+  let pointerInputDocument: Document | null = null;
+  let pointerInputPoint: Point | null = null;
   let shiftToggleElement: Element | null = null;
   let shiftDrag = false;
   let guideDragHoldTimer = 0;
@@ -265,6 +301,14 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   const runBuiltinAction = (id: Exclude<MesurerBuiltinPluginId, "distance">, restartColorPicker = false) => {
     if (builtinActionDisabled(id)) return;
 
+    if (id === "responsive") {
+      input.onResponsiveToggle?.();
+
+      return;
+    }
+
+    if (id === "rulers" && input.responsiveOpen) input.onResponsiveClose?.();
+
     // Repeated-click inspection is one uninterrupted Select gesture. Any
     // toolbar action breaks that gesture so a later click cannot unexpectedly
     // promote a previously selected leaf to one of its ancestors.
@@ -282,6 +326,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     target: input.pageTarget ?? ownerDocument.body,
     instanceId,
   });
+
+  let responsiveWasOpen = false;
 
   input.onBuiltinController?.(builtinController);
 
@@ -373,7 +419,16 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       return;
     }
 
-    const target = getTargetElement(point, rootElement, ownerDocument, pageTarget);
+    const sourceDocument = hoverSourceDocument ?? ownerDocument;
+
+    const target = sourceDocument === ownerDocument
+      ? getTargetElement(point, rootElement, ownerDocument, pageTarget)
+      : getTargetElement(
+        hoverSourcePoint ?? point,
+        null,
+        sourceDocument,
+        sourceDocument.body,
+      );
 
     if (!target) {
       model.setHoverTarget(null, null);
@@ -381,9 +436,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       return;
     }
 
-    const rect = target.getBoundingClientRect();
     model.setHoverTarget(target, model.current.settings.hoverHighlightEnabled
-      ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+      ? getRectFromDom(target)
       : null);
   };
 
@@ -417,6 +471,14 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     });
   };
 
+  const clearPendingHover = () => {
+    if (hoverFrame) ownerWindow.cancelAnimationFrame(hoverFrame);
+    hoverFrame = 0;
+    hoverPoint = null;
+    hoverSourceDocument = null;
+    hoverSourcePoint = null;
+  };
+
   const clearGuideDragHold = () => {
     if (guideDragHoldTimer) ownerWindow.clearTimeout(guideDragHoldTimer);
     guideDragHoldTimer = 0;
@@ -440,6 +502,9 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   };
 
   const pointerDown = (event: MesurerPointerInput) => {
+    pointerInputDocument = event.sourceDocument ?? null;
+    pointerInputPoint = event.sourcePoint ?? null;
+
     if (model.current.settingsOpen || !model.current.enabled || event.button !== 0) return;
 
     if (model.current.toolMode === "none") return;
@@ -487,12 +552,17 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       ? (getSelectedMeasurementHit({ point, selectedMeasurements: model.current.selectedMeasurements, overlayNode: rootElement, document: ownerDocument, exact: true })?.elementRef ?? null)
       : null;
     model.setTransient({ start: point, end: point, isDragging: false, selectionOriginRect: null });
-    trySetPointerCapture(event.currentTarget, event.pointerId);
+
+    if (!event.sourceDocument || event.sourceDocument === ownerDocument) {
+      trySetPointerCapture(event.currentTarget, event.pointerId);
+    }
   };
 
   const pointerMove = (event: MesurerPointerMoveInput) => {
     if (!model.current.enabled || model.current.settingsOpen) return;
     const point = { x: event.clientX, y: event.clientY };
+    hoverSourceDocument = event.sourceDocument ?? null;
+    hoverSourcePoint = event.sourcePoint ?? null;
 
     if (event.altKey !== model.current.altPressed) model.setTransient({ altPressed: event.altKey });
     scheduleHover(point);
@@ -565,12 +635,43 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
  return; }
 
     const point = { x: event.clientX, y: event.clientY };
+    const sourceDocument = event.sourceDocument ?? pointerInputDocument ?? ownerDocument;
+    const sourcePoint = event.sourcePoint ?? pointerInputPoint ?? point;
+    const sourceOverlay = sourceDocument === ownerDocument ? rootElement : null;
+    const sourceTarget = sourceDocument === ownerDocument ? pageTarget : sourceDocument.body;
 
     if (model.current.isDragging) {
       clickCycle = null;
       const rect = getRectFromPoints(start, point);
-      const elements = getElementsInRectCached(rect, rootElement, selectionCache, ownerDocument, pageTarget);
-      const next = elements.map((element) => ({ ...getInspectMeasurement(element, ownerWindow), originRect: rect }));
+
+      const elements = getElementsInRectCached(
+        rect,
+        rootElement,
+        selectionCache,
+        ownerDocument,
+        input.responsiveOpen ? ownerDocument.body : pageTarget,
+        input.responsiveOpen
+          ? (element) => {
+            const dragDocument = pointerInputDocument ?? sourceDocument;
+
+            return isResponsivePreviewDocument(element.ownerDocument)
+              && getAccessibleDocuments(dragDocument).includes(element.ownerDocument);
+          }
+          : undefined,
+      );
+
+      const previewDragDocument = pointerInputDocument ?? sourceDocument;
+
+      const responsiveStageOpen = Boolean(rootElement?.querySelector("[data-mesurer-responsive-stage]"));
+
+      const scopedElements = responsiveStageOpen
+        ? elements.filter((element) =>
+          isResponsivePreviewDocument(element.ownerDocument)
+          && (element.ownerDocument === previewDragDocument
+            || getAccessibleDocuments(previewDragDocument).includes(element.ownerDocument)))
+        : elements;
+
+      const next = scopedElements.map((element) => ({ ...getInspectMeasurement(element, ownerWindow), originRect: rect }));
       let merged: InspectMeasurement[] = next;
 
       if (event.shiftKey) {
@@ -609,31 +710,34 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
     if (event.shiftKey) {
       clickCycle = null;
-      target = getTargetElement(point, rootElement, ownerDocument, pageTarget)
+      target = getTargetElement(sourcePoint, sourceOverlay, sourceDocument, sourceTarget)
         ?? getSnappedClickTarget(
-          point,
-          rootElement,
+          sourcePoint,
+          sourceOverlay,
           model.current.settings.snapEnabled,
-          ownerDocument,
-          pageTarget,
+          sourceDocument,
+          sourceTarget,
+          input.responsiveOpen && isResponsivePreviewDocument(sourceDocument) ? point : sourcePoint,
         );
     } else if (input.editSelectionHover?.()) {
       clickCycle = null;
       target = getSnappedClickTarget(
-        point,
-        rootElement,
+        sourcePoint,
+        sourceOverlay,
         model.current.settings.snapEnabled,
-        ownerDocument,
-        pageTarget,
+        sourceDocument,
+        sourceTarget,
+        input.responsiveOpen && isResponsivePreviewDocument(sourceDocument) ? point : sourcePoint,
       );
     } else {
       const cycled = getCycledClickTarget(
-        point,
-        rootElement,
+        sourcePoint,
+        sourceOverlay,
         model.current.settings.snapEnabled,
-        ownerDocument,
-        pageTarget,
+        sourceDocument,
+        sourceTarget,
         clickCycle,
+        input.responsiveOpen && isResponsivePreviewDocument(sourceDocument) ? point : sourcePoint,
       );
 
       target = cycled.target;
@@ -763,6 +867,49 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   );
 
   createEffect(
+    () => input.responsiveOpen === true,
+    (open) => {
+      xrayScope.setResponsiveOnly(open);
+
+      if (open && model.current.toolMode === "text-inspector") textInspector?.clearResponsivePreview();
+
+      const closedPreview = !open && responsiveWasOpen;
+      responsiveWasOpen = open;
+
+      if (!closedPreview) return;
+
+      clearPendingHover();
+      textInspector?.clearResponsivePreview();
+
+      model.setSelectedMeasurements([], null);
+      model.setSelectedGuideIds([]);
+      model.setHoverTarget(null, null);
+      model.setTransient({
+        start: null,
+        end: null,
+        isDragging: false,
+        selectionOriginRect: null,
+        hoverPointer: null,
+        guidePreview: null,
+      });
+      clickCycle = null;
+    },
+  );
+  createEffect(
+    () => [
+      input.responsiveOpen === true && model.state.toolMode === "guides",
+      model.state.altPressed,
+      model.state.guideOrientation,
+      model.state.settings.guideColor,
+      JSON.stringify(model.state.settings.guideStyle),
+    ] as const,
+    ([active, altPressed]) => {
+      ownerWindow.dispatchEvent(new CustomEvent("mesurer:responsive-guide-mode", { detail: active }));
+      ownerWindow.dispatchEvent(new CustomEvent("mesurer:responsive-guide-alt", { detail: altPressed }));
+    },
+  );
+
+  createEffect(
     () => [
       model.state.settings.highlightColor, model.state.settings.guideColor,
       model.state.settings.hoverHighlightEnabled, model.state.settings.persistOnReload,
@@ -770,6 +917,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       model.state.settings.colorPickerClickFormat, model.state.settings.snapEnabled,
       model.state.settings.snapGuidesEnabled, model.state.settings.selectNewGuideEnabled,
       model.state.settings.multiMeasureEnabled, model.state.settings.colorPickerFormats.join("|"),
+      model.state.settings.layoutDetailsEnabled, model.state.settings.infoCardMode,
       JSON.stringify(model.state.settings.guideStyle), JSON.stringify(model.state.settings.rulerSettings),
       JSON.stringify(props.selectionSpacingStyle),
     ],
@@ -796,8 +944,10 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   const collectAccessibleFrameDocuments = () =>
     new Set(
-      getAccessibleDocuments(pageTarget)
-        .filter((sourceDocument) => sourceDocument !== ownerDocument),
+      getAccessibleDocuments(input.responsiveOpen ? (rootElement ?? pageTarget) : pageTarget, { includeResponsiveFrames: input.responsiveOpen === true })
+        .filter((sourceDocument) =>
+          sourceDocument !== ownerDocument
+          && (!input.responsiveOpen || isResponsivePreviewDocument(sourceDocument))),
     );
 
   const installFramePointerInput = () => {
@@ -827,6 +977,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         currentTarget: overlay,
         clientX: point.x,
         clientY: point.y,
+        sourceDocument,
+        sourcePoint: { x: event.clientX, y: event.clientY },
         button: event.button,
         buttons: event.buttons,
         pointerId: event.pointerId,
@@ -842,36 +994,138 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       sourceDocument: Document,
     ) => {
       if (
-        !model.current.enabled
-        || model.current.settingsOpen
-        || model.current.toolMode !== "select"
-      ) {
+        input.responsiveOpen
+        && !isResponsivePreviewDocument(sourceDocument)
+      ) return;
+
+      if (!model.current.enabled || model.current.settingsOpen) {
         return;
       }
 
+      const typographyPreview = input.responsiveOpen
+        && model.current.toolMode === "text-inspector"
+        && isResponsivePreviewDocument(sourceDocument);
+
+      if (typographyPreview) {
+        if (event.type === "pointerdown") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+
+        if (event.type === "pointermove") {
+          const target = getTargetElement(
+            { x: event.clientX, y: event.clientY },
+            null,
+            sourceDocument,
+            sourceDocument.body,
+          );
+
+          if (target && "style" in target) {
+            // SAFETY: The style property is only present on HTMLElement targets selected from the preview document.
+            textInspector?.inspect(target as HTMLElement);
+          }
+          else textInspector?.clearHover();
+        } else if (event.type === "pointerup" && event.button === 0) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+
+          const target = getTargetElement(
+            { x: event.clientX, y: event.clientY },
+            null,
+            sourceDocument,
+            sourceDocument.body,
+          );
+
+          if (target && "style" in target) {
+            // SAFETY: The style property is only present on HTMLElement targets selected from the preview document.
+            textInspector?.pin(target as HTMLElement);
+          }
+        } else if (event.type === "pointerleave" || event.type === "pointercancel") {
+          textInspector?.clearHover();
+        }
+
+        return;
+      }
+
+      if (model.current.toolMode !== "select") return;
       const inputEvent = toPointerInput(event, sourceDocument);
 
       if (!inputEvent) return;
 
+      if (input.responsiveOpen && event.type === "pointerdown") {
+        ownerWindow.dispatchEvent(new CustomEvent("mesurer:responsive-frame-pointerdown"));
+      }
+
       event.preventDefault();
       event.stopImmediatePropagation();
 
-      if (event.type === "pointerdown") pointerDown(inputEvent);
+      if (event.type === "pointerdown") {
+        if (input.responsiveOpen && event.target && "setPointerCapture" in event.target) {
+          try {
+            // SAFETY: This branch narrows the pointer target to an element exposing Pointer Events capture methods.
+            (event.target as Element).setPointerCapture(event.pointerId);
+          } catch {
+            // Some DOM targets cannot capture despite belonging to the frame realm.
+          }
+        }
+
+        pointerDown(inputEvent);
+      }
       else if (event.type === "pointermove") pointerMove(inputEvent);
-      else if (event.type === "pointerup") pointerUp(inputEvent);
+      else if (event.type === "pointerup") {
+        pointerUp(inputEvent);
+
+        if (input.responsiveOpen && event.target && "releasePointerCapture" in event.target) {
+          try {
+            // SAFETY: This branch narrows the pointer target to an element exposing Pointer Events capture methods.
+            (event.target as Element).releasePointerCapture(event.pointerId);
+          } catch {
+            // The browser may already have released capture at pointerup.
+          }
+        }
+
+        pointerInputDocument = null;
+        pointerInputPoint = null;
+      }
       else pointerLeave();
     };
 
-    const handleClick = (event: MouseEvent) => {
+
+    const handleClick = (event: MouseEvent, sourceDocument: Document) => {
       if (
         !model.current.enabled
         || model.current.settingsOpen
-        || model.current.toolMode !== "select"
         || event.detail === 0
       ) {
         return;
       }
 
+      if (
+        input.responsiveOpen
+        && model.current.toolMode === "text-inspector"
+        && isResponsivePreviewDocument(sourceDocument)
+      ) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        if (event.button === 0) {
+          const target = getTargetElement(
+            { x: event.clientX, y: event.clientY },
+            null,
+            sourceDocument,
+            sourceDocument.body,
+          );
+
+          if (target && "style" in target) {
+            // SAFETY: The style property is only present on HTMLElement targets selected from the preview document.
+            textInspector?.pin(target as HTMLElement);
+          }
+        }
+
+        return;
+      }
+
+      if (model.current.toolMode !== "select") return;
       event.preventDefault();
       event.stopImmediatePropagation();
     };
@@ -901,7 +1155,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
             MouseEventConstructor
             && event instanceof MouseEventConstructor
           ) {
-            handleClick(event);
+            handleClick(event, sourceDocument);
           }
         };
 
@@ -910,6 +1164,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           ["pointermove", pointerListener],
           ["pointerup", pointerListener],
           ["pointercancel", pointerListener],
+          ["pointerleave", pointerListener],
           ["click", clickListener],
           ["load", () => refresh()],
         ];
@@ -948,6 +1203,17 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     };
 
     const ownerLoad = () => refresh();
+
+    const responsiveStageChange: EventListener = () => {
+      refresh();
+      xrayScope.sync();
+    };
+
+    const responsivePreviewReady: EventListener = () => {
+      refresh();
+      xrayScope.sync();
+    };
+
     const OwnerObserver = ownerDocument.defaultView?.MutationObserver ?? MutationObserver;
 
     const ownerObserver = ownerDocument.body
@@ -955,16 +1221,21 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       : null;
 
     ownerDocument.addEventListener("load", ownerLoad, true);
+    ownerWindow.addEventListener("mesurer:responsive-stage-change", responsiveStageChange);
+    ownerWindow.addEventListener("mesurer:responsive-preview-ready", responsivePreviewReady);
     ownerObserver?.observe(ownerDocument.body, {
       childList: true,
       subtree: true,
     });
 
     refresh();
+    ownerWindow.requestAnimationFrame(refresh);
 
     return () => {
       disposed = true;
       ownerDocument.removeEventListener("load", ownerLoad, true);
+      ownerWindow.removeEventListener("mesurer:responsive-stage-change", responsiveStageChange);
+      ownerWindow.removeEventListener("mesurer:responsive-preview-ready", responsivePreviewReady);
       ownerObserver?.disconnect();
 
       for (const observer of observers.values()) observer.disconnect();
@@ -1000,6 +1271,15 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     if (textInspectorPortalTarget !== env.portalTarget) ensureMesurerStyles(MESURER_STYLES, textInspectorPortalTarget);
     textInspector = createTextInspector({
       portalTarget: textInspectorPortalTarget,
+      getPortalTarget: () => untrack(() =>
+        input.responsiveOpen ? env.portalTarget : textInspectorPortalTarget),
+      projectRect: (element, rect) => {
+        if (!isResponsivePreviewDocument(element.ownerDocument)) return rect;
+        const projected = getRectFromDom(element);
+
+        return new DOMRect(projected.left, projected.top, projected.width, projected.height);
+      },
+      suppressRootPointer: () => input.responsiveOpen === true,
       theme: () => model.current.settings.theme,
       subscribeTheme: (listener) => {
         let previous = model.current.settings.theme;
@@ -1101,9 +1381,17 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
  return; }
 
-        if (model.current.colorPickerActive) { builtinController.deactivate("color-picker");
+        if (model.current.colorPickerActive) {
+          builtinController.deactivate("color-picker");
 
- return; }
+          return;
+        }
+
+        if (input.responsiveOpen) {
+          input.onResponsiveClose?.();
+
+          return;
+        }
 
         if (model.current.toolMode === "select") {
           const hasSelection = model.current.selectedMeasurements.length > 0
@@ -1144,6 +1432,13 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
         if (event.shiftKey) model.redo();
         else model.undo();
+
+        return;
+      }
+
+      if ((key === "delete" || key === "backspace") && input.responsiveOpen) {
+        ownerWindow.dispatchEvent(new CustomEvent("mesurer:responsive-delete-selected-guides"));
+        event.preventDefault();
 
         return;
       }
@@ -1325,13 +1620,14 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           guideDistanceOverlay={guideDistanceOverlay()}
           optionContainerLines={optionContainerLines()}
           hoverGuide={hoverGuide()}
+          responsiveOpen={input.responsiveOpen}
           selectionSpacingStyle={props.selectionSpacingStyle}
           interactive={model.state.enabled && !model.state.settingsOpen}
           editSelectionHover={() => input.editSelectionHover?.() ?? false}
-          onPointerDown={pointerDown}
-          onPointerMove={pointerMove}
-          onPointerUp={pointerUp}
-          onPointerLeave={pointerLeave}
+          onPointerDown={(event) => { if (!input.responsiveOpen) pointerDown(event); }}
+          onPointerMove={(event) => { if (!input.responsiveOpen) pointerMove(event); }}
+          onPointerUp={(event) => { if (!input.responsiveOpen) pointerUp(event); }}
+          onPointerLeave={() => { if (!input.responsiveOpen) pointerLeave(); }}
           onGuidePointerDown={guidePointerDown}
           onGuidePointerUp={guidePointerUp}
         />
@@ -1339,6 +1635,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           model={model}
           ownerWindow={ownerWindow}
           onHostPick={(point) => { void builtinController.pickColorAt(point); }}
+          responsiveOpen={input.responsiveOpen === true}
         />
         <Toolbar
           model={model}
@@ -1348,6 +1645,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           onPluginTool={input.onPluginTool}
           onPluginToolMenuItem={input.onPluginToolMenuItem}
           isBuiltinActionDisabled={builtinActionDisabled}
+          responsiveOpen={input.responsiveOpen}
           onClearWorkspace={clearWorkspace}
           selectionSpacingStyle={props.selectionSpacingStyle}
           onSelectionSpacingStyleChange={onSelectionSpacingStyleChange}
@@ -1356,6 +1654,34 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           onPositionChange={(position) => writeToolbarPosition(ownerWindow, storageKey, position)}
           motion={{ element: motionElement }}
         />
+        <Show when={input.responsiveOpen}>
+          <ResponsiveStage
+            ownerDocument={ownerDocument}
+            ownerWindow={ownerWindow}
+            host={rootElement!}
+            onClose={() => input.onResponsiveClose?.()}
+            onChromePointerMove={() => {
+              clearPendingHover();
+              textInspector?.clearResponsivePreview();
+              model.setHoverTarget(null, null);
+              model.setTransient({ hoverPointer: null });
+            }}
+            onPreviewRemove={() => {
+              clearPendingHover();
+              textInspector?.clearResponsivePreview();
+              model.setHoverTarget(null, null);
+              model.setTransient({ hoverPointer: null });
+              builtinController.clearSelection();
+            }}
+            shortcutsEnabled={input.responsiveShortcutsEnabled?.() ?? true}
+            guidesActive={() => model.current.toolMode === "guides"}
+            guideOrientation={() => model.current.guideOrientation}
+            altPressed={() => model.current.altPressed}
+            guideColor={() => model.current.settings.guideColor}
+            guideStyle={() => model.current.settings.guideStyle}
+            snapGuidesEnabled={() => model.current.settings.snapGuidesEnabled}
+          />
+        </Show>
       </div>
     </Portal>
   );
@@ -1374,12 +1700,16 @@ export default function Mesurer(props: MesurerProps) {
     persistOnReload: props.persistOnReload ?? false,
     shortcutsEnabled: props.shortcutsEnabled ?? true,
     theme: props.theme ?? "system",
+    toolbarDock: "free",
+    toolbarAutoHide: false,
     colorPickerFormats: props.colorPickerFormats ?? ["hex", "rgb", "oklch"],
     colorPickerClickFormat: props.colorPickerClickFormat ?? "hex",
     snapEnabled: props.snapEnabled ?? true,
     snapGuidesEnabled: props.snapGuidesEnabled ?? true,
     selectNewGuideEnabled: props.selectNewGuideEnabled ?? true,
     multiMeasureEnabled: props.multiMeasureEnabled ?? false,
+    layoutDetailsEnabled: true,
+    infoCardMode: "click",
     guideStyle: { ...DEFAULT_GUIDE_STYLE, ...props.guideStyle },
     rulerSettings: { ...DEFAULT_RULER_SETTINGS, ...props.rulerSettings },
   } satisfies MesurerSettings));

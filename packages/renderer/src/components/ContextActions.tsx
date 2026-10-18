@@ -1,5 +1,6 @@
 import { For, Show, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import { getRectFromDom } from "../core/dom";
+import { isResponsivePreviewDocument } from "../core/document-tree";
 import { trySetPointerCapture } from "../core/events";
 import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
 import {
@@ -7,12 +8,16 @@ import {
   type MesurerNestedScrollCompensation,
 } from "../runtime/nested-scroll-compensation";
 import { layoutAnnotationMarkers } from "./annotation-marker-layout";
-import { CloseIcon, CopyIcon, NoteIcon, TrashIcon } from "./Icons";
+import { AnnotationThread } from "./AnnotationThread";
+import { AnnotationDeleteConfirmation } from "./AnnotationDeleteConfirmation";
+import { AnnotationResolveIcon, CloseIcon, CopyIcon, NoteIcon, SendIcon, TrashIcon } from "./Icons";
+import { createTooltip, Tooltip } from "./Tooltip";
 
 export type ContextActionsController = {
   openNoteComposer(): void;
   closeNoteComposer(): void;
   abandonNoteComposer(): void;
+  openAnnotation(annotationId: string): void;
 };
 
 export type ContextActionsProps = {
@@ -27,6 +32,12 @@ export type ContextActionsProps = {
 type PositionedRect = { left: number; top: number; width: number; height: number };
 
 type ContextSelectionSnapshot = { elements: Element[]; region: PositionedRect | null };
+
+type AnnotationThreadGlobalHandlers = {
+  pointerdown(event: PointerEvent): void;
+  click(event: MouseEvent): void;
+  keydown(event: KeyboardEvent): void;
+};
 
 type AnnotationScrollBinding = {
   target: Element;
@@ -53,7 +64,7 @@ const ANNOTATION_PANEL_Z_INDEX = "2147483646";
 
 const ANNOTATION_HIGHLIGHT_Z_INDEX = "2147483645";
 
-const annotationButtonClass = "msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:cursor-default msr:disabled:opacity-40";
+const annotationButtonClass = "msr:flex msr:size-5 msr:items-center msr:justify-center msr:rounded-control msr:border-0 msr:bg-transparent msr:text-ink-500 msr:outline-none msr:hover:bg-ink-100 msr:hover:text-ink-900 msr:disabled:cursor-default msr:disabled:opacity-40";
 
 let annotationAnchorSequence = 0;
 
@@ -165,9 +176,9 @@ export function ContextActions(props: ContextActionsProps) {
   const [hoveredAnnotationId, setHoveredAnnotationId] = createSignal<string | null>(null);
   const [focusedAnnotationId, setFocusedAnnotationId] = createSignal<string | null>(null);
   const [panelPositions, setPanelPositions] = createSignal<Record<string, { left: number; top: number }>>({});
-  const [composerPosition, setComposerPosition] = createSignal<{ left: number; top: number } | null>(null);
   const [noteComposerOpen, setNoteComposerOpen] = createSignal(false);
   const [note, setNote] = createSignal("");
+  const [noteExpanded, setNoteExpanded] = createSignal(false);
   const [noteError, setNoteError] = createSignal<string | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [status, setStatus] = createSignal<string | null>(null);
@@ -191,6 +202,7 @@ export function ContextActions(props: ContextActionsProps) {
   let surfaceDragCleanup: (() => void) | null = null;
   let anchorElement: HTMLSpanElement | undefined;
   let annotationTriggerElement: HTMLButtonElement | undefined;
+  let composerOutsidePointer: ((event: PointerEvent) => void) | null = null;
   let annotationTriggerPointerId: number | null = null;
   let suppressAnnotationTriggerClick = false;
   let trackedTriggerElement: Element | null = null;
@@ -202,6 +214,35 @@ export function ContextActions(props: ContextActionsProps) {
   const annotationScrollBindings = new Map<string, AnnotationScrollBinding>();
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
+  let annotationThreadGlobalHandlers: AnnotationThreadGlobalHandlers | null = null;
+
+  const onAnnotationThreadPointerDown = (event: PointerEvent) => {
+    if (activeAnnotationId()) annotationThreadGlobalHandlers?.pointerdown(event);
+  };
+
+  const onAnnotationThreadClick = (event: MouseEvent) => {
+    if (activeAnnotationId()) annotationThreadGlobalHandlers?.click(event);
+  };
+
+  const onAnnotationThreadKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape" && event.composedPath().some((target) =>
+      target instanceof Element && target.matches("[role='dialog']"),
+    )) return;
+
+    if (activeAnnotationId()) annotationThreadGlobalHandlers?.keydown(event);
+  };
+
+  ownerWindow().document.addEventListener("pointerdown", onAnnotationThreadPointerDown, true);
+  ownerWindow().document.addEventListener("click", onAnnotationThreadClick, true);
+  ownerWindow().document.addEventListener("keydown", onAnnotationThreadKeyDown, true);
+  onCleanup(() => {
+    ownerWindow().document.removeEventListener("pointerdown", onAnnotationThreadPointerDown, true);
+    ownerWindow().document.removeEventListener("click", onAnnotationThreadClick, true);
+    ownerWindow().document.removeEventListener("keydown", onAnnotationThreadKeyDown, true);
+  });
+
+  const composerTooltip = createTooltip(ownerWindow());
+  const sendTooltipId = "context-annotation-send";
   const usesViewportCoordinates = () => props.coordinateSpace === "viewport";
 
   const scrollMode = (nativeAnchor: boolean) => nativeAnchor
@@ -244,12 +285,19 @@ export function ContextActions(props: ContextActionsProps) {
       && left.region.height === right.region.height;
   };
 
+  const detachComposerOutsidePointer = () => {
+    if (!composerOutsidePointer) return;
+    ownerWindow().document.removeEventListener("pointerdown", composerOutsidePointer, true);
+    composerOutsidePointer = null;
+  };
+
   const resetNoteComposerState = () => {
+    detachComposerOutsidePointer();
     composerSelection = null;
     setNote("");
+    setNoteExpanded(false);
     setNoteComposerOpen(false);
     setNoteError(null);
-    setComposerPosition(null);
   };
 
   const supportsNativeAnchors = () => {
@@ -308,7 +356,9 @@ export function ContextActions(props: ContextActionsProps) {
 
     if (!annotation || annotation.anchor.kind !== "elements") return null;
 
-    return annotation.resolvedTargets.find(({ element }) => element?.isConnected)?.element ?? null;
+    if (!props.runtime.annotationVisible(annotationId)) return null;
+
+    return annotation.resolvedTargets.find(({ element }) => element?.isConnected && !isResponsivePreviewDocument(element.ownerDocument))?.element ?? null;
   };
 
   const canUseNativeAnnotationAnchor = (target: Element) => Boolean(
@@ -428,6 +478,12 @@ export function ContextActions(props: ContextActionsProps) {
 
   const syncSelectionTriggerAnchor = () => {
     const element = currentSelectionTriggerElement();
+
+    if (element && isResponsivePreviewDocument(element.ownerDocument)) {
+      releaseSelectionTriggerAnchor();
+
+      return;
+    }
 
     if (fallbackTriggerElement && element !== fallbackTriggerElement) fallbackTriggerElement = null;
     const previousElement = trackedTriggerElement;
@@ -577,7 +633,7 @@ export function ContextActions(props: ContextActionsProps) {
   let placementTarget = currentSelectionTriggerElement();
   observeTriggerGeometry(placementTarget);
 
-  const unsubscribe = props.runtime.subscribe(() => {
+  const unsubscribe = props.runtime.subscribe(() => untrack(() => {
     const selectGestureActive = props.runtime.selectGestureActive();
 
     if (noteComposerOpen() && selectGestureActive) {
@@ -608,16 +664,17 @@ export function ContextActions(props: ContextActionsProps) {
 
     syncSelectionTriggerAnchor();
 
-    if (targetChanged) bumpTriggerPlacement();
+    if (targetChanged || (nextPlacementTarget && isResponsivePreviewDocument(nextPlacementTarget.ownerDocument))) bumpTriggerPlacement();
     setRevision((value) => value + 1);
     reconcileAnnotationGeometry();
-  });
+  }));
 
   syncSelectionTriggerAnchor();
   ownerWindow().queueMicrotask(syncAnnotationScrollBindings);
   onCleanup(() => {
     triggerResizeObserver?.disconnect();
     triggerResizeObserver = null;
+    detachComposerOutsidePointer();
     triggerResizeWindow?.removeEventListener("resize", bumpTriggerPlacement);
     triggerResizeWindow = null;
     rendererObstacleObserver?.disconnect();
@@ -636,7 +693,7 @@ export function ContextActions(props: ContextActionsProps) {
   const annotations = createMemo(() => {
     revision();
 
-    return props.runtime.annotations();
+    return props.runtime.annotations().filter((annotation) => props.runtime.annotationVisible(annotation.id));
   });
 
   const activeAnnotation = createMemo(() => {
@@ -657,7 +714,7 @@ export function ContextActions(props: ContextActionsProps) {
     triggerRevision();
     const annotationId = highlightedAnnotationId();
 
-    if (!annotationId) return [];
+    if (!annotationId || !props.runtime.annotationVisible(annotationId)) return [];
     const annotation = props.runtime.annotation(annotationId);
 
     if (!annotation) return [];
@@ -705,16 +762,6 @@ export function ContextActions(props: ContextActionsProps) {
   });
 
   const selectionRect = createMemo(() => unionRects(selectionObstacleRects()));
-
-  const selectionLabel = () => {
-    const count = selection().elements.length;
-
-    if (count > 1) return `${count} selected elements`;
-
-    if (count === 1) return "Selected element";
-
-    return "Selected region";
-  };
 
   const annotationSelectionLabel = (value: MesurerAnnotation) => {
     if (value.anchor.kind !== "elements") return "Selected region";
@@ -833,16 +880,9 @@ export function ContextActions(props: ContextActionsProps) {
   const notePanelPosition = () => {
     const value = selectionRect();
     const currentWindow = ownerWindow();
-    const width = 272;
-    const height = 168;
-    const offset = composerPosition();
-
-    if (offset && value) {
-      return {
-        left: value.left + offset.left,
-        top: value.top + offset.top,
-      };
-    }
+    const width = 256;
+    // Reserve room for the expanded textarea when choosing a viewport lane.
+    const height = 160;
 
     if (!value) return { left: 8, top: 8 };
 
@@ -1039,24 +1079,16 @@ export function ContextActions(props: ContextActionsProps) {
         top: clamp(drag.originTop + next.clientY - drag.startY, 8, maxTop),
       };
 
-      if (surfaceId === "composer") {
-        const value = selectionRect();
-        setComposerPosition(value ? {
+      const value = props.runtime.annotationRect(surfaceId);
+
+      if (!value) return;
+      setPanelPositions((positions) => ({
+        ...positions,
+        [surfaceId]: {
           left: position.left - value.left,
           top: position.top - value.top,
-        } : null);
-      } else {
-        const value = props.runtime.annotationRect(surfaceId);
-
-        if (!value) return;
-        setPanelPositions((positions) => ({
-          ...positions,
-          [surfaceId]: {
-            left: position.left - value.left,
-            top: position.top - value.top,
-          },
-        }));
-      }
+        },
+      }));
     };
 
     const end = (next: PointerEvent) => {
@@ -1107,25 +1139,31 @@ export function ContextActions(props: ContextActionsProps) {
 
   const openNoteComposer = () => {
     if (!hasSelection()) return;
+
     fallbackNextSelection = false;
     composerSelection = captureSelection();
     setNote("");
+    setNoteExpanded(false);
     setNoteError(null);
     setStatus(null);
     setActiveAnnotationId(null);
-    const value = selectionRect();
-
-    if (value) {
-      const initial = placeComposerNear(value, 272, 168, ownerWindow());
-      setComposerPosition({
-        left: initial.left - value.left,
-        top: initial.top - value.top,
-      });
-    } else {
-      setComposerPosition(null);
-    }
-
     setNoteComposerOpen(true);
+    composerOutsidePointer = (event) => {
+      const composer = contextRoot()?.querySelector("[data-mesurer-annotation-composer='true']");
+      const NodeConstructor = ownerWindow().Node;
+
+      if (composer && NodeConstructor && event.target instanceof NodeConstructor && composer.contains(event.target)) return;
+
+      if (note().trim() && !noteError()) {
+        setNoteError("Press Enter or Send to save, or Escape to discard.");
+
+        return;
+      }
+
+      closeNoteComposer();
+    };
+
+    ownerWindow().document.addEventListener("pointerdown", composerOutsidePointer, true);
     ownerWindow().queueMicrotask(() => nestedTriggerScroll?.sync());
   };
 
@@ -1152,14 +1190,17 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const addNote = () => {
+    if (!note().trim() || busy()) return;
+
     try {
       const annotation = props.runtime.addSelectionAnnotation(note());
       fallbackNextSelection = false;
       composerSelection = null;
       setNote("");
+      setNoteExpanded(false);
       setNoteError(null);
       setNoteComposerOpen(false);
-      setComposerPosition(null);
+      detachComposerOutsidePointer();
       syncAnnotationScrollBinding(annotation.id);
       freezePanelPosition(annotation.id);
       setActiveAnnotationId(annotation.id);
@@ -1174,6 +1215,7 @@ export function ContextActions(props: ContextActionsProps) {
     openNoteComposer,
     closeNoteComposer,
     abandonNoteComposer,
+    openAnnotation,
   };
 
   props.onController?.(controller);
@@ -1296,7 +1338,7 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-annotation-composer="true"
             data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
             data-mesurer-annotation-scroll-mode={scrollMode(placement().nativeAnchor)}
-            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
+            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:w-64 msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-2 msr:text-black"
             style={{
               position: placement().nativeAnchor || usesViewportCoordinates() ? "fixed" : "absolute",
               left: placement().nativeAnchor
@@ -1312,31 +1354,38 @@ export function ContextActions(props: ContextActionsProps) {
             onPointerDown={captureContextButtonPointer}
             onClick={(event) => event.stopPropagation()}
           >
-            <div
-              class="msr:flex msr:h-7 msr:items-center msr:gap-1.5 msr:px-1"
-              style={{ cursor: draggingSurfaceId() === "composer" ? "grabbing" : "grab" }}
-              aria-label="Drag note composer"
-              onPointerDown={(event) => startSurfaceDrag(event, "composer")}
-            >
-              <NoteIcon size={14} class="msr:text-ink-700" />
-              <div class="msr:min-w-0 msr:flex-1">
-                <div class="msr:text-[11px] msr:font-medium msr:text-ink-900">Add note</div>
-                <div class="msr:text-[9px] msr:text-ink-500">{selectionLabel()}</div>
-              </div>
-              <button type="button" class={annotationButtonClass} aria-label="Close note composer" title="Close" onClick={closeNoteComposer}><CloseIcon size={14} /></button>
-            </div>
+            <div class="msr:relative">
             <textarea
+              ref={(element) => ownerWindow().queueMicrotask(() => element.focus())}
               autofocus
+              rows={1}
               value={note()}
-              placeholder="Describe what should change…"
+              aria-label="Note"
+              placeholder="Add a note"
               onInput={(event) => {
-                setNote(event.currentTarget.value);
+                const element = event.currentTarget;
+                setNote(element.value);
                 setNoteError(null);
+                // Measure with the compact padding: the text only "wraps" when it
+                // overflows one row while the send button still sits beside it.
+                element.style.height = "auto";
+                element.style.paddingRight = "36px";
+                element.style.paddingBottom = "6px";
+                const expanded = element.scrollHeight > 34;
+                element.style.paddingRight = expanded ? "8px" : "36px";
+                element.style.paddingBottom = expanded ? "32px" : "6px";
+                setNoteExpanded(expanded);
+                element.style.height = `${Math.min(128, Math.max(34, element.scrollHeight))}px`;
+                element.style.overflowY = element.scrollHeight > 128 ? "auto" : "hidden";
               }}
               onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.stopPropagation();
+
+                if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
                   event.preventDefault();
                   addNote();
+
+                  return;
                 }
 
                 if (event.key === "Escape") {
@@ -1344,16 +1393,34 @@ export function ContextActions(props: ContextActionsProps) {
                   closeNoteComposer();
                 }
               }}
-              class="msr:box-border msr:mt-1 msr:h-20 msr:w-full msr:resize-none msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:p-2 msr:text-[12px] msr:leading-[1.4] msr:text-black msr:outline-none msr:placeholder:text-ink-400 msr:focus:border-[#0d99ff]"
+              class="msr:block msr:box-border msr:min-h-[34px] msr:max-h-32 msr:w-full msr:resize-none msr:rounded-[7px] msr:border msr:border-ink-200 msr:px-2 msr:py-1.5 msr:text-[12px] msr:leading-5 msr:outline-none msr:placeholder:text-ink-400 msr:focus:border-[#0d99ff]"
+              style={{ height: "34px", "padding-right": "36px", "padding-bottom": "6px", "overflow-y": "hidden", "overflow-wrap": "anywhere", "word-break": "break-word", background: "var(--msr-surface)", color: "var(--msr-content)" }}
             />
-            <Show when={noteError()}>{(message) => <div class="msr:mt-1.5 msr:px-1 msr:text-[10px] msr:text-red-600">{message()}</div>}</Show>
-            <div class="msr:mt-1.5 msr:flex msr:h-7 msr:items-center msr:justify-between msr:gap-2 msr:px-1">
-              <span class="msr:text-[9px] msr:text-ink-400">⌘/Ctrl ↵</span>
-              <div class="msr:flex msr:gap-1">
-                <button type="button" class="msr:h-7 msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:px-2 msr:text-[11px] msr:text-ink-700 msr:hover:bg-black/4" onClick={closeNoteComposer}>Cancel</button>
-                <button type="button" class="msr:h-7 msr:rounded-[7px] msr:border-0 msr:bg-[#0d99ff] msr:px-2.5 msr:text-[11px] msr:font-medium msr:text-white msr:hover:bg-[#0b8eea]" onClick={addNote}>Add note</button>
-              </div>
+            <button
+              type="button"
+              aria-label="Add note"
+              title="Add note · Enter"
+              disabled={!note().trim() || busy()}
+              data-mesurer-annotation-send="true"
+              class={`msr:absolute msr:right-1.5 msr:outline-none msr:disabled:cursor-default ${noteExpanded() ? "msr:bottom-1.5" : "msr:top-1/2 msr:-translate-y-1/2"}`}
+              onPointerDown={(event) => event.stopPropagation()}
+              onMouseEnter={() => note().trim() && composerTooltip.onTooltipEnter(sendTooltipId)}
+              onMouseLeave={() => composerTooltip.onTooltipLeave()}
+              onFocus={() => note().trim() && composerTooltip.onTooltipEnter(sendTooltipId)}
+              onBlur={() => composerTooltip.onTooltipLeave()}
+              onClick={addNote}
+            >
+              <SendIcon size={16} class="mesurer-send-icon" />
+              <Tooltip
+                label="Add note"
+                shortcut="Enter"
+                visible={composerTooltip.visibleTooltipId() === sendTooltipId}
+                instant={composerTooltip.tooltipInstant()}
+                class="msr:z-10"
+              />
+            </button>
             </div>
+            <Show when={noteError()}>{(message) => <div class="msr:mt-1.5 msr:px-1 msr:text-[10px] msr:text-red-600">{message()}</div>}</Show>
           </div>
         )}</Show>
       </Show>
@@ -1420,6 +1487,7 @@ export function ContextActions(props: ContextActionsProps) {
               data-mesurer-annotation-number={index() + 1}
               data-mesurer-annotation-highlighted={highlighted() ? "true" : undefined}
               data-mesurer-annotation-muted={muted() ? "true" : undefined}
+              data-mesurer-annotation-status={annotation.status ?? "open"}
               data-mesurer-annotation-scroll-mode={scrollMode(value().nativeAnchor)}
               data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
               aria-label={`Mesurer annotation ${index() + 1}: ${annotation.note}`}
@@ -1455,7 +1523,7 @@ export function ContextActions(props: ContextActionsProps) {
                 top: value().nativeAnchor
                   ? `calc(anchor(top) + ${value().anchorY}px)`
                   : `${value().top}px`,
-                opacity: muted() ? "0.36" : "1",
+                opacity: muted() || annotation.status === "resolved" ? "0.48" : "1",
                 translate: "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
                 "position-anchor": value().nativeAnchor ? value().anchorName : undefined,
                 transition: "opacity 150ms ease",
@@ -1467,9 +1535,9 @@ export function ContextActions(props: ContextActionsProps) {
                 aria-hidden="true"
                 class="msr:flex msr:h-5 msr:w-5 msr:items-center msr:justify-center msr:rounded-[6px] msr:border msr:text-[10px] msr:font-semibold msr:leading-none"
                 style={{
-                  border: "1px solid #0d99ff",
-                  color: highlighted() ? "white" : "#0d99ff",
-                  background: highlighted() ? "#0d99ff" : "white",
+                  border: annotation.status === "resolved" ? "1px solid #8b919a" : "1px solid #0d99ff",
+                  color: highlighted() && annotation.status !== "resolved" ? "white" : annotation.status === "resolved" ? "#747b84" : "#0d99ff",
+                  background: highlighted() && annotation.status !== "resolved" ? "#0d99ff" : "var(--msr-surface)",
                   transform: highlighted() ? "scale(1.2)" : "scale(1)",
                   "box-shadow": highlighted()
                     ? "0 3px 10px rgba(13, 153, 255, 0.28)"
@@ -1486,6 +1554,29 @@ export function ContextActions(props: ContextActionsProps) {
       <Show when={activeAnnotation()}>{(annotation) => {
         const placement = () => panelPlacement(annotation().id);
         const number = () => annotationNumber(annotation().id);
+        let statusPointerAction = false;
+        let panelElement: HTMLDivElement | null = null;
+        let deleteButton: HTMLButtonElement | undefined;
+        const [deleteConfirmationOpen, setDeleteConfirmationOpen] = createSignal(false);
+
+        const closeAnnotationPanel = () => {
+          const replyComposer = panelElement?.querySelector<HTMLTextAreaElement>("[aria-label='Reply to note']");
+
+          if (replyComposer) {
+            replyComposer.value = "";
+            replyComposer.style.height = "34px";
+            replyComposer.scrollTop = 0;
+            replyComposer.style.overflowY = "hidden";
+          }
+
+          setActiveAnnotationId(null);
+          setStatus(null);
+        };
+
+        const toggleAnnotationStatus = () => props.runtime.setAnnotationStatus(
+          annotation().id,
+          annotation().status === "resolved" ? "open" : "resolved",
+        );
 
         return (
           <div
@@ -1493,9 +1584,10 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-panel="true"
             data-mesurer-annotation-id={annotation().id}
+            ref={(element) => { panelElement = element; }}
             data-mesurer-annotation-scroll-mode={scrollMode(placement().nativeAnchor)}
             data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
-            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:w-[272px] msr:max-h-[220px] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
+            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:flex msr:w-[272px] msr:max-h-[calc(100vh-16px)] msr:flex-col msr:rounded-[10px] msr:border msr:border-ink-200 msr:p-1.5"
             style={{
               position: placement().nativeAnchor || usesViewportCoordinates() ? "fixed" : "absolute",
               left: placement().nativeAnchor
@@ -1507,12 +1599,14 @@ export function ContextActions(props: ContextActionsProps) {
               translate: "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
               "position-anchor": placement().nativeAnchor ? placement().anchorName : undefined,
               "z-index": ANNOTATION_PANEL_Z_INDEX,
+              background: "var(--msr-surface)",
+              color: "var(--msr-content)",
+              "box-shadow": "var(--msr-shadow-floating)",
             }}
-            onPointerDown={captureContextButtonPointer}
             onClick={(event) => event.stopPropagation()}
           >
             <div
-              class="msr:flex msr:h-7 msr:items-center msr:gap-1.5 msr:px-1"
+              class="msr:flex msr:h-8 msr:shrink-0 msr:items-center msr:gap-1.5 msr:border-b msr:border-ink-100 msr:px-1"
               style={{ cursor: draggingSurfaceId() === annotation().id ? "grabbing" : "grab" }}
               aria-label="Drag annotation panel"
               onPointerDown={(event) => startSurfaceDrag(event, annotation().id)}
@@ -1523,15 +1617,49 @@ export function ContextActions(props: ContextActionsProps) {
                 class="msr:flex msr:h-[18px] msr:w-[18px] msr:items-center msr:justify-center msr:rounded-[5px] msr:text-[9px] msr:font-semibold msr:leading-none msr:text-white"
                 style={{ background: "#0d99ff", "font-variant-numeric": "tabular-nums" }}
               >{number()}</span>
-              <div class="msr:min-w-0 msr:flex-1">
-                <div class="msr:text-[11px] msr:font-medium msr:text-ink-700">Note {number()}</div>
-                <div class="msr:text-[9px] msr:text-ink-500">{annotationSelectionLabel(annotation())}</div>
+              <div class="msr:min-w-0 msr:flex-1 msr:leading-4">
+                <div class="msr:truncate msr:text-[11px] msr:font-medium msr:leading-4 msr:text-ink-700">Note {number()}</div>
+                <div class="msr:truncate msr:whitespace-nowrap msr:text-[9px] msr:leading-3 msr:text-ink-500">{annotationSelectionLabel(annotation())}{annotation().replies?.length ? ` · ${annotation().replies!.length} replies` : ""}</div>
               </div>
-              <div class="msr:flex msr:items-center msr:gap-0.5">
+              <div class="msr:flex msr:shrink-0 msr:items-center msr:gap-1">
                 <button type="button" class={annotationButtonClass} aria-label="Copy annotation context" title="Copy context" disabled={busy()} onClick={() => void run(() => props.onCopy({ annotation: annotation().id }), "Copied")}><CopyIcon size={14} /></button>
-                <button type="button" class={annotationButtonClass} aria-label="Delete annotation" title="Delete" onClick={() => {
+                <button
+                  type="button"
+                  aria-label={annotation().status === "resolved" ? "Reopen note" : "Resolve note"}
+                  title={annotation().status === "resolved" ? "Reopen" : "Mark as resolved"}
+                  aria-pressed={annotation().status === "resolved" ? "true" : "false"}
+                  class={`${annotationButtonClass} ${annotation().status === "resolved" ? "msr:text-ink-700" : ""}`}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    statusPointerAction = true;
+                    toggleAnnotationStatus();
+                  }}
+                  onClick={() => {
+                    if (statusPointerAction) {
+                      statusPointerAction = false;
+
+                      return;
+                    }
+
+                    toggleAnnotationStatus();
+                  }}
+                ><AnnotationResolveIcon size={14} resolved={annotation().status === "resolved"} /></button>
+                <div class="msr:relative">
+                <button ref={(element) => { deleteButton = element; }} type="button" class={annotationButtonClass} aria-label="Delete annotation" title="Delete" aria-expanded={deleteConfirmationOpen() ? "true" : "false"} onClick={() => setDeleteConfirmationOpen(true)}>
+                  <TrashIcon size={14} />
+                </button>
+                <Show when={deleteConfirmationOpen() && panelElement}>
+                  <AnnotationDeleteConfirmation
+                    owner={panelElement!}
+                    focusTarget={deleteButton}
+                    ariaLabel="Delete note"
+                    message="Delete this note?"
+                    onCancel={() => setDeleteConfirmationOpen(false)}
+                    onConfirm={() => {
                   const annotationId = annotation().id;
                   props.runtime.removeAnnotation(annotationId);
+                  setDeleteConfirmationOpen(false);
                   setPanelPositions((positions) => {
                     const next = { ...positions };
                     delete next[annotationId];
@@ -1541,16 +1669,23 @@ export function ContextActions(props: ContextActionsProps) {
                   releaseAnnotationScrollBinding(annotationId);
                   setHoveredAnnotationId((current) => current === annotationId ? null : current);
                   setFocusedAnnotationId((current) => current === annotationId ? null : current);
-                  setActiveAnnotationId(null);
-                  setStatus(null);
-                }}><TrashIcon size={14} /></button>
+                  closeAnnotationPanel();
+                    }}
+                  />
+                </Show>
+                </div>
                 <button type="button" class={annotationButtonClass} aria-label="Close annotation" title="Close" onClick={() => {
-                  setActiveAnnotationId(null);
-                  setStatus(null);
+                  closeAnnotationPanel();
                 }}><CloseIcon size={14} /></button>
               </div>
             </div>
-            <div class="msr:mx-1 msr:mt-1 msr:max-h-36 msr:overflow-auto msr:whitespace-pre-wrap msr:rounded-[7px] msr:bg-ink-50 msr:px-2 msr:py-2 msr:text-[12px] msr:leading-[1.45] msr:text-ink-800">{annotation().note}</div>
+            <AnnotationThread
+              annotation={annotation()}
+              runtime={props.runtime}
+              panelElement={() => panelElement}
+              onGlobalHandlers={(handlers) => { annotationThreadGlobalHandlers = handlers; }}
+              onClose={closeAnnotationPanel}
+            />
             <Show when={status()}>{(message) => <div class="msr:mt-1.5 msr:px-1 msr:text-[10px] msr:text-ink-500" role="status">{message()}</div>}</Show>
           </div>
         );

@@ -1,6 +1,6 @@
 {
   "name": "@jhomra21/mesurer-solid",
-  "version": "0.2.2-beta.7",
+  "version": "0.2.3-beta.14",
   "description": "Framework-agnostic UI measurement and inspection tools for browser apps and coding agents.",
   "license": "MIT",
   "type": "module",
@@ -82,9 +82,9 @@
     "@jhomra21/mesurer-solid-core": "workspace:*",
     "@jhomra21/mesurer-solid-dom": "workspace:*",
     "@jhomra21/mesurer-solid-renderer": "workspace:*",
-    "@solidjs/vite-plugin": "^3.0.0-next.29",
-    "@solidjs/web": "2.0.0-rc.0",
-    "solid-js": "2.0.0-rc.0",
+    "@solidjs/vite-plugin": "^3.0.0-next.50",
+    "@solidjs/web": "2.0.0-rc.15",
+    "solid-js": "2.0.0-rc.15",
     "typescript": "^5.9.2",
     "vite": "^8.1.5"
   },

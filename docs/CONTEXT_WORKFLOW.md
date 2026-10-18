@@ -33,6 +33,7 @@ Do not reinject over a live Mesurer instance merely to change configuration. Exi
 | Copy Context | `C` | Copies workspace context |
 | Copy Selection | `Shift+C` | Copies selection-scoped context |
 | Add Note | `N` | Saves a target/region annotation baseline |
+| Notes | — | Opens saved notes for search and explicit target reveal |
 
 Agents normally read the API directly instead of clicking these controls.
 
@@ -40,11 +41,23 @@ For an ordinary selected element, Mesurer can show a selection-adjacent Add Note
 
 The Add Note composer is owned by the selection that opened it. If the user selects a different element or region before saving, Mesurer closes the unsaved composer instead of moving it to the new target; the new selection gets its normal small Add Note button. Add Note and saved annotation cards are protected Mesurer UI, so live page selection/hover chrome paints underneath them rather than crossing through the card.
 
+Writing a note uses a compact text field with an in-field Send button. Enter sends, Shift+Enter inserts a line break, and Escape discards the draft. Clicking outside with a non-empty draft first keeps it open and prompts the user to send or discard; a subsequent outside click dismisses it.
+
 Annotation presentation is source-linked rather than viewport furniture. On normal window scroll, the Add Note trigger, composer, saved markers, open panel, and ownership edge live in the document scroll tree and move with the page target in the same painted frame. Nested overflow containers use the runtime's scroll compensation so the same UI stays attached there too. A saved panel keeps its target-relative page point and may leave the viewport with its source instead of being clamped back onto the screen.
 
 Several notes on one target keep separate nearby markers. Opening one note does not remove the Add Note trigger, so another note can be added without closing the current review first. The marker layout keeps repeated notes local to the owning target and avoids covering unrelated markers when a clear placement is available.
 
-Saved annotations also survive a same-tab reload. Context stores only its annotation records in session-scoped browser storage. On reload it restores the original ids, notes, immutable baselines, selectors, fingerprints, and last-known geometry, then conservatively rebinds each element target through the same selector/fingerprint rules used for live DOM replacement. Ambiguous or missing targets stay unresolved instead of binding to a convenient lookalike. Removing an annotation updates that stored review state immediately.
+Saved annotations also survive a same-tab reload. Context stores only its annotation records in session-scoped browser storage. On reload it restores the original ids, notes, replies, status, immutable baselines, selectors, fingerprints, and last-known geometry, then conservatively rebinds each element target through the same selector/fingerprint rules used for live DOM replacement. Older note-only records remain valid; malformed individual replies are ignored without discarding the original note. Ambiguous or missing targets stay unresolved instead of binding to a convenient lookalike. Removing an annotation updates that stored review state immediately.
+
+Saved-note panels show the original note and flat chronological replies. Replies can be sent with Enter (Shift+Enter inserts a line break), edited, or deleted without changing the annotation id, anchor, or baseline. Resolve/Reopen is available per note; resolved markers are muted and resolved notes remain readable in annotation Context. Copying one note still includes its full thread. Codex bulk delivery includes open notes only.
+
+Saved notes support flat chronological replies and an open/resolved status. The original note and its baseline remain unchanged; replies can be edited or deleted independently. Resolved notes remain readable in `annotations()` and annotation-scoped Context. Their markers are muted. Codex and other bulk delivery include open notes only; explicitly copying a resolved note's own Context remains available.
+
+The **Notes** toolbar panel is the human-facing index of saved annotations. It searches original note and reply text, shows reply counts and saved Responsive dimensions, and filters **Open**, **Resolved**, or **All** (default **Open**). Resolved rows are muted. Selecting a row explicitly reveals its saved target and opens its note card; reading `context()`, `annotations()`, or `review()` never changes presentation, opens Responsive, or scrolls the page.
+
+Opening a root-page note closes Responsive and reveals its saved root target or region. Opening a preview note checks the exact saved URL, width, and height, prefers its original preview identity, and otherwise reuses only one unambiguous exact viewport. If none is open, Responsive creates the saved size; at the six-preview limit it replaces the last preview. Different URLs, invalid sizes, ambiguous matches, inaccessible frames, and unresolved targets fail closed and remain in the Notes list with a status. Reveal requests are transient and the latest request wins; Escape, closing Notes/Responsive, route changes, or deleting a note cancels pending reveal work. The list stays open while a note is revealed.
+
+Responsive preview element notes additionally store `viewport: { url, width, height, previewId }` and nested frame/shadow `domPath` evidence. They resolve only in an exact URL/width/height match, never on the root page. Their UI stays in the root overlay with projected geometry; removing a preview hides its notes and releases its watchers without deleting the records. Context targets and capture plans include viewport metadata. See [Responsive inspector](./RESPONSIVE_INSPECTOR.md) for exact rebind and lifetime rules.
 
 Context also controls the paint order between page evidence and Mesurer annotation UI. When Context owns the document-backed annotation UI, live Select hover evidence uses the lower document evidence layer even if Mesurer's outer host itself is in the browser top layer. This matters because a browser top-layer node outranks ordinary document `z-index`; keeping page evidence in the same document paint domain is what lets the opaque composer and saved cards fully occlude the blue hover fill and border.
 
@@ -129,7 +142,7 @@ Application code that owns the plugin host can resolve `MesurerContextService` f
 | `copyContext(request?)` | Copy formatted Context to the clipboard. |
 | `select(selectors)` | Select exact targets and return selection Context. |
 | `annotations()` | List saved annotations. |
-| `removeAnnotation(annotationId)` | Remove one saved annotation after a trusted workflow completes it. |
+| `removeAnnotation(annotationId)` | Remove one saved annotation after a trusted workflow completes it. Optional expected content makes cleanup conditional on the exact note and ordered reply snapshot that was delivered. |
 | `review(annotationId?)` | Compare one or all saved baselines with the current page. |
 | `capturePlan(request?)` | Return screenshot regions for Context or an annotation. |
 | `prepareCapture()` | Hide or adjust Mesurer presentation before an external screenshot. |
@@ -153,7 +166,7 @@ For small selections, keep useful unique pair relationships. For large selection
 
 ## Annotations and review
 
-Annotations are target- or region-bound review context rather than freeform drawing objects. A saved note carries its baseline with the rendered evidence it describes.
+Annotations are target- or region-bound review context rather than freeform drawing objects. A saved note carries its baseline with the rendered evidence it describes. Replies add conversation without changing the original note or baseline.
 
 The Add Note button is only a UI control. During an active direct text edit it is intentionally absent from the selected element, so agents and integrations must not use button visibility as a capability check. Durable annotation state remains available through `annotations()`, `context({ annotation })`, and `review()`.
 

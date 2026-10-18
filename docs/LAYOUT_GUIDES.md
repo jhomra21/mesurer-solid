@@ -29,6 +29,8 @@ Layout Guides are inspection evidence only. They do not write CSS, resize page e
 
 Layout Guides are page-scoped. The default page key is the pathname plus sorted query parameters. Hash routes beginning with `#/` are included as well.
 
+When the Responsive stage is open, active Layout Guides are projected into each live preview using the shared guide settings and that preview's CSS width. Preview projection is visual only; the Layout Guides service and persisted state remain owned by the page.
+
 Navigating from one route to another swaps the active Layout Guide set instead of carrying one page's overlay into another page. Returning to the original route restores its saved set when persistence is enabled.
 
 Toolbar placement is different: it is tab-session UI and remains where the user dragged it across route changes and reloads. Do not store toolbar placement inside a page workspace.

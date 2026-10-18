@@ -4,6 +4,7 @@ import type {
   Measurement,
   MesurerAnnotation,
   MesurerAnnotationBaseline,
+  MesurerAnnotationReply,
   MesurerAnnotationTarget,
   Rect,
 } from "@jhomra21/mesurer-solid-core";
@@ -22,17 +23,22 @@ import { GUIDE_SNAP_DISTANCE } from "../core/constants";
 import {
   getAccessibleDocuments,
   isElementWithinAccessibleTarget,
+  isResponsivePreviewDocument,
 } from "../core/document-tree";
+import { getAccessibleFrameDocument } from "../core/frame-geometry";
 import {
   getInspectMeasurement as getProjectedInspectMeasurement,
   getRectFromDom as getProjectedRectFromDom,
 } from "../core/dom";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import { getMesurerPageKey, subscribeMesurerPageKey } from "./page-location";
+import { previewDocuments, previewTargetRoot, previewTargetScope } from "./preview-context";
 
 export type {
   MesurerAnnotation,
   MesurerAnnotationBaseline,
+  MesurerAnnotationReply,
+  MesurerAnnotationStatus,
   MesurerAnnotationTarget,
   MesurerContextRequest,
 } from "@jhomra21/mesurer-solid-core";
@@ -58,6 +64,8 @@ export type MesurerWorkspaceSnapshot = {
 export type MesurerWorkspaceRuntime = {
   snapshot(): MesurerWorkspaceSnapshot;
   elementRect(element: Element): Rect;
+  targetScope(element: Element): Pick<MesurerAnnotationTarget, "viewport" | "domPath">;
+  annotationVisible(id: string): boolean;
   currentSelection(): { elements: Element[]; region: Rect | null };
   /**
    * Re-measure the selected elements after something other than scroll or
@@ -78,7 +86,11 @@ export type MesurerWorkspaceRuntime = {
   annotationRect(id: string): Rect | null;
   addSelectionAnnotation(note: string): MesurerAnnotation;
   addRegionAnnotation(note: string, rect: Rect): MesurerAnnotation;
-  removeAnnotation(id: string): void;
+  removeAnnotation(id: string, expectedContent?: { note: string; replies: MesurerAnnotationReply[] }): boolean;
+  addAnnotationReply(annotationId: string, text: string): MesurerAnnotationReply;
+  updateAnnotationReply(annotationId: string, replyId: string, text: string): MesurerAnnotationReply;
+  removeAnnotationReply(annotationId: string, replyId: string): void;
+  setAnnotationStatus(annotationId: string, status: "open" | "resolved"): void;
   subscribe(listener: () => void): () => void;
   prepareCapture(): void;
   finishCapture(): void;
@@ -97,6 +109,19 @@ type StoredWorkspaceAnnotations = {
 
 const WORKSPACE_ANNOTATION_STORAGE_VERSION = 1;
 
+const isStoredAnnotationReply = (value: unknown): value is MesurerAnnotationReply => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+
+  // SAFETY: JSON parsing yields a plain record here; the field checks below validate its reply shape.
+  const reply = value as MesurerAnnotationReply;
+
+  return typeof reply.id === "string"
+    && Boolean(reply.id.trim())
+    && typeof reply.text === "string"
+    && Boolean(reply.text.trim())
+    && Number.isFinite(reply.createdAt);
+};
+
 const readStoredAnnotations = (
   ownerWindow: Window,
   persistenceKey: string | undefined,
@@ -113,23 +138,60 @@ const readStoredAnnotations = (
 
     if (stored.version !== WORKSPACE_ANNOTATION_STORAGE_VERSION || !Array.isArray(stored.annotations)) return [];
 
-    return stored.annotations.map(copyAnnotation);
+    return stored.annotations.map((rawAnnotation) => {
+      const acceptedReplyIds = new Set<string>();
+
+      const replies = Array.isArray(rawAnnotation.replies)
+        ? rawAnnotation.replies.flatMap((reply): MesurerAnnotationReply[] => {
+            if (!isStoredAnnotationReply(reply) || acceptedReplyIds.has(reply.id)) return [];
+
+            acceptedReplyIds.add(reply.id);
+
+            return [{ id: reply.id, text: reply.text, createdAt: reply.createdAt }];
+          })
+        : undefined;
+
+
+      const annotation: MesurerAnnotation = { ...rawAnnotation };
+
+      if (replies?.length) annotation.replies = replies;
+      else delete annotation.replies;
+
+      if (rawAnnotation.status === "resolved") {
+        annotation.status = "resolved";
+
+        if (Number.isFinite(rawAnnotation.resolvedAt)) annotation.resolvedAt = rawAnnotation.resolvedAt;
+      } else if (rawAnnotation.status === "open") {
+        annotation.status = "open";
+      }
+
+      return copyAnnotation(annotation);
+    });
   } catch {
     return [];
   }
 };
 
-const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => ({
+const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => {
+  const copy: MesurerAnnotation = ({
   ...annotation,
   anchor: annotation.anchor.kind === "elements"
     ? {
         kind: "elements",
         region: annotation.anchor.region ? cloneMesurerRect(annotation.anchor.region) : null,
-        targets: annotation.anchor.targets.map((target) => ({
-          ...target,
-          fingerprint: { ...target.fingerprint, classes: [...target.fingerprint.classes] },
-          lastRect: cloneMesurerRect(target.lastRect),
-        })),
+        targets: annotation.anchor.targets.map((target) => {
+          const copy = {
+            ...target,
+            fingerprint: { ...target.fingerprint, classes: [...target.fingerprint.classes] },
+            lastRect: cloneMesurerRect(target.lastRect),
+          };
+
+          if (target.viewport) copy.viewport = { ...target.viewport };
+
+          if (target.domPath) copy.domPath = target.domPath.map((hop) => ({ ...hop }));
+
+          return copy;
+        }),
       }
     : { kind: "region", rect: cloneMesurerRect(annotation.anchor.rect) },
   baseline: {
@@ -150,7 +212,13 @@ const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => ({
       vertical: distance.vertical ? { ...distance.vertical } : null,
     })),
   },
-});
+  });
+
+  if (annotation.replies) copy.replies = annotation.replies.map((reply) => ({ ...reply }));
+  else delete copy.replies;
+
+  return copy;
+};
 
 const randomId = (ownerWindow: Window, prefix: string) => {
   const value = ownerWindow.crypto?.randomUUID?.()
@@ -247,14 +315,24 @@ export function createMesurerWorkspaceRuntime(options: {
   const watchedDocuments = new Map<Document, {
     load: EventListener;
     observer: MutationObserver | null;
+    removeResizeListener: () => void;
+    unsubscribeLocation: () => void;
   }>();
+
+  const watchedShadowRoots = new Map<ShadowRoot, MutationObserver>();
 
   let watching = false;
 
   const targetKey = (annotationId: string, targetId: string) => `${annotationId}:${targetId}`;
 
   const isInPageTarget = (element: Element) =>
-    isElementWithinAccessibleTarget(element, pageTarget);
+    isElementWithinAccessibleTarget(element, pageTarget)
+    || previewDocuments(uiRoot).includes(element.ownerDocument);
+
+  const matchesScope = (element: Element, target: MesurerAnnotationTarget) =>
+    target.viewport
+      ? element.getRootNode() === previewTargetRoot(uiRoot, target)
+      : !isResponsivePreviewDocument(element.ownerDocument);
 
   const queryCandidates = (selector: string): Element[] => {
     const matches: Element[] = [];
@@ -318,7 +396,10 @@ export function createMesurerWorkspaceRuntime(options: {
     let rawSelectorMatches: Element[] = [];
 
     try {
-      rawSelectorMatches = queryCandidates(target.selector);
+      const previewDocument = target.viewport ? previewTargetRoot(uiRoot, target) : null;
+      rawSelectorMatches = target.viewport
+        ? [...previewDocument?.querySelectorAll(target.selector) ?? []]
+        : queryCandidates(target.selector).filter((candidate) => matchesScope(candidate, target));
     } catch {
       return null;
     }
@@ -360,7 +441,7 @@ export function createMesurerWorkspaceRuntime(options: {
     const key = targetKey(annotationId, target.id);
     const live = liveTargets.get(key);
 
-    if (live?.isConnected && isInPageTarget(live)) return live;
+    if (live?.isConnected && isInPageTarget(live) && matchesScope(live, target)) return live;
 
     if (live) liveTargets.delete(key);
 
@@ -423,15 +504,68 @@ export function createMesurerWorkspaceRuntime(options: {
 
     currentDocument.removeEventListener("load", watcher.load, true);
     currentDocument.removeEventListener("scroll", scheduleRefresh, true);
-    currentDocument.defaultView?.removeEventListener("resize", scheduleRefresh);
+    watcher.removeResizeListener();
+    watcher.unsubscribeLocation();
     watcher.observer?.disconnect();
     watchedDocuments.delete(currentDocument);
+  };
+
+  const syncShadowRootWatchers = () => {
+    const reachable = new Set<ShadowRoot>();
+
+    for (const annotation of annotations) {
+      if (annotation.anchor.kind !== "elements") continue;
+
+      for (const target of annotation.anchor.targets) {
+        if (!target.viewport) continue;
+
+        let currentRoot: Document | ShadowRoot | null = previewTargetRoot(uiRoot, { ...target, domPath: [] });
+
+        for (const hop of target.domPath ?? []) {
+          const matches = currentRoot?.querySelectorAll(hop.selector);
+
+          if (matches?.length !== 1) break;
+          const element = matches[0];
+          const shadowRoot = hop.kind === "shadow" ? element.shadowRoot : null;
+          currentRoot = hop.kind === "frame" ? getAccessibleFrameDocument(element) : shadowRoot;
+
+          if (shadowRoot) reachable.add(shadowRoot);
+        }
+      }
+    }
+
+    for (const shadowRoot of reachable) {
+      if (watchedShadowRoots.has(shadowRoot)) continue;
+
+      const Observer = shadowRoot.ownerDocument.defaultView?.MutationObserver;
+
+      if (!Observer) continue;
+
+      const observer = new Observer(() => {
+        syncDocumentWatchers();
+        scheduleRefresh();
+      });
+
+      observer.observe(shadowRoot, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["id", "class", "data-testid", "role", "aria-label", "style"],
+      });
+      watchedShadowRoots.set(shadowRoot, observer);
+    }
+
+    for (const [shadowRoot, observer] of watchedShadowRoots) {
+      if (reachable.has(shadowRoot)) continue;
+      observer.disconnect();
+      watchedShadowRoots.delete(shadowRoot);
+    }
   };
 
   const syncDocumentWatchers = () => {
     if (!watching) return;
 
-    const reachable = new Set(getAccessibleDocuments(pageTarget));
+    const reachable = new Set([...getAccessibleDocuments(pageTarget), ...previewDocuments(uiRoot)]);
 
     for (const currentDocument of reachable) {
       if (watchedDocuments.has(currentDocument)) continue;
@@ -449,13 +583,16 @@ export function createMesurerWorkspaceRuntime(options: {
       const observer = Observer && currentDocument.body
         ? new Observer(() => {
             syncDocumentWatchers();
+            syncShadowRootWatchers();
             scheduleRefresh();
           })
         : null;
 
       currentDocument.addEventListener("load", load, true);
       currentDocument.addEventListener("scroll", scheduleRefresh, true);
-      currentDocument.defaultView?.addEventListener("resize", scheduleRefresh);
+      const view = currentDocument.defaultView;
+      view?.addEventListener("resize", scheduleRefresh);
+      const removeListener = view?.removeEventListener.bind(view);
       observer?.observe(currentDocument.body, {
         childList: true,
         subtree: true,
@@ -466,16 +603,22 @@ export function createMesurerWorkspaceRuntime(options: {
       watchedDocuments.set(currentDocument, {
         load,
         observer,
+        removeResizeListener: () => removeListener?.("resize", scheduleRefresh),
+        unsubscribeLocation: currentDocument.defaultView && isResponsivePreviewDocument(currentDocument)
+          ? subscribeMesurerPageKey(currentDocument.defaultView, scheduleRefresh)
+          : () => {},
       });
     }
 
     for (const currentDocument of watchedDocuments.keys()) {
       if (!reachable.has(currentDocument)) releaseDocumentWatcher(currentDocument);
     }
+
+    syncShadowRootWatchers();
   };
 
   const startWatching = () => {
-    if (watching || disposed || annotations.length === 0) return;
+    if (disposed || annotations.length === 0) return;
 
     watching = true;
     syncDocumentWatchers();
@@ -490,10 +633,22 @@ export function createMesurerWorkspaceRuntime(options: {
       releaseDocumentWatcher(currentDocument);
     }
 
+    for (const observer of watchedShadowRoots.values()) observer.disconnect();
+    watchedShadowRoots.clear();
+
     if (mutationFrame) ownerWindow.cancelAnimationFrame(mutationFrame);
 
     mutationFrame = 0;
   };
+
+  const stageChanged = () => {
+    syncDocumentWatchers();
+    refreshAnnotations();
+    notify();
+  };
+
+  ownerWindow.addEventListener("mesurer:responsive-stage-change", stageChanged);
+  uiRoot?.addEventListener("scroll", scheduleRefresh, true);
 
   if (annotations.length > 0) {
     refreshAnnotations();
@@ -545,6 +700,7 @@ export function createMesurerWorkspaceRuntime(options: {
     selector: getElementSelector(element),
     fingerprint: getElementFingerprint(element),
     lastRect: getProjectedRectFromDom(element),
+    ...previewTargetScope(element),
   });
 
   const select = (selectors: string[]) => {
@@ -612,6 +768,10 @@ export function createMesurerWorkspaceRuntime(options: {
   };
 
   const addRegionAnnotation = (note: string, value: Rect) => {
+    if (uiRoot?.querySelector("[data-mesurer-responsive-stage]")) {
+      throw new Error("Select a preview element before adding a Responsive annotation.");
+    }
+
     const text = note.trim();
 
     if (!text) throw new Error("Annotation note cannot be empty.");
@@ -630,6 +790,7 @@ export function createMesurerWorkspaceRuntime(options: {
     const value = note.trim();
 
     if (!value) throw new Error("Annotation note cannot be empty.");
+
     const elements = selectedElements(model).filter(isInPageTarget);
 
     const region = model.current.selectionOriginRect
@@ -643,6 +804,10 @@ export function createMesurerWorkspaceRuntime(options: {
     }
 
     const targets = elements.map(makeTarget);
+
+    if (new Set(targets.map((target) => JSON.stringify(target.viewport))).size > 1) {
+      throw new Error("Select elements within one Responsive preview before adding an annotation.");
+    }
 
     return pushAnnotation({
       id: randomId(ownerWindow, "annotation"),
@@ -685,6 +850,17 @@ export function createMesurerWorkspaceRuntime(options: {
     },
     elementRect(element) {
       return getProjectedRectFromDom(element);
+    },
+    targetScope: previewTargetScope,
+    annotationVisible(id) {
+      const annotation = annotations.find((item) => item.id === id);
+
+      if (!annotation) return false;
+      const stageOpen = Boolean(uiRoot?.querySelector("[data-mesurer-responsive-stage]"));
+      const preview = annotation.anchor.kind === "elements" && annotation.anchor.targets.some((target) => target.viewport);
+
+      return stageOpen === preview && (!preview || (annotation.anchor.kind === "elements"
+        && annotation.anchor.targets.some((target) => resolveTarget(annotation.id, target))));
     },
     currentSelection() {
       return {
@@ -814,8 +990,12 @@ export function createMesurerWorkspaceRuntime(options: {
       if (annotation.anchor.kind === "region") return cloneMesurerRect(annotation.anchor.rect);
 
       const rects = annotation.anchor.targets
-        .map((target) => resolveTarget(annotation.id, target)?.getBoundingClientRect())
-        .filter((value): value is DOMRect => value !== undefined);
+        .map((target) => {
+          const element = resolveTarget(annotation.id, target);
+
+          return element ? getProjectedRectFromDom(element) : undefined;
+        })
+        .filter((value): value is Rect => value !== undefined);
 
       if (!rects.length) {
         const fallback = unionMesurerRects(annotation.anchor.targets.map((target) => target.lastRect));
@@ -832,10 +1012,27 @@ export function createMesurerWorkspaceRuntime(options: {
     },
     addSelectionAnnotation,
     addRegionAnnotation,
-    removeAnnotation(id) {
+    removeAnnotation(id, expectedContent) {
       const index = annotations.findIndex((annotation) => annotation.id === id);
 
-      if (index < 0) return;
+      if (index < 0) return false;
+      const current = annotations[index]!;
+
+      if (expectedContent) {
+        const replies = current.replies ?? [];
+
+        if (current.note !== expectedContent.note
+          || replies.length !== expectedContent.replies.length
+          || replies.some((reply, replyIndex) => {
+            const expected = expectedContent.replies[replyIndex];
+
+            return !expected
+              || reply.id !== expected.id
+              || reply.text !== expected.text
+              || reply.createdAt !== expected.createdAt;
+          })) return false;
+      }
+
       const [removed] = annotations.splice(index, 1);
 
       if (removed.anchor.kind === "elements") {
@@ -847,6 +1044,74 @@ export function createMesurerWorkspaceRuntime(options: {
       }
 
       if (annotations.length === 0) stopWatching();
+      persistAnnotations();
+      notify();
+
+      return true;
+    },
+    addAnnotationReply(annotationId, text) {
+      const annotation = annotations.find((item) => item.id === annotationId);
+      const value = text.trim();
+
+      if (!annotation) throw new Error(`Mesurer annotation not found: ${annotationId}`);
+
+      if (!value) throw new Error("Annotation reply cannot be empty.");
+
+      const reply = {
+        id: randomId(ownerWindow, "reply"),
+        text: value,
+        createdAt: Date.now(),
+      };
+
+      annotation.replies = [...(annotation.replies ?? []), reply];
+      persistAnnotations();
+      notify();
+
+      return { ...reply };
+    },
+    updateAnnotationReply(annotationId, replyId, text) {
+      const annotation = annotations.find((item) => item.id === annotationId);
+      const value = text.trim();
+
+      if (!annotation) throw new Error(`Mesurer annotation not found: ${annotationId}`);
+
+      if (!value) throw new Error("Annotation reply cannot be empty.");
+      const replies = annotation.replies ?? [];
+      const index = replies.findIndex((reply) => reply.id === replyId);
+
+      if (index < 0) throw new Error(`Mesurer annotation reply not found: ${replyId}`);
+      const reply = { ...replies[index]!, text: value };
+      annotation.replies = replies.map((item, current) => current === index ? reply : item);
+      persistAnnotations();
+      notify();
+
+      return { ...reply };
+    },
+    removeAnnotationReply(annotationId, replyId) {
+      const annotation = annotations.find((item) => item.id === annotationId);
+
+      if (!annotation) throw new Error(`Mesurer annotation not found: ${annotationId}`);
+      const replies = annotation.replies ?? [];
+
+      if (!replies.some((reply) => reply.id === replyId)) {
+        throw new Error(`Mesurer annotation reply not found: ${replyId}`);
+      }
+
+      const remaining = replies.filter((reply) => reply.id !== replyId);
+
+      if (remaining.length) annotation.replies = remaining;
+      else delete annotation.replies;
+      persistAnnotations();
+      notify();
+    },
+    setAnnotationStatus(annotationId, status) {
+      const annotation = annotations.find((item) => item.id === annotationId);
+
+      if (!annotation) throw new Error(`Mesurer annotation not found: ${annotationId}`);
+      annotation.status = status;
+
+      if (status === "resolved") annotation.resolvedAt = Date.now();
+      else delete annotation.resolvedAt;
       persistAnnotations();
       notify();
     },
@@ -895,6 +1160,8 @@ export function createMesurerWorkspaceRuntime(options: {
       stopWatching();
       unsubscribePageKey();
       modelUnsubscribe();
+      ownerWindow.removeEventListener("mesurer:responsive-stage-change", stageChanged);
+      uiRoot?.removeEventListener("scroll", scheduleRefresh, true);
       restoreCapturePresentation();
       liveTargets.clear();
       targetResolution.clear();

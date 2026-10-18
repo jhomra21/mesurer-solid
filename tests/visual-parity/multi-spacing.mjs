@@ -110,6 +110,11 @@ const directLabelRects = async () => page.evaluate(() => [...document.querySelec
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_MULTI_SPACING_FIXTURE__?.mesurer));
+  // Shift-selection targets sit beneath the selected element's Inspect card;
+  // interactive card occlusion has its own physical browser contract.
+  await openSettings();
+  await page.getByRole("dialog", { name: "Settings" }).getByLabel("Info card mode").selectOption("off");
+  await closeSettings();
 
   await page.evaluate(async () => {
     await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.select");

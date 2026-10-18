@@ -1,3 +1,4 @@
+import { normalizeResponsiveToolbar } from "./normalize-responsive-toolbar.mjs";
 import { chromium } from "@playwright/test";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -121,6 +122,10 @@ const normalizeHistoricalToolbarMode = async (page, implementation, caseName) =>
   });
 };
 
+// Normalization removes the dock row from the live DOM, and Settings stays
+// open across cases, so the row is required only until validated on a page.
+const pagesWithValidatedDock = new WeakSet();
+
 // Interaction parity compares the upstream-shared controls. Solid-only,
 // explicitly plugin-owned settings are exercised by browser-contracts instead.
 async function normalizeSharedParitySurface(page, implementation, caseName) {
@@ -172,6 +177,67 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     themeRemoved = true;
   }
 
+  const toolbarDock = page.getByRole("combobox", { name: "Toolbar dock" });
+
+  const generalSettingsVisible = await page.getByRole("dialog", { name: "Settings" })
+    .getByRole("tab", { name: "General", selected: true }).count() > 0;
+
+  if (generalSettingsVisible && !pagesWithValidatedDock.has(page) && (await toolbarDock.count()) !== 1) {
+    throw new Error(`Expected exactly one visible Toolbar dock control, found ${await toolbarDock.count()}.`);
+  }
+
+  if (await toolbarDock.count() > 0) {
+    if (await toolbarDock.count() !== 1) {
+      throw new Error("Expected exactly one Toolbar dock control in Settings.");
+    }
+
+    const contract = await toolbarDock.evaluate((select) => ({
+      tag: select.tagName.toLowerCase(),
+      value: select.value,
+      options: [...select.options].map((option) => ({
+        label: option.textContent?.trim() ?? "",
+        value: option.value,
+        selected: option.selected,
+        disabled: option.disabled,
+      })),
+    }));
+
+    const dock = contract.value;
+
+    if (
+      contract.tag !== "select"
+      || !["free", "snap"].includes(dock)
+      || JSON.stringify(contract.options) !== JSON.stringify([
+        { label: "Free", value: "free", selected: dock === "free", disabled: false },
+        { label: "Snap to edges", value: "snap", selected: dock === "snap", disabled: false },
+      ])
+    ) {
+      throw new Error(`Unexpected current Toolbar dock contract: ${JSON.stringify(contract)}`);
+    }
+
+    const autoHide = page.getByRole("switch", { name: "Auto-hide" });
+
+    const expectedAutoHideCount = dock === "snap" ? 1 : 0;
+
+    if (await autoHide.count() !== expectedAutoHideCount) {
+      throw new Error(`Expected ${expectedAutoHideCount} Auto-hide control(s) for ${dock} docking.`);
+    }
+
+    if (expectedAutoHideCount) {
+      const checked = await autoHide.getAttribute("aria-checked");
+
+      if (checked !== "true" && checked !== "false") {
+        throw new Error(`Unexpected Auto-hide switch state: ${checked}`);
+      }
+
+      await autoHide.evaluate((element) => element.remove());
+    }
+
+    await toolbarDock.evaluate((select) => select.parentElement?.remove());
+    pagesWithValidatedDock.add(page);
+    changed = true;
+  }
+
   const presentationSettings = page.locator("[data-mesurer-presentation-settings='true']");
 
   if ((await presentationSettings.count()) > 0) {
@@ -192,6 +258,27 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     }
 
     await presentationSettings.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
+    changed = true;
+  }
+
+  const inspectExtensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-current-only-extension]');
+
+  if ((await inspectExtensions.count()) > 0) {
+    const contract = await inspectExtensions.evaluateAll((nodes) => nodes.map((node) => ({
+      id: node.getAttribute("data-mesurer-current-only-extension"),
+      value: node.querySelector("select")?.value ?? node.getAttribute("aria-checked"),
+    })));
+
+    const expected = [
+      { id: "inspect-info-mode", value: "off" },
+      { id: "inspect-info-layout", value: "true" },
+    ];
+
+    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
+      throw new Error(`Unexpected current-only Inspect Settings controls: ${JSON.stringify(contract)}`);
+    }
+
+    await inspectExtensions.evaluateAll((nodes) => nodes.forEach((node) => (node.closest("label") ?? node).remove()));
     changed = true;
   }
 
@@ -220,6 +307,13 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
       }));
       changed = true;
     }
+  }
+
+  // The removed Solid-only rows sit above Persist, so removing them moves the
+  // switch out from under the pointer that just clicked it. Return the pointer
+  // to the switch, where it rests in the upstream capture.
+  if (caseName === "settings-general-persist-toggle" && changed) {
+    await sw(page, "Persist").hover();
   }
 
   const settingsVisible = await page.getByRole("dialog", { name: "Settings" }).isVisible();
@@ -486,14 +580,30 @@ try {
           },
         });
       });
+
+      if (implementation === "solid") {
+        await page.addInitScript(() => {
+          // Historical React predates Inspect. Disable only this new Solid
+          // surface in the historical lane; shipping still defaults it on.
+          if (localStorage.getItem("mesurer-settings") !== null) return;
+          localStorage.setItem("mesurer-settings", JSON.stringify({
+            version: 2,
+            settings: { infoCardMode: "off" },
+            workspace: null,
+          }));
+        });
+      }
+
       await page.goto(url, { waitUntil: "networkidle" });
       await page.locator(".mesurer-toolbar-surface").waitFor();
       await sleep(page, 100);
       await normalizeHistoricalToolbarMode(page, implementation, item.name);
+      await normalizeResponsiveToolbar(page, implementation, item.name);
       await item.run(page, implementation);
       // A case can reload the fixture (for example action-select-target). Remove
       // the current Select/Edit chrome again before the historical snapshot.
       await normalizeHistoricalToolbarMode(page, implementation, item.name);
+      await normalizeResponsiveToolbar(page, implementation, item.name);
       // Let the upstream 150ms switch/control transitions settle before the
       // screenshot so the comparison measures the final pressed state rather
       // than framework scheduling within the animation.

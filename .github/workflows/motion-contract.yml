@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "packages/renderer/src/components/MotionPlayer.tsx"
+      - "packages/renderer/src/components/InspectInfoCard.tsx"
+      - "packages/renderer/src/components/InspectDetailRow.tsx"
+      - "packages/renderer/src/components/MesurerOverlay.tsx"
       - "packages/renderer/src/components/MotionPreview.tsx"
       - "packages/renderer/src/components/Toolbar.tsx"
       - "packages/renderer/src/Mesurer.tsx"
@@ -12,6 +15,7 @@ on:
       - "packages/renderer/src/core/motion-preview.ts"
       - "packages/renderer/src/core/motion-snapshot.ts"
       - "packages/renderer/src/core/observed-motion.ts"
+      - "packages/renderer/src/core/inspect-css.ts"
       - "examples/basic/motion-contract.html"
       - "examples/basic/src/motion-contract.ts"
       - "tests/visual-parity/motion-contract.mjs"

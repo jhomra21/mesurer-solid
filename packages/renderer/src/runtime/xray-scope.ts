@@ -1,4 +1,4 @@
-import { getAccessibleDocuments } from "../core/document-tree";
+import { getAccessibleDocuments, isResponsivePreviewDocument } from "../core/document-tree";
 
 const BODY_CLASS = "mesurer-solid-xray";
 
@@ -68,6 +68,7 @@ export function createXrayScope(options: {
   ownerDocument: Document;
   target: HTMLElement | ShadowRoot;
   instanceId: number;
+  responsiveOpen?: () => boolean;
 }) {
   const { ownerDocument, target, instanceId } = options;
   const ownerWindow = ownerDocument.defaultView ?? window;
@@ -97,6 +98,7 @@ export function createXrayScope(options: {
   const appliedDocuments = new Set<Document>();
   const documentWatchers = new Map<Document, DocumentWatcher>();
   let visible = false;
+  let responsiveOnly = false;
 
   const releaseDocumentWatcher = (currentDocument: Document) => {
     const watcher = documentWatchers.get(currentDocument);
@@ -110,7 +112,8 @@ export function createXrayScope(options: {
 
   const syncDocumentTree = () => {
     const documents = visible
-      ? new Set(getAccessibleDocuments(target))
+      ? new Set(getAccessibleDocuments(responsiveOnly ? ownerDocument : target, { includeResponsiveFrames: responsiveOnly })
+        .filter((currentDocument) => !responsiveOnly || isResponsivePreviewDocument(currentDocument)))
       : new Set<Document>();
 
     for (const currentDocument of appliedDocuments) {
@@ -163,7 +166,7 @@ export function createXrayScope(options: {
 
     visible = next;
 
-    if (documentTarget) {
+    if (documentTarget || responsiveOnly) {
       syncDocumentTree();
 
       return;
@@ -183,8 +186,49 @@ export function createXrayScope(options: {
     if (!next) style.remove();
   };
 
+  const setResponsiveOnly = (next: boolean) => {
+    if (responsiveOnly === next) return;
+    responsiveOnly = next;
+
+    if (!visible) return;
+
+    if (documentTarget) {
+      syncDocumentTree();
+
+      return;
+    }
+
+    if (responsiveOnly) {
+      if (!shadowTarget) target.classList.remove(className);
+      style.remove();
+      syncDocumentTree();
+
+      return;
+    }
+
+    for (const currentDocument of appliedDocuments) {
+      setDocumentVisible(currentDocument, instanceId, false);
+    }
+
+    appliedDocuments.clear();
+
+    for (const currentDocument of documentWatchers.keys()) {
+      releaseDocumentWatcher(currentDocument);
+    }
+
+    if (shadowTarget) {
+      if (!style.isConnected) target.append(style);
+    } else {
+      target.classList.add(className);
+    }
+
+    if (!style.isConnected) scopedStyleHost?.append(style);
+  };
+
   return {
     setVisible,
+    setResponsiveOnly,
+    sync: syncDocumentTree,
     dispose() {
       if (visible) setVisible(false);
 

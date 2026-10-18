@@ -39,12 +39,16 @@ export const DEFAULT_MESURER_SETTINGS: MesurerSettings = {
   persistOnReload: false,
   shortcutsEnabled: true,
   theme: "system",
+  toolbarDock: "free",
+  toolbarAutoHide: false,
   colorPickerFormats: ["hex", "rgb", "oklch"],
   colorPickerClickFormat: "hex",
   snapEnabled: true,
   snapGuidesEnabled: true,
   selectNewGuideEnabled: true,
   multiMeasureEnabled: false,
+  layoutDetailsEnabled: true,
+  infoCardMode: "click",
   guideStyle: { ...DEFAULT_GUIDE_STYLE },
   rulerSettings: { ...DEFAULT_RULER_SETTINGS },
 };
@@ -441,6 +445,10 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
 
     if (stored.theme !== undefined) patch.theme = stored.theme;
 
+    if (stored.toolbarDock !== undefined) patch.toolbarDock = stored.toolbarDock;
+
+    if (stored.toolbarAutoHide !== undefined) patch.toolbarAutoHide = stored.toolbarAutoHide;
+
     if (stored.colorPickerFormats !== undefined) patch.colorPickerFormats = stored.colorPickerFormats;
 
     if (stored.colorPickerClickFormat !== undefined) patch.colorPickerClickFormat = stored.colorPickerClickFormat;
@@ -452,6 +460,10 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
     if (stored.selectNewGuideEnabled !== undefined) patch.selectNewGuideEnabled = stored.selectNewGuideEnabled;
 
     if (stored.multiMeasureEnabled !== undefined) patch.multiMeasureEnabled = stored.multiMeasureEnabled;
+
+    if (stored.layoutDetailsEnabled !== undefined) patch.layoutDetailsEnabled = stored.layoutDetailsEnabled;
+
+    if (stored.infoCardMode !== undefined) patch.infoCardMode = stored.infoCardMode;
 
     if (stored.guideStyle !== undefined) patch.guideStyle = { ...baseSettings.guideStyle, ...stored.guideStyle };
 
@@ -482,9 +494,13 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
     snapGuidesEnabled: current.settings.snapGuidesEnabled,
     selectNewGuideEnabled: current.settings.selectNewGuideEnabled,
     multiMeasureEnabled: current.settings.multiMeasureEnabled,
+    layoutDetailsEnabled: current.settings.layoutDetailsEnabled,
+    infoCardMode: current.settings.infoCardMode,
     persistOnReload: current.settings.persistOnReload,
     shortcutsEnabled: current.settings.shortcutsEnabled,
     theme: current.settings.theme,
+    toolbarDock: current.settings.toolbarDock,
+    toolbarAutoHide: current.settings.toolbarAutoHide,
     guideStyle: { ...current.settings.guideStyle },
     rulerSettings: { ...current.settings.rulerSettings },
   });

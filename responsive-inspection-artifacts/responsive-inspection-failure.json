@@ -1,0 +1,12 @@
+{
+  "url": "http://127.0.0.1:4190/responsive-preview.html",
+  "errors": [],
+  "error": "TimeoutError: waitFor: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('iframe[data-mesurer-responsive-frame]') to be detached\n    64 × locator resolved to visible <iframe width=\"393\" height=\"852\" title=\"iPhone 15 preview\" data-mesurer-responsive-frame=\"true\" sandbox=\"allow-scripts allow-same-origin\" src=\"http://127.0.0.1:4190/responsive-preview.html\"></iframe>\n",
+  "stack": "waitFor: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('iframe[data-mesurer-responsive-frame]') to be detached\n    64 × locator resolved to visible <iframe width=\"393\" height=\"852\" title=\"iPhone 15 preview\" data-mesurer-responsive-frame=\"true\" sandbox=\"allow-scripts allow-same-origin\" src=\"http://127.0.0.1:4190/responsive-preview.html\"></iframe>\n\n    at <anonymous> (/private/tmp/mesurer-responsive-2/tests/visual-parity/responsive-inspection-contract.mjs:48:15)\n    at processTicksAndRejections (native:7:39)",
+  "state": {
+    "mode": "select",
+    "previewFrame": true,
+    "hoverCount": 0,
+    "agentState": {}
+  }
+}

@@ -35,6 +35,8 @@ for (const state of settingsStates) {
   const solid = await readJson(solidName);
   const reactClass = react.settings?.className;
   const solidClass = solid.settings?.className;
+  const reactExtensions = react.settingsContract?.currentOnlyExtensions ?? [];
+  const solidExtensions = solid.settingsContract?.currentOnlyExtensions ?? [];
 
   assert.equal(
     reactClass,
@@ -46,10 +48,27 @@ for (const state of settingsStates) {
     currentViewportSafeSettingsClass,
     `${state}: current viewport-safe Settings class changed; do not normalize an unreviewed Solid delta`,
   );
+  assert.deepEqual(reactExtensions, [], `${state}: the pinned historical React Settings must not contain Inspect extension rows`);
+  assert.deepEqual(
+    solidExtensions,
+    state === "settings-select" ? [
+      { id: "inspect-info-mode", name: "Info card mode", role: "label", value: "off" },
+      { id: "inspect-info-layout", name: "Layout details", role: "switch", value: "true" },
+    ] : [],
+    `${state}: only the reviewed Inspect extension controls may be removed from historical Settings capture`,
+  );
 
-  manifest.settingsViewportSafety.push({ state, react: reactClass, solid: solidClass });
+  manifest.settingsViewportSafety.push({
+    state,
+    react: reactClass,
+    solid: solidClass,
+    currentOnlyExtensions: solidExtensions,
+  });
   solid.settings.className = reactClass;
+  delete solid.settingsContract.currentOnlyExtensions;
+  delete react.settingsContract.currentOnlyExtensions;
   await writeJson(solidName, solid);
+  await writeJson(reactName, react);
 }
 
 {
@@ -101,4 +120,4 @@ for (const state of settingsStates) {
 
 await writeJson("current-contract-normalization.json", manifest);
 
-console.log("Verified and normalized only the exact current-only Settings viewport-safety, Typography occlusion, and selection occlusion metadata deltas. Pixel captures are untouched.");
+console.log("Verified current-only Inspect Settings controls plus the exact Settings viewport-safety, Typography occlusion, and selection occlusion metadata deltas. Only reviewed extension rows are omitted from historical captures.");

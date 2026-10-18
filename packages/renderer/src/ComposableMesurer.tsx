@@ -1,4 +1,4 @@
-import { createMemo, createSignal, onSettled, untrack } from "solid-js";
+import { createEffect, createMemo, createSignal, onSettled, untrack } from "solid-js";
 import {
   MESURER_PLUGIN_BEFORE_DISABLE_HOOK,
   createMesurerPluginHost,
@@ -42,6 +42,7 @@ import {
   type StoredPluginRegistryState,
 } from "./runtime/composable-contract";
 import { createToolbarModeCoordinator } from "./runtime/toolbar-mode-coordinator";
+import { createAnnotationRevealCoordinator } from "./runtime/annotation-reveal";
 
 export type {
   MesurerPluginInput,
@@ -60,11 +61,29 @@ export default function ComposableMesurer(props: MesurerProps) {
     props.version && plugin.id.startsWith("mesurer.") ? { ...plugin, version } : plugin;
 
   const initialExclusions = new Set(untrack(() => props.excludePlugins ?? []));
-  const initialBuiltinPlugins = untrack(() => composeMesurerPlugins([], props.excludePlugins ?? []).map(versionPlugin));
+  const providedPlugins = untrack(() => [...(props.plugins ?? [])]);
+  const responsiveOverrideProvided = providedPlugins.some((input) => input.id === "mesurer.responsive");
+
+  const initialBuiltinPlugins = untrack(() => composeMesurerPlugins([], props.excludePlugins ?? [])
+    .filter((plugin) => !responsiveOverrideProvided || plugin.id !== "mesurer.responsive")
+    .map(versionPlugin));
+
   const pluginRegistry = new Map<string, MesurerPluginRegistration>();
   const managedPluginErrors = new Map<string, string>();
 
-  for (const [index, input] of untrack(() => [...(props.plugins ?? [])]).entries()) {
+  const responsiveBuiltin = initialBuiltinPlugins.find((plugin) => plugin.id === "mesurer.responsive");
+
+  if (responsiveBuiltin && !pluginRegistry.has(responsiveBuiltin.id)) {
+    pluginRegistry.set(responsiveBuiltin.id, {
+      id: responsiveBuiltin.id,
+      label: pluginLabelFromId(responsiveBuiltin.id),
+      order: -100,
+      enabled: true,
+      create: () => responsiveBuiltin,
+    });
+  }
+
+  for (const [index, input] of providedPlugins.entries()) {
     if (isPluginRegistration(input)) {
       pluginRegistry.set(input.id, {
         ...input,
@@ -104,6 +123,7 @@ export default function ComposableMesurer(props: MesurerProps) {
   let resetManagedPlugins: () => Promise<void> = async () => undefined;
   const [revision, setRevision] = createSignal(0);
   const [ready, setReady] = createSignal(false);
+  const [responsiveOpen, setResponsiveOpen] = createSignal(false);
 
   const replacementBuiltinTool = (id: MesurerBuiltinPluginId): ToolContribution | undefined => {
     revision();
@@ -132,6 +152,10 @@ export default function ComposableMesurer(props: MesurerProps) {
   };
 
   const builtinActionDisabled = (_id: Exclude<MesurerBuiltinPluginId, "distance">) => false;
+
+  createEffect(arrangeActive, (active) => {
+    if (active) setResponsiveOpen(false);
+  });
 
   const customTools = createMemo(() => {
     revision();
@@ -210,7 +234,7 @@ export default function ComposableMesurer(props: MesurerProps) {
     editModeTool,
     executeTool,
     leaveEditMode,
-    runTool,
+    runTool: executeToolbarTool,
   } = createToolbarModeCoordinator({
     host,
     getBuiltinController: () => builtinController,
@@ -220,8 +244,44 @@ export default function ComposableMesurer(props: MesurerProps) {
     onPluginError: props.onPluginError,
   });
 
+  const closeResponsiveForTool = (toolId: string) => {
+    if (responsiveOpen() && ["arrange", "edit", "rulers"].includes(toolId)) {
+      setResponsiveOpen(false);
+    }
+  };
+
+  const runResponsiveToggle = async () => {
+    if (!builtinEnabled("responsive")) return;
+
+    if (responsiveOpen()) {
+      setResponsiveOpen(false);
+
+      return;
+    }
+
+    if (arrangeActive()) await leaveEditMode("responsive-open");
+
+    if (rendererModel?.current.toolMode !== "select" && rendererModel?.current.toolMode !== "text-inspector") {
+      await builtinController?.run("select");
+    }
+
+    builtinController?.clearSelection();
+    setResponsiveOpen(true);
+  };
+
+  const runToolWithResponsiveClose = (
+    tool: ToolContribution,
+    source?: string | { source: string; builtin: MesurerBuiltinPluginId },
+  ) => {
+    closeResponsiveForTool(tool.id);
+    executeToolbarTool(tool, source);
+  };
+
+  const runTool = runToolWithResponsiveClose;
+
   const runToolMenuItem = (tool: ToolContribution, item: ToolMenuItemContribution) => {
     if (item.disabled?.()) return;
+    closeResponsiveForTool(tool.id);
     void Promise.resolve(item.run()).catch((error) => {
       props.onPluginError?.(error, `${tool.id}.${item.id}`);
     });
@@ -428,7 +488,14 @@ export default function ComposableMesurer(props: MesurerProps) {
 
     const unsubscribe = runtimeHost.subscribe((event) => {
       setRevision((value) => value + 1);
+
       visibilityStyle.textContent = visibilityCss();
+
+      if (
+        responsiveOpen()
+        && (arrangeActive() || host.tools().some((tool) =>
+          tool.id === "rulers" && (tool.active?.() ?? false)))
+      ) setResponsiveOpen(false);
 
       if (event.reason === "state" || event.reason === "history" || event.reason === "remove" || event.reason === "replace") {
         persistPluginState();
@@ -441,7 +508,9 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (event.reason === "remove" && event.pluginId?.startsWith("mesurer.")) {
         const id = event.pluginId.slice("mesurer.".length);
 
-        if (isBuiltinPluginId(id)) builtinController?.deactivate(id);
+        if (isBuiltinPluginId(id) && id !== "responsive") builtinController?.deactivate(id);
+
+        if (id === "responsive") setResponsiveOpen(false);
       }
     });
 
@@ -658,11 +727,21 @@ export default function ComposableMesurer(props: MesurerProps) {
 
       if (id === "settings") return model.settingsOpen;
 
+      if (id === "responsive") return responsiveOpen();
+
       return false;
     };
 
     const runBuiltinSlot = async (id: Exclude<MesurerBuiltinPluginId, "distance">) => {
       if (builtinActionDisabled(id)) return;
+
+      if (id === "responsive") {
+        void runResponsiveToggle();
+
+        return;
+      }
+
+      if (responsiveOpen() && id === "rulers") setResponsiveOpen(false);
 
       const sharedEditBuiltin = id === "rulers" || id === "guides";
 
@@ -715,6 +794,21 @@ export default function ComposableMesurer(props: MesurerProps) {
             subscribeTheme,
             createWorkspaceRuntime,
             createInspectorMount,
+            createAnnotationRevealCoordinator: (runtime) => createAnnotationRevealCoordinator({
+              root: requireRendererRoot(),
+              ownerWindow,
+              runtime,
+              responsiveEnabled: () => builtinEnabled("responsive"),
+              responsiveOpen,
+              openResponsive: async () => {
+                if (!responsiveOpen()) await runResponsiveToggle();
+                await new Promise<void>((resolve) => ownerWindow.requestAnimationFrame(() => resolve()));
+              },
+              closeResponsive: async () => {
+                if (responsiveOpen()) setResponsiveOpen(false);
+                await new Promise<void>((resolve) => ownerWindow.requestAnimationFrame(() => resolve()));
+              },
+            }),
           };
 
           ctx.service.provide<MesurerSolidRuntimeService>("runtime:solid", runtimeService);
@@ -768,6 +862,7 @@ export default function ComposableMesurer(props: MesurerProps) {
 
       if (active) {
         setReady(true);
+
         visibilityStyle.textContent = visibilityCss();
         input.onPluginsReady?.(runtimeHost);
       }
@@ -794,6 +889,8 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (key === "x") return "xray";
 
       if (key === "r") return "rulers";
+
+      if (key === "b") return "responsive";
 
       return null;
     };
@@ -827,6 +924,22 @@ export default function ComposableMesurer(props: MesurerProps) {
       }
 
       const slot = builtinShortcut(event);
+
+      if (slot === "responsive") {
+        if (!builtinEnabled("responsive")) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+
+          return;
+        }
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        if (!event.repeat) void runBuiltinSlot("responsive").catch(() => undefined);
+
+        return;
+      }
 
       if (slot && slot !== "settings" && arrangeActive()) {
         event.preventDefault();
@@ -873,7 +986,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (custom) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        runTool(custom);
+        runToolWithResponsiveClose(custom);
 
         return;
       }
@@ -932,10 +1045,16 @@ export default function ComposableMesurer(props: MesurerProps) {
         <Mesurer
           {...props}
           pluginTools={customTools()}
-          onPluginTool={(tool) => runTool(tool)}
+          onPluginTool={(tool) => {
+            runToolWithResponsiveClose(tool);
+          }}
           onPluginToolMenuItem={runToolMenuItem}
           isBuiltinActionDisabled={builtinActionDisabled}
           onBuiltinController={(controller) => { builtinController = controller; }}
+          responsiveOpen={responsiveOpen()}
+          responsiveShortcutsEnabled={() => rendererModel?.current.settings.shortcutsEnabled !== false}
+          onResponsiveClose={() => setResponsiveOpen(false)}
+          onResponsiveToggle={() => { void runResponsiveToggle(); }}
           editSelectionHover={arrangeActive}
         />
       </MesurerModelRegistrationContext>

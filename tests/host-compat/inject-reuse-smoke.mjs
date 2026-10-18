@@ -69,7 +69,7 @@ try {
     throw new Error(`Base injector must advertise built-in text-edit intent availability: ${JSON.stringify(directContract)}`);
   }
 
-  const expectedContextToolIds = ["context.add-note", "context.copy", "context.copy-selection"];
+  const expectedContextToolIds = ["context.add-note", "context.copy", "context.copy-selection", "context.notes"];
 
   if (JSON.stringify(directContract.contextToolIds) !== JSON.stringify(expectedContextToolIds)) {
     throw new Error(`Unexpected direct context toolbar surface: ${JSON.stringify(directContract)}`);

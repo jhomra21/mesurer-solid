@@ -1,7 +1,7 @@
 // Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
 import type { ColorPickerFormat } from "./colors";
 import { getMesurerPageKey } from "../runtime/page-location";
-import type { DistanceOverlay, Guide, Measurement, Rect, ToolMode } from "./types";
+import type { DistanceOverlay, Guide, InfoCardMode, Measurement, Rect, ToolMode } from "./types";
 
 export const MESURER_STORAGE_VERSION = 2;
 
@@ -26,11 +26,13 @@ export type RulerSettings = { opacity: number; edgeReveal: boolean };
 export const DEFAULT_RULER_SETTINGS: RulerSettings = { opacity: 1, edgeReveal: false };
 
 export type MesurerStoredSettings = {
+  toolbarDock?: "free" | "snap"; toolbarAutoHide?: boolean;
   highlightColor?: string; guideColor?: string; hoverHighlightEnabled?: boolean;
   colorPickerFormats?: ColorPickerFormat[]; colorPickerClickFormat?: ColorPickerFormat;
   snapEnabled?: boolean; snapGuidesEnabled?: boolean; selectNewGuideEnabled?: boolean;
   multiMeasureEnabled?: boolean; persistOnReload?: boolean; shortcutsEnabled?: boolean; theme?: MesurerTheme; guideStyle?: Partial<GuideStyle>;
   selectionSpacingStyle?: Partial<SelectionSpacingStyle>; rulerSettings?: Partial<RulerSettings>;
+  layoutDetailsEnabled?: boolean; infoCardMode?: InfoCardMode;
 };
 
 export type MesurerStoredWorkspace = {
@@ -76,6 +78,8 @@ const isFormat = (value: unknown): value is ColorPickerFormat => value === "hex"
 const isLinePattern = (value: unknown): value is LinePattern => value === "solid" || value === "dashed" || value === "dotted";
 
 const isTheme = (value: unknown): value is MesurerTheme => value === "system" || value === "light" || value === "dark";
+
+const isInfoCardMode = (value: unknown): value is InfoCardMode => value === "off" || value === "hover" || value === "click";
 
 const isToolMode = (value: unknown): value is ToolMode => value === "none" || value === "select" || value === "guides" || value === "text-inspector" || value === "xray" || value === "rulers";
 
@@ -182,11 +186,19 @@ export const normalizeStoredSettings = (value: PersistedValue | undefined): Mesu
 
   if (isBoolean(value.multiMeasureEnabled)) settings.multiMeasureEnabled = value.multiMeasureEnabled;
 
+  if (isBoolean(value.layoutDetailsEnabled)) settings.layoutDetailsEnabled = value.layoutDetailsEnabled;
+
+  if (isInfoCardMode(value.infoCardMode)) settings.infoCardMode = value.infoCardMode;
+
   if (isBoolean(value.persistOnReload)) settings.persistOnReload = value.persistOnReload;
 
   if (isBoolean(value.shortcutsEnabled)) settings.shortcutsEnabled = value.shortcutsEnabled;
 
   if (isTheme(value.theme)) settings.theme = value.theme;
+
+  if (value.toolbarDock === "free" || value.toolbarDock === "snap") settings.toolbarDock = value.toolbarDock;
+
+  if (isBoolean(value.toolbarAutoHide)) settings.toolbarAutoHide = value.toolbarAutoHide;
   const guideStyle = normalizeGuideStyle(value.guideStyle);
 
   if (guideStyle) settings.guideStyle = guideStyle;

@@ -9,7 +9,7 @@ import {
   MESURER_CODEX_SERVICE_ID,
   type MesurerCodexService,
 } from "../../mesurer/src/plugins";
-import type { MesurerAnnotation, MesurerContextRequest } from "../../mesurer/src/context";
+import type { MesurerAnnotation, MesurerContextRequest, MesurerContextV1 } from "../../mesurer/src/context";
 import type { MesurerContextService } from "../../mesurer/src/context-plugin";
 import type { HostCodexBridgeRequest } from "../src/core/screenshot";
 
@@ -38,10 +38,19 @@ const annotation: MesurerAnnotation = {
 };
 
 const createContextService = () => {
-  const savedAnnotations = [annotation];
+  const savedAnnotations = [structuredClone(annotation)];
 
-  const removeAnnotation = vi.fn(async (annotationId: string) => {
+  const removeAnnotation = vi.fn(async (
+    annotationId: string,
+    expectedContent?: { note: string; replies: NonNullable<MesurerAnnotation["replies"]> },
+  ) => {
     const index = savedAnnotations.findIndex((candidate) => candidate.id === annotationId);
+
+    const current = savedAnnotations[index];
+
+    if (expectedContent && current
+      && (current.note !== expectedContent.note
+        || JSON.stringify(current.replies ?? []) !== JSON.stringify(expectedContent.replies))) return;
 
     if (index >= 0) savedAnnotations.splice(index, 1);
   });
@@ -54,8 +63,45 @@ const createContextService = () => {
     return "workspace evidence";
   });
 
+  const context = vi.fn(async (request?: MesurerContextRequest) => {
+    const saved = request && "annotation" in request
+      ? savedAnnotations.find((item) => item.id === request.annotation)
+      : undefined;
+
+    if (!saved) throw new Error("No saved annotation context for this contract.");
+
+    const scope: Extract<MesurerContextV1["scope"], { kind: "annotation" }> = {
+      kind: "annotation",
+      annotationId: saved.id,
+      note: saved.note,
+      targetStatus: "connected" as const,
+    };
+
+    if (saved.replies?.length) scope.replies = saved.replies.map((reply) => ({ ...reply }));
+
+    if (saved.status === "resolved") {
+      scope.status = "resolved" as const;
+
+      if (saved.resolvedAt !== undefined) scope.resolvedAt = saved.resolvedAt;
+    }
+
+    return {
+      schema: "mesurer.context/v1" as const,
+      id: "context-1",
+      createdAt: new Date(0).toISOString(),
+      scope,
+      page: { url: "https://example.test/", title: "Example" },
+      viewport: { width: 800, height: 600, devicePixelRatio: 1, scrollX: 0, scrollY: 0 },
+      coordinateSpace: "viewport-css-px" as const,
+      regions: [],
+      visualState: { rulersVisible: false, xrayVisible: false },
+      targets: [],
+      visualContext: { guides: [], layoutGuides: [], measurements: [], distances: [] },
+    };
+  });
+
   const service: MesurerContextService = {
-    context: async () => { throw new Error("context() is not needed by this contract"); },
+    context,
     contextText,
     copyContext: async () => {},
     select: async () => { throw new Error("select() is not needed by this contract"); },
@@ -67,7 +113,7 @@ const createContextService = () => {
     finishCapture: async () => {},
   };
 
-  return { service, contextText, removeAnnotation };
+  return { service, context, contextText, removeAnnotation, savedAnnotations };
 };
 
 const DELIVERY_POLL_MS_FOR_TEST = 750;
@@ -675,7 +721,7 @@ describe("codex", () => {
 
   it("sends saved Context evidence through the native Codex Bridge", async () => {
     const host = createMesurerPluginHost();
-    const { service: contextService, contextText } = createContextService();
+    const { service: contextService, context } = createContextService();
 
     const fetchMock = bridgeFetchMock(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
@@ -709,13 +755,13 @@ describe("codex", () => {
       annotationIds: ["note-1"],
     });
 
-    expect(contextText).toHaveBeenCalledWith({ annotation: "note-1" });
+    expect(context).toHaveBeenCalledWith({ annotation: "note-1" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("http://127.0.0.1:47365/send");
     const init = fetchMock.mock.calls[0]?.[1];
     const payload = JSON.parse(String(init?.body));
     expect(payload.message).toContain("Implement the current human feedback from Mesurer in this project.");
-    expect(payload.message).toContain("annotation evidence note-1");
+    expect(payload.message).toContain("Give this card more breathing room");
     expect(payload.thread).toBeUndefined();
   });
 
@@ -1109,12 +1155,115 @@ describe("codex", () => {
     expect(tool?.label).toBe("Codex finished");
     expect(tool?.disabled?.()).toBe(true);
     expect(removeAnnotation).toHaveBeenCalledTimes(1);
-    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1", expect.objectContaining({ id: "note-1", note: annotation.note, replies: [] }));
 
     await vi.advanceTimersByTimeAsync(2_000);
     tool = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(tool?.label).toBe("Queue to Codex");
     expect(tool?.disabled?.()).toBe(false);
+    host.dispose();
+    vi.useRealTimers();
+  });
+
+  it("keeps cleanup evidence private to each concurrent queue operation", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService, removeAnnotation, savedAnnotations } = createContextService();
+    let resolveFirstQueue!: () => void;
+    const firstQueueHeld = new Promise<void>((resolve) => { resolveFirstQueue = resolve; });
+    let sendCount = 0;
+    let deliveryReads = 0;
+
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, thread: "thread-a", threads: ["thread-a"] }) };
+      }
+
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            threadDetails: [{ id: "thread-a", title: "Current task", updatedAt: 10, connected: true }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      if (url.endsWith("/send")) {
+        sendCount += 1;
+
+        if (sendCount === 1) {
+          await firstQueueHeld;
+
+          return {
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({
+              ok: true,
+              thread: "thread-a",
+              output: "queued A",
+              delivery: "queued",
+              deliveryId: "delivery-concurrent",
+              status: "queued",
+            }),
+          };
+        }
+
+        throw new Error("queue B rejected");
+      }
+
+      if (url.endsWith("/deliveries/delivery-concurrent")) {
+        deliveryReads += 1;
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            deliveryId: "delivery-concurrent",
+            thread: "thread-a",
+            status: "completed",
+            turnId: "turn-concurrent",
+            createdAt: 1,
+            updatedAt: 2,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    await host.load(defineMesurerPlugin({
+      id: "test.context-concurrent-delivery",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+
+    const queueA = host.command.execute("codex.send");
+    await vi.waitFor(() => expect(sendCount).toBe(1));
+    savedAnnotations[0]!.replies = [{ id: "reply-new", text: "Added while A waits", createdAt: 2 }];
+
+    const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
+    await expect(service?.queue({ thread: "thread-a" })).rejects.toThrow("queue B rejected");
+    resolveFirstQueue();
+    await queueA;
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    await vi.advanceTimersByTimeAsync(ACTIVE_DELIVERY_POLL_MS_FOR_TEST);
+
+    expect(sendCount).toBe(2);
+    expect(deliveryReads).toBeGreaterThan(0);
+    expect(savedAnnotations).toHaveLength(1);
+    expect(savedAnnotations[0]?.replies?.map(({ text }) => text)).toEqual(["Added while A waits"]);
+    expect(removeAnnotation).not.toHaveBeenCalled();
     host.dispose();
     vi.useRealTimers();
   });
@@ -1226,7 +1375,7 @@ describe("codex", () => {
     tool = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(tool?.label).toBe("Codex finished");
     expect(removeAnnotation).toHaveBeenCalledTimes(1);
-    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1", expect.objectContaining({ id: "note-1", note: annotation.note, replies: [] }));
     expect(sendCount).toBe(1);
 
     host.dispose();
@@ -1626,7 +1775,7 @@ describe("codex", () => {
     expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Codex finished");
     expect(removeAnnotation).toHaveBeenCalledTimes(1);
-    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1", expect.objectContaining({ id: "note-1", note: annotation.note, replies: [] }));
     expect(sendCount).toBe(1);
 
     host.dispose();
@@ -1790,7 +1939,14 @@ describe("codex", () => {
         "Implement the current human feedback from Mesurer in this project. Treat the rendered page as the source of truth, preserve unrelated Mesurer review state, and verify the affected UI in the live page with Mesurer before claiming completion.",
         "",
         "Mesurer evidence",
-        "annotation evidence note-1",
+        "Mesurer visual context",
+        "",
+        "Page: https://example.test/",
+        "Viewport: 800 × 600 CSS px; scroll x=0 y=0",
+        "",
+        "Annotation",
+        annotation.note,
+        "Target status: connected",
       ].join("\n"),
     }]);
     expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
@@ -1804,7 +1960,7 @@ describe("codex", () => {
     expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Codex finished");
     expect(removeAnnotation).toHaveBeenCalledTimes(1);
-    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1", expect.objectContaining({ id: "note-1", note: annotation.note, replies: [] }));
     expect(sendCount).toBe(1);
 
     secondHost.dispose();
@@ -1955,7 +2111,7 @@ describe("codex", () => {
     expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Codex finished");
     expect(removeAnnotation).toHaveBeenCalledTimes(1);
-    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1", expect.objectContaining({ id: "note-1", note: annotation.note, replies: [] }));
     await expect(secondContext.annotations()).resolves.toEqual([]);
 
     const persisted = JSON.parse(
@@ -2074,7 +2230,7 @@ describe("codex", () => {
 
     await vi.advanceTimersByTimeAsync(0);
     expect(deliveryReads).toBe(1);
-    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1", expect.objectContaining({ id: "note-1", note: annotation.note, replies: [] }));
     expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
       .toBe("Codex finished");
     secondHost.dispose();

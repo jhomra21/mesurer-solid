@@ -136,8 +136,7 @@ describe("ContextActions annotation scroll ownership", () => {
     textarea!.dispatchEvent(new Event("input", { bubbles: true }));
     await settle();
 
-    const save = [...composer!.querySelectorAll<HTMLButtonElement>("button")]
-      .find((button) => button.textContent === "Add note");
+    const save = composer!.querySelector<HTMLButtonElement>("button[aria-label='Add note']");
 
     expect(save).not.toBeUndefined();
     click(save!);

@@ -5,6 +5,7 @@ import {
   createMemo,
   createSignal,
   onCleanup,
+  untrack,
 } from "solid-js";
 import {
   controlMotion,
@@ -12,8 +13,10 @@ import {
   motionCssProperty,
   motionDuration,
   motionPlaybackState,
+  motionLevel,
   readMotionDetails,
   readMotionKeyframes,
+  scopedMotionAnimations,
   scrubAnimations,
   type MotionDetails,
 } from "../core/motion";
@@ -236,6 +239,7 @@ export function MotionPlayer(props: {
   element: Element;
   ownerWindow: Window;
   suspended?: () => boolean;
+  inspectDetails?: () => any;
 }) {
   const [duration, setDuration] = createSignal(0);
   const [progress, setProgress] = createSignal(0);
@@ -267,14 +271,16 @@ export function MotionPlayer(props: {
   createEffect(
     () => props.suspended?.() ?? false,
     (suspended) => {
-      if (!suspended) previewWakeRef.current?.();
+      if (!suspended) untrack(() => previewWakeRef.current?.());
     },
   );
 
   let animations: Animation[] = [];
 
   const observedProperties = createMemo(() =>
-    [...new Set(observedTargets().flatMap((target) => target.properties))]);
+    [...new Set(observedTargets()
+      .filter((target) => motionLevel(props.element, target.element) !== null)
+      .flatMap((target) => target.properties))]);
 
   const observedOnly = () => observedProperties().length > 0;
   const playbackReady = () => playbackElement() === props.element;
@@ -293,7 +299,8 @@ export function MotionPlayer(props: {
       const stopObserved = observeMotion(
         element,
         ownerWindow,
-        (targets) => setObservedTargets(targets.filter((target) => target.element === element)),
+        (targets) => setObservedTargets(targets.filter((target) =>
+          motionLevel(element, target.element) !== null)),
       );
 
       onCleanup(stopObserved);
@@ -343,7 +350,7 @@ export function MotionPlayer(props: {
             nextMotions.flatMap((motion) => motion.animation ? [motion.animation] : []),
           )];
 
-          setReady(nextMotions.length > 0 || getOwnMotionAnimations(element).length > 0);
+          setReady(nextMotions.length > 0 || scopedMotionAnimations(element).length > 0);
           setDuration(Math.max(0, ...nextMotions.map(motionDuration)));
           setMotions(nextMotions);
           animations = nextAnimations;
@@ -365,7 +372,7 @@ export function MotionPlayer(props: {
 
   createEffect(
     () => [props.ownerWindow, ready(), controllable(), duration()] as const,
-    ([ownerWindow, motionReady, canControl]) => {
+    ([ownerWindow, motionReady, canControl, motionDurationValue]) => {
       if (!motionReady || !canControl) return;
 
       let timer = 0;
@@ -383,7 +390,7 @@ export function MotionPlayer(props: {
           return;
         }
 
-        const playback = motionPlaybackState(animations, duration());
+        const playback = motionPlaybackState(animations, motionDurationValue);
 
         setProgress(playback.progress);
         setPlaying(playback.playing);
@@ -397,7 +404,7 @@ export function MotionPlayer(props: {
         }
       };
 
-      update();
+      untrack(update);
 
       onCleanup(() => {
         disposed = true;
@@ -852,6 +859,7 @@ export function MotionPlayer(props: {
               element={props.element}
               observedProperties={observedProperties()}
             />
+            {props.inspectDetails?.()}
           </Show>
         </div>
       </div>

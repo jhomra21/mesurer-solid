@@ -1,6 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { Portal } from "@solidjs/web";
 import { GUIDE_DRAG_HOLD_MS, GUIDE_HITBOX_SIZE, MEASURE_LABEL_OFFSET } from "../core/constants";
+import { getInspectMeasurement } from "../core/dom";
 import { getSelectionSpacingOverlays } from "../core/distances";
 import { getEdgeVisibilityForRects } from "../core/edge-visibility";
 import { trySetPointerCapture } from "../core/events";
@@ -14,6 +15,7 @@ import { ensureMesurerStyles } from "../runtime/style-inject";
 import { MESURER_STYLES } from "../styles.generated";
 import { DistanceOverlayItem, type SelectionSpacingInteraction } from "./DistanceOverlayItem";
 import { MeasurementBox } from "./MeasurementBox";
+import { InspectInfoCard } from "./InspectInfoCard";
 
 type OverlayPointerEvent = PointerEvent & { currentTarget: HTMLDivElement };
 
@@ -25,6 +27,7 @@ export type MesurerOverlayProps = {
   guideDistanceOverlay: import("../core/types").DistanceOverlay | null;
   optionContainerLines: ReturnType<typeof import("../core/option-measurements").getOptionContainerLines>;
   hoverGuide: Guide | null;
+  responsiveOpen?: boolean;
   selectionSpacingStyle: SelectionSpacingStyle;
   interactive: boolean;
   editSelectionHover(): boolean;
@@ -61,6 +64,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const [expandedSpacingGroup, setExpandedSpacingGroup] = createSignal<string | null>(null);
   const [pinnedSpacingGroup, setPinnedSpacingGroup] = createSignal<string | null>(null);
   const [selectionDocumentTarget, setSelectionDocumentTarget] = createSignal<HTMLElement | null>(null);
+  const [motionSurfaceActive, setMotionSurfaceActive] = createSignal(false);
+  const [contextSurfaceActive, setContextSurfaceActive] = createSignal(false);
 
   const spacingInteraction: SelectionSpacingInteraction = {
     expandedKey: expandedSpacingGroup,
@@ -98,6 +103,83 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const selectedOutline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 96%, transparent)`;
   const selectedFill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 15.36%, transparent)`;
   const selectedMeasurements = createMemo(() => props.model.state.selectedMeasurements);
+
+  const inspectCardSuppressed = () => {
+    const root = props.model.rendererRoot;
+    const screenshotSelection = root?.querySelector<HTMLElement>("[data-mesurer-screenshot-select='true']");
+    const motionSurface = root?.querySelector<HTMLElement>("[data-mesurer-motion-surface='true']");
+
+    return Boolean(
+      props.editSelectionHover()
+      || root?.hasAttribute("data-mesurer-direct-text-edit-active")
+      || root?.hasAttribute("data-mesurer-recording-active")
+      || (screenshotSelection
+        && props.model.rendererRoot?.ownerDocument.defaultView?.getComputedStyle(screenshotSelection).display !== "none")
+      || motionSurfaceActive()
+      || (motionSurface && motionSurface.getBoundingClientRect().height > 0)
+      || contextSurfaceActive(),
+    );
+  };
+
+  const inspectCardMount = () => {
+    const overlay = overlayElement;
+
+    if (!overlay) return null;
+    const ownerWindow = overlay.ownerDocument.defaultView;
+    const renderRoot = overlay.getRootNode();
+
+    if (ownerWindow && renderRoot instanceof ownerWindow.ShadowRoot) return renderRoot;
+
+    return overlay.closest<HTMLElement>("[data-mesurer-island='true']")
+      ?? overlay.ownerDocument.body;
+  };
+
+  const portalMount = (target: HTMLElement | ShadowRoot) => {
+    // SAFETY: Solid Portal uses DOM child insertion/removal, which ShadowRoot supports.
+    return target as Element;
+  };
+
+  const selectedCardMeasurement = createMemo(() => {
+    if (props.model.state.settings.infoCardMode === "off"
+      || props.model.state.toolMode !== "select"
+      || !props.model.state.enabled) return null;
+
+    if (props.model.state.settingsOpen || props.model.state.isDragging || props.model.state.altPressed
+      || props.model.state.draggingGuideId || props.model.state.colorPickerActive
+      || recordingInteractionActive() || inspectCardSuppressed()) return null;
+    const selected = props.model.state.selectedMeasurement;
+    const element = selected?.elementRef;
+
+    if (!selected || !element?.isConnected || selected.id.startsWith("group-")) return null;
+
+    return { element, measurement: selected };
+  });
+
+  const hoverCardSource = createMemo(() => {
+    const element = props.model.state.hoverElement;
+
+    if (!element?.isConnected) return null;
+    const ownerWindow = element.ownerDocument.defaultView;
+
+    return ownerWindow ? { element, measurement: getInspectMeasurement(element, ownerWindow) } : null;
+  });
+
+  const hoverCardMeasurement = createMemo(() => {
+    if (props.model.state.settings.infoCardMode !== "hover"
+      || props.model.state.toolMode !== "select"
+      || !props.model.state.enabled
+      || props.model.state.settingsOpen
+      || props.model.state.altPressed
+      || props.model.state.isDragging
+      || selectedMeasurements().length
+      || inspectCardSuppressed()) return null;
+    const source = hoverCardSource();
+    const rect = props.model.state.hoverRect;
+
+    if (!source || !rect) return null;
+
+    return { ...source, rect };
+  });
 
   // Spacing pills remain interactive inside the protected top layer. The
   // dotted strokes themselves move with the document's native scroll tree.
@@ -245,6 +327,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   };
 
   const renderedGuides = createMemo((): Guide[] => {
+    if (props.responsiveOpen) return [];
+
     if (props.model.state.guides.length > 0) return props.model.state.guides;
 
     if (!props.model.state.settingsOpen || props.model.state.settingsTab !== "guides") return props.model.state.guides;
@@ -321,6 +405,36 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       ensureMesurerStyles(MESURER_STYLES, ownerDocument.body);
       setSelectionDocumentTarget(ownerDocument.body);
     }
+
+    const syncMotionSurface = () => {
+      const surface = props.model.rendererRoot?.querySelector<HTMLElement>("[data-mesurer-motion-surface='true']");
+      const active = Boolean(surface && surface.getBoundingClientRect().height > 0);
+
+      const contextSurface = props.model.rendererRoot?.querySelector(
+        "[data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
+      ) ?? ownerDocument.querySelector(
+        "[data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
+      ) ?? ownerDocument.querySelector<HTMLElement>("[data-mesurer-island='true']")
+        ?.shadowRoot?.querySelector(
+          "[data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
+        );
+
+      if (active !== motionSurfaceActive()) setMotionSurfaceActive(active);
+
+      if (Boolean(contextSurface) !== contextSurfaceActive()) setContextSurfaceActive(Boolean(contextSurface));
+    };
+
+    const motionSurfaceObserver = new ownerWindow.MutationObserver(syncMotionSurface);
+
+    if (props.model.rendererRoot) {
+      motionSurfaceObserver.observe(props.model.rendererRoot, { childList: true, subtree: true });
+    }
+
+    if (ownerDocument.body && ownerDocument.body !== props.model.rendererRoot) {
+      motionSurfaceObserver.observe(ownerDocument.body, { childList: true, subtree: true });
+    }
+
+    syncMotionSurface();
 
     const handleOverlayPointerMove = (event: PointerEvent) => props.onPointerMove(event);
 
@@ -411,7 +525,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     };
 
     const handlePassiveGuideDown = (event: PointerEvent) => {
-      if (!props.model.current.enabled || props.model.current.settingsOpen || props.model.current.toolMode !== "none") return;
+      if (props.responsiveOpen || !props.model.current.enabled || props.model.current.settingsOpen || props.model.current.toolMode !== "none") return;
 
       const toolbarTarget = event.composedPath().some((target) =>
         target instanceof ownerWindow.Element && target.hasAttribute("data-mesurer-toolbar"),
@@ -506,6 +620,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       ownerWindow.removeEventListener("pointermove", handlePassiveGuideMove, true);
       ownerWindow.removeEventListener("pointerup", handlePassiveGuideEnd, true);
       ownerWindow.removeEventListener("pointercancel", handlePassiveGuideEnd, true);
+      motionSurfaceObserver.disconnect();
 
       if (hoverScrollIdleTimer) ownerWindow.clearTimeout(hoverScrollIdleTimer);
 
@@ -525,9 +640,14 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
   const SelectedPresentation = () => (
     <>
-      <For each={displayedSelectedMeasurements()}>{(measurement, index) => (
+      <For
+        each={displayedSelectedMeasurements()}
+        keyed={(measurement) => measurement.id}
+      >{(measurement, index) => (
         <MeasurementBox
-          measurement={measurement}
+          measurement={measurement()}
+          showLabel={!(props.model.state.selectedMeasurements.length === 1
+            && selectedCardMeasurement()?.element === measurement().elementRef)}
           edgeVisibility={selectedEdges()[index()]}
           outlineColor={selectedOutline()}
           fillColor={selectedFill()}
@@ -610,6 +730,44 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
           </Show>
         </Show>
       </Show>
+
+      <Show when={selectedCardMeasurement()}>{(selected) => {
+        const mount = inspectCardMount();
+
+        ensureMesurerStyles(MESURER_STYLES, overlayElement!.ownerDocument.body);
+
+        return <Portal mount={portalMount(mount ?? overlayElement!)}>
+          <InspectInfoCard
+            element={selected().element}
+            measurement={selected().measurement}
+            rect={selected().measurement.rect}
+            ownerWindow={overlayElement!.ownerDocument.defaultView!}
+            theme={props.model.state.settings.theme}
+            documentMounted
+            layoutDetailsEnabled={props.model.state.settings.layoutDetailsEnabled}
+            singleSelection={props.model.state.selectedMeasurements.length <= 1}
+          />
+        </Portal>;
+      }}</Show>
+      <Show when={!selectedCardMeasurement() && hoverCardMeasurement()}>{(hover) => {
+        const mount = inspectCardMount();
+
+        ensureMesurerStyles(MESURER_STYLES, overlayElement!.ownerDocument.body);
+
+        return <Portal mount={portalMount(mount ?? overlayElement!)}>
+          <InspectInfoCard
+            element={hover().element}
+            measurement={hover().measurement}
+            rect={hover().rect}
+            ownerWindow={overlayElement!.ownerDocument.defaultView!}
+            theme={props.model.state.settings.theme}
+            documentMounted
+            layoutDetailsEnabled={props.model.state.settings.layoutDetailsEnabled}
+            singleSelection
+            passThrough
+          />
+        </Portal>;
+      }}</Show>
 
       <Show when={props.interactive && guidesMode() && props.model.state.guidePreview && !props.model.state.draggingGuideId}>
         <div class="msr:pointer-events-none msr:absolute" style={props.model.state.guidePreview!.orientation === "vertical"

@@ -5,7 +5,7 @@ description: Use Mesurer for frontend UI implementation, review, debugging, layo
 
 # Mesurer UI workflow
 
-Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. This skill matches `mesurer-solid@0.2.1` stable. The rendered page is the integration boundary.
+Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. This skill matches `mesurer-solid@0.2.2` stable. The rendered page is the integration boundary.
 
 The normal coding-agent workflow requires no Mesurer MCP server or Send-to-agent callback. Use the browser/evaluation channel the browser controller already provides and read `window.__MESURER__` directly. The first-party `codex()` plugin is a separate human-initiated **Settings -> Codex** convenience for routing Context feedback into local Codex threads. Do not confuse it with the Mesurer Solid ChatGPT/Codex agent plugin.
 
@@ -15,7 +15,7 @@ A meaningful Mesurer step must return evidence the agent actually uses.
 
 ## Know the available capabilities
 
-The base inspector has Select, X-ray, Color Picker, Rulers, Typography, Guides, Distance, and Settings. Color Picker uses application-local host capture when available and otherwise uses a working browser `EyeDropper`; a successful sample copies the configured format to the clipboard.
+The base inspector has Select, X-ray, Color Picker, Rulers, Responsive, Typography, Guides, Distance, and Settings. Responsive opens one live iPhone 15 (393 × 852 CSS px) same-origin preview; while it is open, Select, measurements, X-ray, and Typography inspect accessible preview documents. Preview evidence is projected over the scaled iframe, and the root page and stage chrome are not inspection sources. Context preview notes store exact URL/width/height/preview identity and render only over a matching preview in the root overlay. Removing or closing previews hides notes and releases watchers without deleting saved records; a uniquely matching recreated viewport can conservatively rebind. Context targets and capture plans include viewport metadata with root-projected geometry. The existing `window.__MESURER__` inspect/select methods continue targeting the root document. Preview loads rerun page JavaScript and side effects. Color Picker uses application-local host capture when available and otherwise uses a working browser `EyeDropper`; a successful sample copies the configured format to the clipboard.
 
 Optional first-party plugins add Context, Edit, Layout Guides, Screenshot, Recording, and Codex delivery. Rulers, ordinary Guides, and Layout Guides remain usable while Edit is active; X-ray, Color Picker, Typography, Screenshot, and Recording stay in the Select lane. Context carries annotations and structured evidence. Edit carries Before/Desired/Live movement intent through the existing Arrange compatibility APIs. Layout Guides carries page-scoped column/row/grid intent and exposes saved guides through Context with each guide's `visible` flag. Screenshot and Recording are human capture workflows; Recording exposes the typed `recording:v1` service when application code needs its lifecycle. Codex is an optional human queue transport, not the normal agent protocol.
 
@@ -198,6 +198,7 @@ The user can open Settings with the gear button or `Cmd/Ctrl+,`. Changing either
 Mesurer UI is never inspected-page content. Treat `[data-mesurer-root]`, `[data-mesurer-island]`, and `[data-mesurer-inspector-ui]` as hard selection and hit-test boundaries. Do not look through a Typography card, annotation UI, toolbar, or inspector shell to select page content underneath it.
 
 An Add Note composer is transient and belongs to the exact selection that opened it. If the human changes selection before saving, Mesurer closes that unsaved composer and shows the normal small Add Note trigger for the new selection instead of carrying the draft card to another target. Saved annotations survive same-tab reloads and conservatively rebind through stored selector/fingerprint identity; do not re-create or duplicate a note merely because the host page reloaded. Add Note, saved markers, saved annotation panels, and the composer are protected inspector UI: live page hover/selection chrome paints underneath them. Several notes on one target keep separate nearby markers, and Add Note remains available while a saved note is open.
+The composer uses a compact auto-growing field with an in-field Send button. Enter sends, Shift+Enter inserts a newline, and Escape discards. The first outside click on a non-empty draft prompts instead of discarding; a second outside click closes it.
 
 Scroll ownership is split deliberately:
 

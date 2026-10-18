@@ -60,6 +60,8 @@ window.__MESURER_HOST__ = {
 
 Source-linked inspector UI may use a managed document inspector mount when browser scrolling and page-relative geometry should move it with the content it describes. Context uses this path for Add Note, its composer, saved markers and panels, and annotation ownership evidence. Ordinary source-linked Typography can use the same document-backed model.
 
+While Responsive is open, Context moves that same managed UI mount into the protected root renderer and uses projected root viewport geometry for preview targets. It restores the document mount on close; it never mounts annotation UI in the preview document. Root-page and preview annotation presentation remain mutually exclusive.
+
 Document-backed nodes are still Mesurer UI. They carry the inspector hit-test boundary, use a runtime-owned mount, and clean up with the interaction or plugin that created them. Do not append unrelated unmanaged overlays to `document.body`.
 
 When a document-backed inspector must occlude page selection evidence, the related Select paint must use the lower document evidence layer too. A browser top-layer node outranks ordinary document `z-index`, so keeping Select hover in the top-layer island while a Context card lives in the document would allow blue hover paint to cross the card. Context therefore moves Select hover into the document evidence layer while its document-backed annotation UI owns that page region, including non-isolated source mounts that still use browser top-layer promotion.

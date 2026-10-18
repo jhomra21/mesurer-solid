@@ -4,7 +4,7 @@ Framework-agnostic UI inspection, measurement, visual intent, and agent-readable
 
 Mesurer Solid ships its own isolated Solid 2 renderer. Host applications can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without providing Solid.
 
-**Current stable:** `mesurer-solid@0.2.1` on the `latest` dist-tag.
+**Current stable:** `mesurer-solid@0.2.2` on the `latest` dist-tag.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jhomra21/mesurer-solid/main/docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">
@@ -72,7 +72,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-The base inspector includes Select, X-ray, Color Picker, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. First-party Recording uses MediaBunny for encoded video, trim, resize, and WebM/MP4 export; its capture adapters only acquire pixels. Electron apps should import `mesurer-solid/electron` once from the main-process entrypoint before creating BrowserWindows; Mesurer then owns its narrow Recording preload/IPC automatically, so the app does not add Recording code to its own preload. The toolbar groups those controls into Select and Edit. Typography stays read-only in Select; Edit owns movement and direct text/style changes. Color Picker uses application-local capture when `window.__MESURER_HOST__.captureScreenshot` is available; other supported browser hosts use an operational `EyeDropper`. A successful sample is copied to the clipboard using `colorPickerClickFormat`.
+The base inspector includes Select, X-ray, Color Picker, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. First-party Recording uses MediaBunny for encoded video, trim, resize, and WebM/MP4 export; its capture adapters only acquire pixels. Electron apps should import `mesurer-solid/electron` once from the main-process entrypoint before creating BrowserWindows; Mesurer then owns its narrow Recording preload/IPC automatically, so the app does not add Recording code to its own preload. The toolbar groups those controls into Select and Edit. Motion inspection is built into Select and appears for the selected element, with a live preview, playback controls, and keyframe details. Select, measurement geometry, X-ray, Motion, and Context can inspect same-origin iframes; cross-origin frame contents are inaccessible. Typography stays read-only in Select; Edit owns movement and direct text/style changes. Color Picker uses application-local capture when `window.__MESURER_HOST__.captureScreenshot` is available; other supported browser hosts use an operational `EyeDropper`. A successful sample is copied to the clipboard using `colorPickerClickFormat`.
 
 `mesurer-solid/plugins` also exports the built-in factories for lower-level composition. Normal mounts already include the built-ins. Use `excludeBuiltins` with names such as `"xray"`, `"typography"`, and `"colorPicker"` when a mount should omit one.
 
@@ -105,15 +105,17 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Add page-scoped columns, rows, or pixel grids with the optional `layoutGuides()` plugin. Guide edits participate in plugin undo/redo, and Context includes the current page's saved guides with their visibility state.
 - Inspect rendered typography in Select. Edit previews reversible direct copy and style changes.
 - Use Edit to move selected UI and change direct text, typography, and text color without changing source.
+- Open the built-in, default-on Responsive inspector with **B** to inspect up to six live same-origin viewports, use per-preview Guides, and annotate preview targets through Context. Disable it in **Settings > Plugins** or omit it with `excludeBuiltins: ["responsive"]`.
 - Capture page regions through the optional Screenshot plugin. It selects native host capture, the Chromium extension adapter, or browser display capture internally, and flattens transparent native captures against the renderer backdrop before preview, copy, or save.
 - Record adjustable selected regions through the optional Recording plugin at 60 fps by default or 120 fps when selected and supported. Browser, extension, and Electron APIs only acquire the stream; MediaBunny owns encoding, inspection, trim, 1×/2×/3× resize, and WebM/MP4 export.
 - Read selection, measurements, guides, annotations, layout, styles, and saved human intent through Context and agent APIs.
 - Keep saved annotations across same-tab reloads and conservatively rebind them to their original DOM targets; markers, cards, and ownership evidence stay attached through scrolling, repeated-note markers stay local, Add Note remains available while a note is open, and cards/composers occlude Select hover and selection chrome.
 - Extend the runtime with tools, settings, overlays, commands, hooks, state, and services.
-- Compact the toolbar to active controls without changing tool state or order.
+- Compact the toolbar to the current mode and active tools with their pressed state, while keeping the expand control visible; the Settings shortcut remains available when shortcuts are enabled.
+- Keep Free dragging by default, or choose **Settings > General > Dock > Snap to edges** for edge/corner docking and vertical side layouts. The optional **Auto-hide** switch appears in Snap mode. Edge, alignment, and orientation follow the toolbar's existing tab-session placement lifetime.
 - Choose System, Light, or Dark appearance while keeping the same theme across isolated and document-backed Mesurer UI.
 
-Use `1` for Select and `2` for Edit. Select owns X-ray, Color Picker, Typography, Screenshot, and Recording. Edit owns movement and direct text/style changes. Rulers, Guides, and Layout Guides remain usable in both modes; Context and Codex remain visible in both modes. The grouped toolbar changes modes in 150 ms. `Shift+A` still enters Edit as a compatibility shortcut.
+Use `1` for Select and `2` for Edit. Select owns X-ray, Color Picker, Typography, Screenshot, Recording, and built-in Motion inspection, including across accessible same-origin iframes. Edit owns movement and direct text/style changes. Rulers, Guides, and Layout Guides remain usable in both modes; Context and Codex remain visible in both modes. The grouped toolbar changes modes in 150 ms. `Shift+A` still enters Edit as a compatibility shortcut.
 
 Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
 
@@ -153,6 +155,7 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | `A` | Typography |
 | `G` | Guides |
 | `L` | Layout Guides when the plugin is enabled |
+| `B` | Responsive inspector |
 | `H` / `V` | Horizontal / vertical guide orientation |
 | `Alt` / `Option` | Distance overlay |
 | `Cmd/Ctrl + ,` | Settings |
@@ -205,6 +208,7 @@ See [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/
 - [Measurements and distance geometry](https://github.com/jhomra21/mesurer-solid/blob/main/docs/MEASUREMENTS.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
 - [Recording](https://github.com/jhomra21/mesurer-solid/blob/main/docs/RECORDING.md)
+- [Responsive inspector](https://github.com/jhomra21/mesurer-solid/blob/main/docs/RESPONSIVE_INSPECTOR.md)
 - [Electron renderer example](https://github.com/jhomra21/mesurer-solid/blob/main/examples/electron-renderer/README.md)
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
 - [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md)

@@ -107,6 +107,19 @@ export const CheckIcon = (props: IconProps) => (
   </IconBase>
 );
 
+export const AnnotationResolveIcon = (props: IconProps & { resolved: boolean }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 14} height={props.size ?? 14} viewBox="0 0 12 12" fill="none" aria-hidden="true" class={props.class}>
+    <circle cx="6" cy="6" r="5.375" fill={props.resolved ? "currentColor" : "none"} stroke="currentColor" stroke-width="1.25" />
+    <path data-mesurer-annotation-resolve-check="true" d="m3.5 6.1 1.65 1.65L8.6 4.3" stroke={props.resolved ? "var(--msr-surface)" : "currentColor"} stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>
+);
+
+export const MoreIcon = (props: IconProps) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 14} height={props.size ?? 14} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class={props.class}>
+    <circle cx="3" cy="8" r="1" /><circle cx="8" cy="8" r="1" /><circle cx="13" cy="8" r="1" />
+  </svg>
+);
+
 export const MinusIcon = (props: IconProps) => (
   <IconBase size={props.size ?? 12} class={props.class}>
     <path d="M228,128a12,12,0,0,1-12,12H40a12,12,0,0,1,0-24H216A12,12,0,0,1,228,128Z" />
@@ -116,6 +129,15 @@ export const MinusIcon = (props: IconProps) => (
 export const TextInspectorIcon = (props: IconProps) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" class={props.class} onDragStart={(event) => event.preventDefault()}>
     <text x="50%" y="60%" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-weight="300" font-size="220">Aa</text>
+  </svg>
+);
+
+export const ResponsiveIcon = (props: IconProps) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 256 256" fill="none" aria-hidden="true" class={props.class}>
+    <g fill="none" stroke="currentColor" stroke-width={256 / (props.size ?? 20)} stroke-linecap="round" stroke-linejoin="round">
+      <path d="M124 176H52a16 16 0 0 1-16-16V72a16 16 0 0 1 16-16h132a16 16 0 0 1 16 16v20" />
+      <path d="M168 120h40a12 12 0 0 1 12 12v64a12 12 0 0 1-12 12h-40a12 12 0 0 1-12-12v-64a12 12 0 0 1 12-12Z" />
+    </g>
   </svg>
 );
 
@@ -219,13 +241,17 @@ export const SendIcon = (props: IconProps) => (
     xmlns="http://www.w3.org/2000/svg"
     width={props.size ?? 20}
     height={props.size ?? 20}
-    viewBox="-2 -14 284 284"
-    fill="currentColor"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
     aria-hidden="true"
     class={props.class}
     onDragStart={(event) => event.preventDefault()}
   >
-    <path d="M231.87,114l-168-95.89A16,16,0,0,0,40.92,37.34L71.55,128,40.92,218.67A16,16,0,0,0,56,240a16.15,16.15,0,0,0,7.93-2.1l167.92-96.05a16,16,0,0,0,.05-27.89ZM56,224a.56.56,0,0,0,0-.12L85.74,136H144a8,8,0,0,0,0-16H85.74L56.06,32.16A.46.46,0,0,0,56,32l168,95.83Z" />
+    <path d="M12 19V5M6.5 10.5 12 5l5.5 5.5" />
   </svg>
 );
 
@@ -235,8 +261,10 @@ export const TrashIcon = (props: IconProps) => (
   </IconBase>
 );
 
+export const CLOSE_ICON_PATH = "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z";
+
 export const CloseIcon = (props: IconProps) => (
   <IconBase size={props.size ?? 18} class={props.class}>
-    <path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z" />
+    <path d={CLOSE_ICON_PATH} />
   </IconBase>
 );

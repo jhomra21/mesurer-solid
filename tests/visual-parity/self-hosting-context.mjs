@@ -191,7 +191,7 @@ try {
   const composerBox = await composer.boundingBox();
   assert(composerBox, "Annotation composer must have a bounding box");
   assert(boxGap(targetBox, composerBox) <= 8.5, `Annotation composer should stay beside the selected element; gap was ${boxGap(targetBox, composerBox).toFixed(2)}px`);
-  assert(composerBox.width <= 272.5, `Annotation composer should remain compact; width was ${composerBox.width}px`);
+  assert(composerBox.width <= 256.5, `Annotation composer should remain compact; width was ${composerBox.width}px`);
   assert.equal(
     await composer.evaluate((element) => element.closest("[data-mesurer-context-root='true']")?.getRootNode() === document),
     true,
@@ -206,7 +206,7 @@ try {
   });
   await captureAround([targetBox, composerBox], "annotation-composer-detail", 28);
 
-  await clickByCoordinates(composer.getByRole("button", { name: "Add note" }), "Add note button");
+  await composer.locator("textarea").press("Enter");
   const annotationPanel = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']");
   const annotationMarker = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']");
   await annotationPanel.waitFor({ state: "visible" });

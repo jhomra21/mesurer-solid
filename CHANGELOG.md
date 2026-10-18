@@ -6,6 +6,111 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.2.3-beta.14 - 2026-10-18
+
+- Polish Context note cards with consistent icon controls, a clear SVG resolve/reopen state, and themed reply composition.
+- Require confirmation before deleting notes or replies.
+
+## 0.2.3-beta.13 - 2026-10-18
+
+- No user-facing changes.
+
+## 0.2.3-beta.12 - 2026-10-18
+
+- Added chronological replies and resolve/reopen status to saved Context notes, including session persistence, annotation Context output, and content-safe Codex completion cleanup. Bulk Codex delivery now includes open notes only.
+- Added a Context-owned Notes toolbar panel with note/reply search, Open/Resolved/All filters, reply counts, muted resolved rows, and explicit saved-target reveal. Responsive reveal reuses or creates only an exact saved viewport and refuses ambiguous or unsafe targets; Context reads never trigger presentation changes.
+- Added the Inspect info card with source-document CSS and dimensions, copyable values, expandable layout details, and persisted Click/Hover mode and layout-details controls in Settings. Responsive selected cards remain interactive in the root overlay; Motion embeds the same CSS details in its inspection panel.
+
+## 0.2.3-beta.11 - 2026-10-17
+
+- Fixed toolbar dragging while Responsive is open, including drags over the preview stage and iframe.
+- Fixed compact toolbar mode hiding the active Select tool.
+- Keep Responsive open while Color Picker, Screenshot, or Recording is active, and layer those tools above preview content.
+- Add per-preview device/breakpoint sizing, duplicate previews, and a six-preview limit; preserve sibling frames when resizing.
+- Route Escape from a Responsive preview through the root surface-dismissal order.
+
+## 0.2.3-beta.10 - 2026-10-17
+
+- Fix Responsive preview inspection so measurement labels use preview CSS pixels and Typography stays above the stage.
+
+## 0.2.3-beta.9 - 2026-10-16
+
+- Document the built-in, default-on Responsive inspector as complete, including same-origin limits, that each preview reruns the page's scripts, memory cost, and extension behavior. Preview Delete and Escape work from inside the same-origin frame, including from the Chromium extension's built assets, without broad host permissions.
+
+## 0.2.3-beta.8 - 2026-10-16
+
+- Fix a `Mesurer renderer model is unavailable` page error when a mount is disposed while a plugin state change is still being delivered; listeners removed during delivery are no longer called.
+
+## 0.2.3-beta.7 - 2026-10-16
+
+- Add viewport-scoped Context notes in Responsive, with exact URL/width/height/preview identity, root-projected markers and panels, conservative rebind after preview recreation, and viewport metadata in Context and capture plans. Removing or closing previews hides their notes and releases their watchers without deleting saved review records; root-page notes remain separate.
+
+## 0.2.3-beta.6 - 2026-10-16
+
+- Add independent per-preview Guides in Responsive, with preview-document snapping, CSS-pixel positions, selection, multi-select, Alt distance feedback, Delete, and drag-off removal. Preview guides persist across close/reopen in page memory and clear on page-key change; Layout Guides project into each preview. Rulers remain page-only and close the stage.
+
+## 0.2.3-beta.5 - 2026-10-16
+
+- Responsive now supports up to six presets or page-breakpoint viewports, per-axis resize, reorder without iframe reload, remove, shared Fit/manual zoom, and stage/frame wheel routing. Preview list and zoom survive close/reopen in page memory only and reset when the page key changes.
+
+## 0.2.3-beta.4 - 2026-10-16
+
+- Responsive previews now route Select, marquee selection, measurements, X-ray, and Typography inspection to accessible same-origin preview documents. Preview targets cannot create Context annotations yet; the Add Note command is blocked consistently, and the agent inspection API remains rooted in the original page.
+
+## 0.2.3-beta.3 - 2026-10-16
+
+- Add the Responsive inspector with one live iPhone 15 same-origin preview.
+
+## 0.2.3-beta.2 - 2026-10-16
+
+- Simplified annotation writing to a compact, auto-growing text field with an in-field Send button, matching upstream. Enter sends, Shift+Enter adds a line, and Escape discards.
+
+## 0.2.3-beta.1 - 2026-10-15
+
+- Add opt-in toolbar edge/corner docking, vertical side layouts, and optional auto-hide in Settings. Free dragging remains the default; dock placement survives tab reloads and respects native window controls.
+
+## 0.2.3-beta.0 - 2026-10-15
+
+- Build Mesurer with Solid 2.0.0-rc.15 (previously 2.0.0-rc.0). Solid stays bundled inside `mesurer-solid`, so applications do not need to install or upgrade Solid.
+- Show Motion for animations on the selected element's children and grandchildren as well as the element itself, matching upstream Mesurer. Animations nested deeper still belong to a more specific element and stay off the parent's Motion card.
+
+## 0.2.2 - 2026-10-15
+
+- Keep each selected element's outline and labels on the same rendered layer while the selection's geometry refreshes, instead of rebuilding them shortly after selection. This removes an occasional misplaced outline when scrolling right after selecting a nested element.
+- Keep multi-selection chrome attached to the page while scrolling in Select and Edit. The group outline and its dimensions label, the dotted spacing lines, and the distance pills now scroll with their elements instead of lagging, jumping, or flashing after the scroll settles.
+- Keep Edit's selection stroke attached to nested selected elements during wheel scrolling, and move multi-selection outlines and spacing with elements dragged in Edit without needing a scroll.
+- Collapse the toolbar to the current Select/Edit mode, the tools that are currently active (shown in their pressed blue state), and the expand control. The Settings shortcut still opens Settings while the toolbar is collapsed.
+- Render selected page outlines and their translucent tint directly on the selected element's own scroll/compositor layer, rather than painting a second, lagging border in the document portal. Keep portaled measurement geometry and labels, and restore the host's original styling when the selection clears.
+- Keep Edit selection outlines attached to their page elements while scrolling, rather than painting a lagging fixed border. The page-anchored outline and Edit's drag hitbox now have separate ownership.
+- Hide both the Edit hitbox and its visible selection outline while the direct Typography editor is open, then restore dragging after the editor closes.
+- Avoid reserving the macOS traffic-light area in Electron windows whose native titlebar is outside the renderer. Honor visible window controls reported by Window Controls Overlay or a narrow host bridge in custom-titlebar windows.
+- Keep selection highlight chrome from painting over the Typography editor during direct text editing.
+- Keep Motion's preview attached to the toolbar during movement; detach it with a deliberate drag and reattach using its control. Suspend preview rendering during dragging without pausing the inspected page's animation.
+- Keep Screenshot previews and their viewer clickable while Select is active by placing them above the selection plane in the same renderer stacking context.
+- Show Motion for animations on the selected element itself, rather than treating an animated descendant as motion on a static parent.
+- Keep selection borders bound to their actual page elements during scrolling, normalize document-portaled fallback geometry, and clear stale hover without reactive work inside scroll events.
+- Click Color Picker again after sampling to pick another color immediately, including through native EyeDropper and application-window capture.
+- Move the toolbar on the compositor during dragging rather than updating its reactive layout for every pointer event. On macOS Electron, allow dragging close to the top beyond the window-control area while keeping the safer initial position.
+- Prevent the inspected page's styles from hiding or enlarging Context's Add Note action. Annotation icons, saved markers, and note controls keep their own geometry, colors, and pointer behavior even under aggressive host CSS.
+- Align the new Motion player with upstream's 20px playback controls, slim draggable/keyboard-accessible timeline, preset and custom speed selection, themed slider/editor, viewport-safe popup, and grouped, copyable keyframe details.
+- Add Motion inspection for selected animated elements, including live preview, play/pause, scrubbing, playback speed, keyframe details, Web Animations API targets, and read-only detection of observed JavaScript motion.
+- Add same-origin iframe inspection across Select, measurement geometry, X-ray, Motion, and Context. Pointer input and rectangles project through scaled/transformed frame ancestry, Context evidence and annotation chrome stay aligned in the top viewport, and inaccessible cross-origin frames fail closed.
+- Restore Mesurer's browser **Settings -> Codex** path through the local Mesurer Codex Bridge companion while keeping Electron on its native preload bridge. Browser users can enable Codex without an Electron host; a missing companion stays in an unavailable/retry state instead of rolling the plugin back with a preload error.
+- Keep the Mesurer Solid ChatGPT/Codex agent plugin separate from the Mesurer Codex Bridge helper so agent-side Mesurer usage and human-triggered Queue to Codex remain independent features.
+- Preserve Codex's client user-message identity alongside the queued-submission receipt and recover missing Mesurer delivery records from one exact turn-history match after Codex has already consumed the queue item. Failed tracked deliveries retain their recovery identity and retry restoration before Mesurer can submit anything again.
+- Verify browser companion identity, protocol, and capabilities before using it; distinguish missing, outdated, and conflicting local bridges; and reconnect automatically when a compatible helper appears.
+- Make bridge replacement and shutdown ownership-safe: stale helpers are replaced only when idle, queued/working deliveries keep the helper alive after the last session unregisters, browser toggle-off cleans only page-owned resources, and Electron toggle-off releases only its renderer lease.
+
+## 0.2.2-beta.9 - 2026-10-15
+
+- Keep each selected element's outline and labels on the same rendered layer while the selection's geometry refreshes, instead of rebuilding them shortly after selection. This removes an occasional misplaced outline when scrolling right after selecting a nested element.
+
+## 0.2.2-beta.8 - 2026-10-15
+
+- Keep multi-selection chrome attached to the page while scrolling in Select and Edit. The group outline and its dimensions label, the dotted spacing lines, and the distance pills now scroll with their elements instead of lagging, jumping, or flashing after the scroll settles.
+- Keep Edit's selection stroke attached to nested selected elements during wheel scrolling, and move multi-selection outlines and spacing with elements dragged in Edit without needing a scroll.
+- Collapse the toolbar to the current Select/Edit mode, the tools that are currently active (shown in their pressed blue state), and the expand control. The Settings shortcut still opens Settings while the toolbar is collapsed.
+
 ## 0.2.2-beta.7 - 2026-10-12
 
 - Render selected page outlines and their translucent tint directly on the selected element's own scroll/compositor layer, rather than painting a second, lagging border in the document portal. Keep portaled measurement geometry and labels, and restore the host's original styling when the selection clears.

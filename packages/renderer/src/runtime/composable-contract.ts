@@ -8,6 +8,7 @@ import type { MesurerProps as BaseMesurerProps } from "../Mesurer";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
 import type { MesurerWorkspaceRuntime } from "./workspace-context";
+import type { AnnotationRevealResult } from "./annotation-reveal";
 
 export type MesurerSolidRuntimeService = {
   ownerDocument: Document;
@@ -21,6 +22,11 @@ export type MesurerSolidRuntimeService = {
   subscribeTheme?(listener: (theme: MesurerTheme) => void): () => void;
   createWorkspaceRuntime(persistenceNamespace?: string): MesurerWorkspaceRuntime;
   createInspectorMount(): { element: HTMLDivElement; dispose(): void };
+  createAnnotationRevealCoordinator(runtime: MesurerWorkspaceRuntime): {
+    reveal(annotation: import("@jhomra21/mesurer-solid-core").MesurerAnnotation): Promise<AnnotationRevealResult>;
+    cancel(): void;
+    dispose(): void;
+  };
 };
 
 export type MesurerPluginRegistration = {
@@ -54,6 +60,7 @@ export const BUILTIN_TOOL_IDS = [
   "xray",
   "color-picker",
   "rulers",
+  "responsive",
   "text-inspector",
   "guides",
   "settings",
@@ -91,6 +98,7 @@ export const isBuiltinPluginId = (
   || value === "xray"
   || value === "color-picker"
   || value === "rulers"
+  || value === "responsive"
   || value === "text-inspector"
   || value === "guides"
   || value === "distance"

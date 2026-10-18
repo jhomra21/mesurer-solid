@@ -100,6 +100,7 @@ const hideMesurerForHostColorCapture = (
   uiRoot: HTMLElement | null,
 ) => {
   const hidden = new Map<HTMLElement, InlineDisplayState>();
+  const preserveResponsiveStage = Boolean(uiRoot?.querySelector("[data-mesurer-responsive-stage]"));
 
   const hide = (element: HTMLElement | null) => {
     if (!element || hidden.has(element)) return;
@@ -110,7 +111,11 @@ const hideMesurerForHostColorCapture = (
     element.style.setProperty("display", "none", "important");
   };
 
-  hide(uiRoot);
+  if (!preserveResponsiveStage) {
+    hide(uiRoot);
+  } else {
+    hide(uiRoot?.querySelector<HTMLElement>("[data-mesurer-toolbar='true']") ?? null);
+  }
 
   for (const element of ownerDocument.querySelectorAll<HTMLElement>([
     "[data-mesurer-layer]",

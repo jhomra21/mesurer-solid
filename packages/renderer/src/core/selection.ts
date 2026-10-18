@@ -276,11 +276,12 @@ export const getSnappedClickTarget = (
   snapEnabled: boolean,
   ownerDocument: Document = document,
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
+  geometryPoint: Point = point,
 ) => {
   const direct = getTargetElement(point, overlayNode, ownerDocument, pageTarget);
 
   if (!snapEnabled || !direct) return direct;
-  const probeRect: Rect = { left: point.x - 20, top: point.y - 20, width: 40, height: 40 };
+  const probeRect: Rect = { left: geometryPoint.x - 20, top: geometryPoint.y - 20, width: 40, height: 40 };
   const entries = getSelectionEntries(probeRect, overlayNode, ownerDocument, pageTarget);
   const directRoot = getDomTreeRoot(direct);
 
@@ -300,7 +301,7 @@ export const getSnappedClickTarget = (
     ? treeEntries
     : [{ element: direct, rect: getRectFromDomCached(direct) }, ...treeEntries];
 
-  return pickPointTarget(point, candidates) ?? pickSingleTarget(probeRect, point, candidates) ?? direct;
+  return pickPointTarget(geometryPoint, candidates) ?? pickSingleTarget(probeRect, geometryPoint, candidates) ?? direct;
 };
 
 export const getCycledClickTarget = (
@@ -310,13 +311,14 @@ export const getCycledClickTarget = (
   ownerDocument: Document = document,
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
   cycle: ClickCycleState | null = null,
+  geometryPoint: Point = point,
 ) => {
   const ownerWindow = ownerDocument.defaultView;
 
   if (
     ownerWindow
     && cycle
-    && isSameClickSpot(point, cycle.point)
+    && isSameClickSpot(geometryPoint, cycle.point)
     && cycle.stack.length > 0
   ) {
     const liveStack = cycle.stack.filter((element) =>
@@ -332,7 +334,7 @@ export const getCycledClickTarget = (
 
       return {
         target: liveStack[nextIndex] ?? null,
-        cycle: { point, index: nextIndex, stack: liveStack },
+        cycle: { point: geometryPoint, index: nextIndex, stack: liveStack },
       };
     }
   }
@@ -343,6 +345,7 @@ export const getCycledClickTarget = (
     snapEnabled,
     ownerDocument,
     pageTarget,
+    geometryPoint,
   );
 
   if (!initial) return { target: null, cycle: null };
@@ -351,7 +354,7 @@ export const getCycledClickTarget = (
 
   return {
     target: initial,
-    cycle: { point, index: 0, stack },
+    cycle: { point: geometryPoint, index: 0, stack },
   };
 };
 
@@ -469,8 +472,11 @@ export const getElementsInRectCached = (
   cache: SelectionEntriesCache,
   ownerDocument: Document = document,
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
+  includeElement?: (element: Element) => boolean,
 ) => {
-  const entries = getSelectionEntriesCached(rect, overlayNode, cache, ownerDocument, pageTarget);
+  let entries = getSelectionEntriesCached(rect, overlayNode, cache, ownerDocument, pageTarget);
+
+  if (includeElement) entries = entries.filter(({ element }) => includeElement(element));
 
   return entries.length ? pickMultiTargets(rect, entries) : [];
 };

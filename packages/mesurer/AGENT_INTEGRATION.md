@@ -1,6 +1,6 @@
 # Mesurer agent integration
 
-Mesurer's agent integration is the rendered page itself. This guide matches `mesurer-solid@0.2.1` stable. The coding agent reads `window.__MESURER__` through the browser control it already has, consumes human visual intent, edits normal application source, and verifies the real Live result.
+Mesurer's agent integration is the rendered page itself. This guide matches `mesurer-solid@0.2.2` stable. The coding agent reads `window.__MESURER__` through the browser control it already has, consumes human visual intent, edits normal application source, and verifies the real Live result.
 
 The normal agent workflow requires no Mesurer MCP server, Send-to-agent callback, or special browser transport. The optional `codex()` plugin is a separate human convenience path for sending Context feedback into local Codex threads; it does not replace the browser-state contract described here. In Electron it can use the native preload bridge. In an ordinary browser it can use the local Mesurer Codex Bridge companion on loopback. Neither path is the Mesurer Solid ChatGPT/Codex agent plugin.
 
@@ -218,15 +218,16 @@ See [Direct text editing and Typography](../../docs/TEXT_EDITING.md).
 
 ## Annotation and context review
 
-A saved annotation carries target-bound intent and an immutable baseline:
+A saved annotation carries target-bound intent and an immutable baseline. Its original note remains unchanged as replies are added, edited, or deleted; resolution status is open by default and can be explicitly reopened:
 
 ```js
 const context = await window.__MESURER__.context({ annotation: annotationId })
 ```
 
-Saved annotation UI is source-linked presentation, not the durable state itself. Saved annotations survive a same-tab reload and conservatively rebind through their stored selector/fingerprint identity; ambiguous targets remain unresolved rather than attaching to a different element. Add Note, its composer, saved markers and panels, and the ownership edge move with their target through window and nested scrolling. A saved panel keeps its target-relative page point and may leave the viewport with its source. Several notes on one target keep separate nearby markers, and Add Note remains available while an existing note is open.
+Saved annotation UI is source-linked presentation, not the durable state itself. Saved annotations and replies survive a same-tab reload and conservatively rebind through their stored selector/fingerprint identity; ambiguous targets remain unresolved rather than attaching to a different element. Read `annotations()` and annotation-scoped `context()` to consume the original note and all replies. Resolved notes remain readable and are excluded from bulk Codex delivery; explicitly requesting one note's Context still works. Add Note, its composer, saved markers and panels, and the ownership edge move with their target through window and nested scrolling. A saved panel keeps its target-relative page point and may leave the viewport with its source. Several notes on one target keep separate nearby markers, and Add Note remains available while an existing note is open.
+The composer is a compact auto-growing text field with an in-field Send button. Enter sends, Shift+Enter inserts a newline, and Escape discards. The first outside click on a non-empty draft prompts rather than discarding it; a second outside click closes it.
 
-Do not infer that an annotation disappeared because its card or marker is currently offscreen. Read `annotations()` and annotation-scoped `context()` instead. When a note is highlighted, the temporary ownership emphasis uses one exact target boundary rather than a second fill, glow, or rounded frame.
+Do not infer that an annotation disappeared because its card or marker is currently offscreen. Read `annotations()` and annotation-scoped `context()` instead. These reads are non-destructive: they never open Responsive, reveal a saved target, scroll the page, or change the user's presentation. The human can explicitly use the Notes toolbar list to reveal a saved note. When a note is highlighted, the temporary ownership emphasis uses one exact target boundary rather than a second fill, glow, or rounded frame.
 
 Context cards are Mesurer inspector UI. Live Select hover and selection evidence must paint underneath the composer and saved panels, including when the outer Mesurer host is in the browser top layer. Agents should treat the cards as interaction boundaries rather than attempting to select page content through them.
 
