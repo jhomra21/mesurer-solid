@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.3-beta.14 - 2026-10-18
+
 - Polish Context note cards with consistent icon controls, a clear SVG resolve/reopen state, and themed reply composition.
 - Require confirmation before deleting notes or replies.
 
