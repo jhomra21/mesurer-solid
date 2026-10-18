@@ -612,6 +612,7 @@ jobs:
           bun tests/package-smoke/typography-hover-occlusion.mjs
           bun tests/package-smoke/annotation-draft-handoff.mjs
           bun tests/package-smoke/annotation-adjacent-handoff.mjs
+          bun tests/package-smoke/notes-toolbar-state.mjs
 
       - name: Upload packed browser Color Picker evidence
         if: always()

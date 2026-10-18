@@ -34,6 +34,8 @@ export const MESURER_CONTEXT_SETTINGS_STATE_ID = "mesurer.context.settings";
 
 const CONTEXT_UI_STATE_ID = "context.ui";
 
+const CONTEXT_NOTES_OPEN_STATE_ID = "context.notes-open";
+
 const DIRECT_EDIT_ACTIVE_ATTRIBUTE = "data-mesurer-direct-text-edit-active";
 
 const COPY_ICON = {
@@ -207,7 +209,21 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       // page element; the canonical toolbar remains isolated in its normal root.
       const runtime = solid.createWorkspaceRuntime(MESURER_CONTEXT_PLUGIN_ID);
       const revealCoordinator = solid.createAnnotationRevealCoordinator(runtime);
-      const [notesOpen, setNotesOpen] = createSignal(false);
+      // The published plugins and renderer entries are separate bundles, each
+      // with its own Solid runtime. The panel renders from this plugin's signal;
+      // the toolbar can only track the mirrored host state.
+      const [notesOpen, setLocalNotesOpen] = createSignal(false);
+      ctx.state.register<boolean>({ id: CONTEXT_NOTES_OPEN_STATE_ID, initial: false });
+
+      const setNotesOpen = (open: boolean) => {
+        setLocalNotesOpen(open);
+
+        if (ctx.state.get<boolean>(CONTEXT_NOTES_OPEN_STATE_ID) !== open) {
+          ctx.state.update<boolean>(CONTEXT_NOTES_OPEN_STATE_ID, () => open);
+        }
+      };
+
+      const notesOpenForToolbar = () => ctx.state.get<boolean>(CONTEXT_NOTES_OPEN_STATE_ID) ?? false;
 
       const layoutGuides = (): MesurerContextLayoutGuide[] =>
         ctx.service.get<MesurerLayoutGuidesService>(MESURER_LAYOUT_GUIDES_SERVICE_ID)?.list() ?? [];
@@ -418,7 +434,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
         if (!uiEnabled()) return;
 
         if (notesOpen()) revealCoordinator.cancel();
-        setNotesOpen((open) => !open);
+        setNotesOpen(!untrack(notesOpen));
       });
       ctx.tool.register({
         id: "context.copy",
@@ -460,7 +476,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
         toolbarMode: "always",
         compactPinned: true,
         icon: NOTES_ICON,
-        active: notesOpen,
+        active: notesOpenForToolbar,
         hidden: () => !uiEnabled(),
       });
       ctx.settings.register({
