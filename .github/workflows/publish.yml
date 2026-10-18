@@ -21,6 +21,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v'))
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       release: ${{ steps.release.outputs.release }}
       version: ${{ steps.release.outputs.version }}
@@ -117,6 +118,7 @@ jobs:
     needs: detect
     if: needs.detect.outputs.release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
