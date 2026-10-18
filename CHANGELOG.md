@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- The published package now declares `engines.node: ">=22"`, matching the Node versions CI tests. This affects only the command-line tools and Codex bridge; browser usage is unchanged.
 
 ## 0.2.3-beta.14 - 2026-10-18
 
