@@ -129,7 +129,11 @@ export function ContextNotesPanel(props: ContextNotesPanelProps) {
   const dismiss = () => {
     props.onCancel();
     props.onOpenChange(false);
-    props.rendererRoot?.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="context.notes"]')?.focus();
+    // Closing updates host tool state, which remounts toolbar buttons on the
+    // renderer's next flush. Focus whichever trigger exists after that flush.
+    props.ownerWindow.queueMicrotask(() => {
+      props.rendererRoot?.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="context.notes"]')?.focus();
+    });
   };
 
   props.ownerWindow.addEventListener("pointerup", onPointerUp, true);
