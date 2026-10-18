@@ -123,6 +123,13 @@ try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_SELECTION_HIT_TESTING__ && window.__MESURER__));
   await page.evaluate(() => window.__MESURER__.ready());
+  // This suite probes page paint order, including tiny overlapping targets.
+  // Interactive Inspect-card occlusion has its own physical browser contract.
+  await page.locator("[data-mesurer-builtin='settings'] button").click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await settings.getByRole("tab", { name: "Select" }).click();
+  await settings.getByLabel("Info card mode").selectOption("off");
+  await page.keyboard.press("Escape");
 
   const selectButton = page.locator("button[data-mesurer-builtin='select']").first();
 

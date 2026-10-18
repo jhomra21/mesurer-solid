@@ -93,3 +93,5 @@ export type ToolMode =
   | "text-inspector"
   | "xray"
   | "rulers";
+
+export type InfoCardMode = "off" | "hover" | "click";

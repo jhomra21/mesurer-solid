@@ -2,6 +2,8 @@ export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 
 export type MesurerTheme = "system" | "light" | "dark";
 
+export type InfoCardMode = "off" | "hover" | "click";
+
 export type ColorSample = { red: number; green: number; blue: number; alpha: number };
 
 export type Point = { x: number; y: number };
@@ -76,6 +78,8 @@ export type MesurerStoredSettings = {
   snapGuidesEnabled?: boolean;
   selectNewGuideEnabled?: boolean;
   multiMeasureEnabled?: boolean;
+  layoutDetailsEnabled?: boolean;
+  infoCardMode?: InfoCardMode;
   persistOnReload?: boolean;
   shortcutsEnabled?: boolean;
   theme?: MesurerTheme;
@@ -113,6 +117,8 @@ export type MesurerSettings = {
   snapGuidesEnabled: boolean;
   selectNewGuideEnabled: boolean;
   multiMeasureEnabled: boolean;
+  layoutDetailsEnabled: boolean;
+  infoCardMode: InfoCardMode;
   guideStyle: GuideStyle;
   rulerSettings: RulerSettings;
 };

@@ -116,6 +116,25 @@ try {
   assert.equal(selected.targets[0]?.inspection.selector, expected.selector,
     `Selection identity must be the preview document target: ${JSON.stringify(selected.targets[0])}`);
   assertRect(await targetRectInRoot("[data-mesurer-selected-measurement='true'] > div"), expected, "Preview selection outline");
+  const inspectCard = page.locator("[data-mesurer-inspect-info-card]");
+  await inspectCard.waitFor({ state: "visible" });
+
+  const sourceCardEvidence = await frame.evaluate((node) => {
+    const target = node.contentDocument.querySelector("[data-testid='inspection-target']");
+    const rect = target.getBoundingClientRect();
+
+    return { width: Math.round(rect.width), height: Math.round(rect.height), color: getComputedStyle(target).color };
+  });
+
+  assert.equal(await inspectCard.getByRole("button", { name: "Copy dimensions" }).innerText(),
+    `${sourceCardEvidence.width} x ${sourceCardEvidence.height}`,
+    "Responsive Inspect card dimensions use preview CSS pixels, not projected root pixels");
+  assert.equal(await inspectCard.evaluate((element) => element.ownerDocument === document), true,
+    "Selected preview Inspect card stays in the protected root overlay");
+  assert.equal(await frame.evaluate((node) => node.contentDocument.querySelectorAll("[data-mesurer-inspect-info-card]").length), 0,
+    "Inspect UI is never mounted in the Responsive document");
+  assert.equal(await inspectCard.locator("[data-mesurer-inspect-css-row]").filter({ hasText: "color" }).last().locator("button").innerText(),
+    sourceCardEvidence.color, "Preview CSS evidence reads computed styles from the source document");
   await page.screenshot({ path: join(output, "preview-selected.png"), fullPage: true });
 
   await page.getByLabel("Add a size").selectOption("430x932");

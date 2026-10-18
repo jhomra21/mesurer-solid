@@ -3,6 +3,7 @@ import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesur
 import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
+import { getInspectMeasurement } from "../core/dom";
 import { supportsColorPicker } from "../runtime/color-picker-support";
 import { constrainToolbarPosition, getWindowControls } from "../runtime/toolbar-position";
 import type { ToolbarPosition } from "../runtime/toolbar-position";
@@ -10,6 +11,7 @@ import { alignedDockPosition, dockAlignFor, dragToolbarPosition, isVerticalToolb
 import { createToolbarAutoHide } from "../runtime/toolbar-auto-hide";
 import { createToolbarTurn } from "../runtime/toolbar-turn";
 import { MotionPlayer } from "./MotionPlayer";
+import { InspectInfoCard } from "./InspectInfoCard";
 import { SettingsPanel } from "./SettingsPanel";
 import { Tooltip, createTooltip } from "./Tooltip";
 import {
@@ -1375,6 +1377,23 @@ export function Toolbar(props: ToolbarProps) {
         const geometry = motionSurfaceGeometry;
         const activeMotionElement = motionElement!;
 
+        const embeddedInspectDetails = () => {
+          const selected = props.model.state.selectedMeasurement;
+          const sourceWindow = activeMotionElement.ownerDocument.defaultView ?? props.ownerWindow;
+
+          if (!selected || selected.elementRef !== activeMotionElement) return null;
+
+          return <InspectInfoCard
+            element={activeMotionElement}
+            measurement={{ ...getInspectMeasurement(activeMotionElement, sourceWindow), id: selected.id, rect: selected.rect }}
+            rect={selected.rect}
+            ownerWindow={sourceWindow}
+            theme={props.model.state.settings.theme}
+            layoutDetailsEnabled
+            embedded
+          />;
+        };
+
         return (
           <div
             ref={(element) => {
@@ -1407,6 +1426,7 @@ export function Toolbar(props: ToolbarProps) {
               element={activeMotionElement}
               ownerWindow={activeMotionElement.ownerDocument.defaultView ?? props.ownerWindow}
               suspended={motionSuspended}
+              inspectDetails={embeddedInspectDetails}
             />
             {detachedMotionPosition() && <button
               type="button"

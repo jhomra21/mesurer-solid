@@ -47,6 +47,8 @@ export const DEFAULT_MESURER_SETTINGS: MesurerSettings = {
   snapGuidesEnabled: true,
   selectNewGuideEnabled: true,
   multiMeasureEnabled: false,
+  layoutDetailsEnabled: true,
+  infoCardMode: "click",
   guideStyle: { ...DEFAULT_GUIDE_STYLE },
   rulerSettings: { ...DEFAULT_RULER_SETTINGS },
 };
@@ -459,6 +461,10 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
 
     if (stored.multiMeasureEnabled !== undefined) patch.multiMeasureEnabled = stored.multiMeasureEnabled;
 
+    if (stored.layoutDetailsEnabled !== undefined) patch.layoutDetailsEnabled = stored.layoutDetailsEnabled;
+
+    if (stored.infoCardMode !== undefined) patch.infoCardMode = stored.infoCardMode;
+
     if (stored.guideStyle !== undefined) patch.guideStyle = { ...baseSettings.guideStyle, ...stored.guideStyle };
 
     if (stored.rulerSettings !== undefined) patch.rulerSettings = { ...baseSettings.rulerSettings, ...stored.rulerSettings };
@@ -488,6 +494,8 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
     snapGuidesEnabled: current.settings.snapGuidesEnabled,
     selectNewGuideEnabled: current.settings.selectNewGuideEnabled,
     multiMeasureEnabled: current.settings.multiMeasureEnabled,
+    layoutDetailsEnabled: current.settings.layoutDetailsEnabled,
+    infoCardMode: current.settings.infoCardMode,
     persistOnReload: current.settings.persistOnReload,
     shortcutsEnabled: current.settings.shortcutsEnabled,
     theme: current.settings.theme,

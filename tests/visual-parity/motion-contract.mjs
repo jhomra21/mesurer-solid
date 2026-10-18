@@ -183,6 +183,14 @@ try {
   await inspect.click();
   await details.waitFor({ state: "visible" });
 
+  const inspectCard = details.locator("[data-mesurer-inspect-info-card]");
+
+  await inspectCard.waitFor({ state: "visible" });
+  assert.equal(await page.locator("[data-mesurer-inspect-info-card]").count(), 1,
+    "Motion owns one embedded Inspect details card and suppresses the standalone card");
+  assert.equal(await inspectCard.locator("[data-mesurer-inspect-css-row]").count() > 6, true,
+    "Embedded Motion details show all CSS rows instead of the standalone six-row truncation");
+
   const cssText = (await details.textContent()) ?? "";
 
   assert.match(cssText, /mesurer-contract-pulse/i, "Motion details must name the selected CSS animation");
