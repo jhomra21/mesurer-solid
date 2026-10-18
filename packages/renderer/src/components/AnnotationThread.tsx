@@ -1,6 +1,8 @@
 import { For, Show, createEffect, createSignal } from "solid-js";
 import type { MesurerAnnotation, MesurerAnnotationReply, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
 import { AnnotationComposer } from "./AnnotationComposer";
+import { AnnotationDeleteConfirmation } from "./AnnotationDeleteConfirmation";
+import { MoreIcon } from "./Icons";
 
 type ThreadReplyRow = {
   id: string;
@@ -22,12 +24,12 @@ export function AnnotationThread(props: {
   const [editingId, setEditingId] = createSignal<string | null>(null);
   const [editText, setEditText] = createSignal("");
   const [menuId, setMenuId] = createSignal<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = createSignal<string | null>(null);
   const [replyDraft, setReplyDraft] = createSignal("");
   const [outsideWarning, setOutsideWarning] = createSignal(false);
   const [replyRows, setReplyRows] = createSignal<ThreadReplyRow[]>([]);
   const replyRowById = new Map<string, ThreadReplyRow & { update(reply: MesurerAnnotationReply): void }>();
   const actionButtons = new Map<string, HTMLButtonElement>();
+  const [deleteAnchorId, setDeleteAnchorId] = createSignal<string | null>(null);
   let vetoOutsideClick = false;
   const pointerActions = new WeakSet<HTMLButtonElement>();
 
@@ -38,7 +40,7 @@ export function AnnotationThread(props: {
         setEditingId(null);
         setEditText("");
         setMenuId(null);
-        setConfirmDeleteId(null);
+        setDeleteAnchorId(null);
         setReplyDraft("");
         setOutsideWarning(false);
       }
@@ -138,14 +140,6 @@ export function AnnotationThread(props: {
       return;
     }
 
-    if (confirmDeleteId()) {
-      const replyId = confirmDeleteId()!;
-      setConfirmDeleteId(null);
-      focusReplyAction(replyId);
-
-      return;
-    }
-
     if (menuId()) {
       const replyId = menuId()!;
       setMenuId(null);
@@ -196,18 +190,22 @@ export function AnnotationThread(props: {
   return (
     <div class="msr:flex msr:min-h-0 msr:flex-1 msr:flex-col">
       <div class="msr:min-h-0 msr:flex-1 msr:overflow-y-auto msr:px-1 msr:pb-1" data-mesurer-annotation-thread-history="true">
-        <div class="msr:whitespace-pre-wrap msr:break-words msr:px-2 msr:py-2 msr:text-[12px] msr:leading-[1.45]">{props.annotation.note}</div>
+        <div class="msr:px-2 msr:pt-2 msr:text-[11px] msr:text-ink-500"><Show when={props.annotation.createdAt}><span class="msr:font-medium msr:text-ink-700">You</span> · {new Date(props.annotation.createdAt).toLocaleString()}</Show></div>
+        <div class="msr:whitespace-pre-wrap msr:break-words msr:px-2 msr:pb-2 msr:pt-0.5 msr:text-[12px] msr:leading-[1.45]">{props.annotation.note}</div>
         <For each={replyRows()} keyed>{(reply) => (
-          <div class="msr:mt-3 msr:rounded-[5px] msr:px-2 msr:py-1.5" data-mesurer-annotation-reply={reply.id}>
+          <div class="msr:relative msr:mt-3 msr:rounded-[5px] msr:px-2 msr:py-1.5" data-mesurer-annotation-reply={reply.id}>
             <div class="msr:flex msr:items-center msr:gap-1 msr:text-[11px] msr:text-ink-500">
               <span class="msr:flex-1">You · {new Date(reply.createdAt).toLocaleString()}</span>
               <button
                 type="button"
                 aria-label={`More actions for reply ${reply.id}`}
+                title="More actions"
+                class="msr:flex msr:size-5 msr:items-center msr:justify-center msr:rounded-control msr:text-ink-500 msr:hover:bg-ink-100"
                 ref={(element) => actionButtons.set(reply.id, element)}
+                aria-expanded={menuId() === reply.id ? "true" : "false"}
                 onPointerDown={(event) => onPointerAction(event, () => setMenuId(menuId() === reply.id ? null : reply.id))}
                 onClick={(event) => onClickAction(event, () => setMenuId(menuId() === reply.id ? null : reply.id))}
-              >•••</button>
+              ><MoreIcon size={14} /></button>
             </div>
             <Show when={editingId() === reply.id} fallback={
               <div class="msr:whitespace-pre-wrap msr:break-words msr:py-1 msr:text-[12px] msr:leading-[1.45]">{reply.text}</div>
@@ -232,22 +230,29 @@ export function AnnotationThread(props: {
               />
             </Show>
             <Show when={menuId() === reply.id}>
-              <div class="msr:flex msr:gap-2 msr:text-[11px]">
-                <button type="button" onPointerDown={(event) => onPointerAction(event, () => { setEditText(reply.text); setEditingId(reply.id); setMenuId(null); queueMicrotask(() => props.panelElement()?.querySelector<HTMLTextAreaElement>("[aria-label='Edit reply']")?.focus()); })} onClick={(event) => onClickAction(event, () => { setEditText(reply.text); setEditingId(reply.id); setMenuId(null); queueMicrotask(() => props.panelElement()?.querySelector<HTMLTextAreaElement>("[aria-label='Edit reply']")?.focus()); })}>Edit</button>
-                <button type="button" onPointerDown={(event) => onPointerAction(event, () => { setConfirmDeleteId(reply.id); setMenuId(null); })} onClick={(event) => onClickAction(event, () => { setConfirmDeleteId(reply.id); setMenuId(null); })}>Delete</button>
+              <div class="mesurer-context-floating-surface msr:absolute msr:right-0 msr:top-full msr:z-20 msr:mt-1 msr:w-32 msr:rounded-lg msr:p-1" role="menu">
+                <button type="button" class="msr:block msr:w-full msr:rounded-control msr:px-2 msr:py-1 msr:text-left msr:text-[11px] msr:hover:bg-ink-100" onPointerDown={(event) => onPointerAction(event, () => { setEditText(reply.text); setEditingId(reply.id); setMenuId(null); queueMicrotask(() => props.panelElement()?.querySelector<HTMLTextAreaElement>("[aria-label='Edit reply']")?.focus()); })} onClick={(event) => onClickAction(event, () => { setEditText(reply.text); setEditingId(reply.id); setMenuId(null); queueMicrotask(() => props.panelElement()?.querySelector<HTMLTextAreaElement>("[aria-label='Edit reply']")?.focus()); })}>Edit</button>
+                <button type="button" class="msr:block msr:w-full msr:rounded-control msr:px-2 msr:py-1 msr:text-left msr:text-[11px] msr:text-[var(--msr-danger-text)] msr:hover:bg-ink-100" onPointerDown={(event) => onPointerAction(event, () => { setDeleteAnchorId(reply.id); setMenuId(null); })} onClick={(event) => onClickAction(event, () => { setDeleteAnchorId(reply.id); setMenuId(null); })}>Delete</button>
               </div>
             </Show>
-            <Show when={confirmDeleteId() === reply.id}>
-              <div class="msr:flex msr:items-center msr:gap-2 msr:text-[11px]" role="group" aria-label="Confirm delete reply">
-                <span>Delete this reply?</span>
-                <button type="button" onPointerDown={(event) => onPointerAction(event, () => { setConfirmDeleteId(null); focusReplyAction(reply.id); })} onClick={(event) => onClickAction(event, () => { setConfirmDeleteId(null); focusReplyAction(reply.id); })}>Cancel</button>
-                <button type="button" onPointerDown={(event) => onPointerAction(event, () => { props.runtime.removeAnnotationReply(props.annotation.id, reply.id); setConfirmDeleteId(null); focusAfterReplyRemoval(); })} onClick={(event) => onClickAction(event, () => { props.runtime.removeAnnotationReply(props.annotation.id, reply.id); setConfirmDeleteId(null); focusAfterReplyRemoval(); })}>Confirm</button>
-              </div>
+            <Show when={deleteAnchorId() === reply.id && props.panelElement()}>
+              <AnnotationDeleteConfirmation
+                owner={props.panelElement()!}
+                focusTarget={actionButtons.get(reply.id)}
+                ariaLabel="Delete reply"
+                message="Delete this reply?"
+                onCancel={() => setDeleteAnchorId(null)}
+                onConfirm={() => {
+                  props.runtime.removeAnnotationReply(props.annotation.id, reply.id);
+                  setDeleteAnchorId(null);
+                  focusAfterReplyRemoval();
+                }}
+              />
             </Show>
           </div>
         )}</For>
       </div>
-      <div class="msr:border-t msr:border-ink-100 msr:px-1 msr:pt-2">
+      <div class="msr:border-t msr:border-ink-100 msr:px-1 msr:pt-1">
         <Show when={props.annotation.id} keyed>{(annotationId) => (
           <AnnotationComposer
             label="Reply to note"

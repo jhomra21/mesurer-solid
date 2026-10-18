@@ -9,7 +9,8 @@ import {
 } from "../runtime/nested-scroll-compensation";
 import { layoutAnnotationMarkers } from "./annotation-marker-layout";
 import { AnnotationThread } from "./AnnotationThread";
-import { CloseIcon, CopyIcon, NoteIcon, SendIcon, TrashIcon } from "./Icons";
+import { AnnotationDeleteConfirmation } from "./AnnotationDeleteConfirmation";
+import { AnnotationResolveIcon, CloseIcon, CopyIcon, NoteIcon, SendIcon, TrashIcon } from "./Icons";
 import { createTooltip, Tooltip } from "./Tooltip";
 
 export type ContextActionsController = {
@@ -63,7 +64,7 @@ const ANNOTATION_PANEL_Z_INDEX = "2147483646";
 
 const ANNOTATION_HIGHLIGHT_Z_INDEX = "2147483645";
 
-const annotationButtonClass = "msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:cursor-default msr:disabled:opacity-40";
+const annotationButtonClass = "msr:flex msr:size-5 msr:items-center msr:justify-center msr:rounded-control msr:border-0 msr:bg-transparent msr:text-ink-500 msr:outline-none msr:hover:bg-ink-100 msr:hover:text-ink-900 msr:disabled:cursor-default msr:disabled:opacity-40";
 
 let annotationAnchorSequence = 0;
 
@@ -224,16 +225,20 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const onAnnotationThreadKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape" && event.composedPath().some((target) =>
+      target instanceof Element && target.matches("[role='dialog']"),
+    )) return;
+
     if (activeAnnotationId()) annotationThreadGlobalHandlers?.keydown(event);
   };
 
   ownerWindow().document.addEventListener("pointerdown", onAnnotationThreadPointerDown, true);
   ownerWindow().document.addEventListener("click", onAnnotationThreadClick, true);
-  ownerWindow().addEventListener("keydown", onAnnotationThreadKeyDown, true);
+  ownerWindow().document.addEventListener("keydown", onAnnotationThreadKeyDown, true);
   onCleanup(() => {
     ownerWindow().document.removeEventListener("pointerdown", onAnnotationThreadPointerDown, true);
     ownerWindow().document.removeEventListener("click", onAnnotationThreadClick, true);
-    ownerWindow().removeEventListener("keydown", onAnnotationThreadKeyDown, true);
+    ownerWindow().document.removeEventListener("keydown", onAnnotationThreadKeyDown, true);
   });
 
   const composerTooltip = createTooltip(ownerWindow());
@@ -1551,6 +1556,8 @@ export function ContextActions(props: ContextActionsProps) {
         const number = () => annotationNumber(annotation().id);
         let statusPointerAction = false;
         let panelElement: HTMLDivElement | null = null;
+        let deleteButton: HTMLButtonElement | undefined;
+        const [deleteConfirmationOpen, setDeleteConfirmationOpen] = createSignal(false);
 
         const closeAnnotationPanel = () => {
           const replyComposer = panelElement?.querySelector<HTMLTextAreaElement>("[aria-label='Reply to note']");
@@ -1599,7 +1606,7 @@ export function ContextActions(props: ContextActionsProps) {
             onClick={(event) => event.stopPropagation()}
           >
             <div
-              class="msr:flex msr:h-7 msr:items-center msr:gap-1.5 msr:px-1"
+              class="msr:flex msr:h-8 msr:shrink-0 msr:items-center msr:gap-1.5 msr:border-b msr:border-ink-100 msr:px-1"
               style={{ cursor: draggingSurfaceId() === annotation().id ? "grabbing" : "grab" }}
               aria-label="Drag annotation panel"
               onPointerDown={(event) => startSurfaceDrag(event, annotation().id)}
@@ -1610,17 +1617,18 @@ export function ContextActions(props: ContextActionsProps) {
                 class="msr:flex msr:h-[18px] msr:w-[18px] msr:items-center msr:justify-center msr:rounded-[5px] msr:text-[9px] msr:font-semibold msr:leading-none msr:text-white"
                 style={{ background: "#0d99ff", "font-variant-numeric": "tabular-nums" }}
               >{number()}</span>
-              <div class="msr:min-w-0 msr:flex-1">
-                <div class="msr:text-[11px] msr:font-medium msr:text-ink-700">Note {number()}</div>
-                <div class="msr:text-[9px] msr:text-ink-500">{annotationSelectionLabel(annotation())}{annotation().replies?.length ? ` · ${annotation().replies!.length} replies` : ""}</div>
+              <div class="msr:min-w-0 msr:flex-1 msr:leading-4">
+                <div class="msr:truncate msr:text-[11px] msr:font-medium msr:leading-4 msr:text-ink-700">Note {number()}</div>
+                <div class="msr:truncate msr:whitespace-nowrap msr:text-[9px] msr:leading-3 msr:text-ink-500">{annotationSelectionLabel(annotation())}{annotation().replies?.length ? ` · ${annotation().replies!.length} replies` : ""}</div>
               </div>
-              <div class="msr:flex msr:items-center msr:gap-0.5">
+              <div class="msr:flex msr:shrink-0 msr:items-center msr:gap-1">
                 <button type="button" class={annotationButtonClass} aria-label="Copy annotation context" title="Copy context" disabled={busy()} onClick={() => void run(() => props.onCopy({ annotation: annotation().id }), "Copied")}><CopyIcon size={14} /></button>
                 <button
                   type="button"
-                  class={annotationButtonClass}
                   aria-label={annotation().status === "resolved" ? "Reopen note" : "Resolve note"}
-                  title={annotation().status === "resolved" ? "Reopen" : "Resolve"}
+                  title={annotation().status === "resolved" ? "Reopen" : "Mark as resolved"}
+                  aria-pressed={annotation().status === "resolved" ? "true" : "false"}
+                  class={`${annotationButtonClass} ${annotation().status === "resolved" ? "msr:text-ink-700" : ""}`}
                   onPointerDown={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -1636,10 +1644,22 @@ export function ContextActions(props: ContextActionsProps) {
 
                     toggleAnnotationStatus();
                   }}
-                >{annotation().status === "resolved" ? "↶" : "✓"}</button>
-                <button type="button" class={annotationButtonClass} aria-label="Delete annotation" title="Delete" onClick={() => {
+                ><AnnotationResolveIcon size={14} resolved={annotation().status === "resolved"} /></button>
+                <div class="msr:relative">
+                <button ref={(element) => { deleteButton = element; }} type="button" class={annotationButtonClass} aria-label="Delete annotation" title="Delete" aria-expanded={deleteConfirmationOpen() ? "true" : "false"} onClick={() => setDeleteConfirmationOpen(true)}>
+                  <TrashIcon size={14} />
+                </button>
+                <Show when={deleteConfirmationOpen() && panelElement}>
+                  <AnnotationDeleteConfirmation
+                    owner={panelElement!}
+                    focusTarget={deleteButton}
+                    ariaLabel="Delete note"
+                    message="Delete this note?"
+                    onCancel={() => setDeleteConfirmationOpen(false)}
+                    onConfirm={() => {
                   const annotationId = annotation().id;
                   props.runtime.removeAnnotation(annotationId);
+                  setDeleteConfirmationOpen(false);
                   setPanelPositions((positions) => {
                     const next = { ...positions };
                     delete next[annotationId];
@@ -1650,7 +1670,10 @@ export function ContextActions(props: ContextActionsProps) {
                   setHoveredAnnotationId((current) => current === annotationId ? null : current);
                   setFocusedAnnotationId((current) => current === annotationId ? null : current);
                   closeAnnotationPanel();
-                }}><TrashIcon size={14} /></button>
+                    }}
+                  />
+                </Show>
+                </div>
                 <button type="button" class={annotationButtonClass} aria-label="Close annotation" title="Close" onClick={() => {
                   closeAnnotationPanel();
                 }}><CloseIcon size={14} /></button>

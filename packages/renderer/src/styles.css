@@ -3,7 +3,9 @@
 
 @theme {
   --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
   --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
   --color-ink-500: #64748b;
   --color-ink-700: #334155;
   --color-ink-900: #0f172a;
@@ -12,7 +14,9 @@
 :root,
 :host {
   --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
   --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
   --color-ink-500: #64748b;
   --color-ink-700: #334155;
   --color-ink-900: #0f172a;
@@ -208,9 +212,22 @@
   [data-mesurer-annotation-trigger="true"],
   [data-mesurer-annotation-composer="true"],
   [data-mesurer-annotation-panel="true"]
-) svg path {
+) svg path:not([data-mesurer-annotation-resolve-check="true"]) {
   fill: currentColor !important;
   stroke: none !important;
+}
+[data-mesurer-context-root="true"] [data-mesurer-annotation-panel="true"] svg [data-mesurer-annotation-resolve-check="true"] {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+[data-mesurer-context-root="true"] [data-mesurer-annotation-panel="true"] [aria-pressed="true"] svg [data-mesurer-annotation-resolve-check="true"] {
+  stroke: var(--msr-surface) !important;
+}
+[data-mesurer-context-root="true"] [data-mesurer-annotation-panel="true"] :is([role="dialog"], [role="menu"]).mesurer-context-floating-surface {
+  border: 1px solid var(--msr-color-ink-200);
+  background-color: var(--msr-surface-raised);
+  color: var(--msr-content);
+  box-shadow: var(--msr-shadow-floating);
 }
 [data-mesurer-context-root="true"] [data-mesurer-annotation-send="true"] {
   appearance: none !important;
@@ -229,6 +246,9 @@
   background: #0d99ff !important;
   color: #fff !important;
   opacity: 1 !important;
+}
+[data-mesurer-context-root="true"] [data-mesurer-annotation-send="true"] .mesurer-send-icon {
+  color: #fff !important;
 }
 [data-mesurer-context-root="true"] [data-mesurer-annotation-send="true"]:disabled {
   opacity: 0.4 !important;

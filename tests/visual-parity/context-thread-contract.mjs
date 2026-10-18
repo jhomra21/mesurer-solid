@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 // Failure modes this contract guards against:
@@ -12,7 +14,7 @@ import { chromium } from "playwright";
 // - asynchronous delivery cleanup removes feedback changed after it was queued.
 const url = process.env.CONTEXT_THREAD_URL ?? "http://127.0.0.1:4192/";
 
-const output = process.env.CONTEXT_THREAD_OUT ?? "context-thread-artifacts";
+const output = process.env.CONTEXT_THREAD_OUT ?? join(dirname(fileURLToPath(import.meta.url)), "context-thread-artifacts");
 
 await mkdir(output, { recursive: true });
 
@@ -113,9 +115,63 @@ try {
   const panel = page.locator("[data-mesurer-annotation-panel='true']");
   await panel.waitFor({ state: "visible" });
   assert.match(await panel.innerText(), /Preserve the original review note\./);
+  const resolveButton = panel.getByRole("button", { name: "Resolve note", exact: true });
+  assert.equal(await resolveButton.locator("svg").count(), 1);
+  assert.equal(await resolveButton.evaluate((button) => button.textContent.trim()), "");
+  assert.equal(await resolveButton.getAttribute("aria-pressed"), "false");
+
+  const openCheckColors = await resolveButton.locator("[data-mesurer-annotation-resolve-check='true']").evaluate((path) => ({
+    check: getComputedStyle(path).stroke,
+    circle: getComputedStyle(path.ownerSVGElement.querySelector("circle")).stroke,
+  }));
+
+  assert.equal(openCheckColors.check, openCheckColors.circle, "unresolved check must be drawn in the icon color, not the card surface");
+
+  const headerGeometry = await panel.locator("[aria-label='Drag annotation panel']").evaluate((header) => {
+    const title = header.querySelector("div > div:first-child");
+    const subtitle = header.querySelector("div > div:last-child");
+    const titleRect = title.getBoundingClientRect();
+    const headerRect = header.getBoundingClientRect();
+
+    return {
+      titleHeight: title.scrollHeight,
+      titleClientHeight: title.clientHeight,
+      titleTop: titleRect.top,
+      titleBottom: titleRect.bottom,
+      headerTop: headerRect.top,
+      headerBottom: headerRect.bottom,
+      subtitleLineHeight: getComputedStyle(subtitle).lineHeight,
+      subtitleHeight: subtitle.getBoundingClientRect().height,
+      subtitleWhiteSpace: getComputedStyle(subtitle).whiteSpace,
+    };
+  });
+
+  assert(headerGeometry.titleHeight <= headerGeometry.titleClientHeight, "header title must not be clipped");
+  assert(headerGeometry.titleTop >= headerGeometry.headerTop && headerGeometry.titleBottom <= headerGeometry.headerBottom,
+    `header title must sit inside the header: ${JSON.stringify(headerGeometry)}`);
+  assert.equal(headerGeometry.subtitleWhiteSpace, "nowrap");
+  assert.equal(headerGeometry.subtitleHeight, Number.parseFloat(headerGeometry.subtitleLineHeight),
+    "subtitle stays on one line");
+
+  const borderColor = await panel.locator("[data-mesurer-annotation-thread-history='true'] + div")
+    .evaluate((element) => getComputedStyle(element).borderTopColor);
+
+  assert.notEqual(borderColor, "rgb(0, 0, 0)");
+
+  await page.screenshot({ path: `${output}/note-card-light.png` });
   const replyInput = panel.getByRole("textbox", { name: /reply to note/i });
   await replyInput.fill("First reply, sent by button.");
-  await clickAtCenter(panel.getByRole("button", { name: /send reply/i }));
+
+  const sendReply = panel.getByRole("button", { name: /send reply/i });
+
+  const sendColors = await sendReply.evaluate((button) => ({
+    background: getComputedStyle(button).backgroundColor,
+    icon: getComputedStyle(button.querySelector("svg path")).color,
+  }));
+
+  assert.equal(sendColors.background, "rgb(13, 153, 255)");
+  assert.equal(sendColors.icon, "rgb(255, 255, 255)", "enabled send arrow must be white on its accent fill");
+  await clickAtCenter(sendReply);
   await settle();
   await replyInput.waitFor({ state: "visible" });
   assert.equal(await replyInput.inputValue(), "", "successful send clears the draft");
@@ -146,11 +202,36 @@ try {
   const secondReplyRow = panel.locator(`[data-mesurer-annotation-reply='${secondReplyId}']`);
   await clickAtCenter(secondReplyRow.getByRole("button", { name: /more actions for reply/i }));
   await clickAtCenter(secondReplyRow.getByRole("button", { name: "Delete", exact: true }));
-  await clickAtCenter(secondReplyRow.getByRole("button", { name: "Cancel", exact: true }));
+  const replyDeleteDialog = page.getByRole("dialog", { name: "Delete reply", exact: true });
+  await replyDeleteDialog.waitFor({ state: "visible" });
+
+  const replySurface = await replyDeleteDialog.evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    shadow: getComputedStyle(element).boxShadow,
+    rect: (() => {
+      const { x, y, width, height } = element.getBoundingClientRect();
+
+      return { x, y, width, height };
+    })(),
+    panel: (() => {
+      const { x, y, width, height } = element.closest("[data-mesurer-annotation-panel]").getBoundingClientRect();
+
+      return { x, y, width, height };
+    })(),
+  }));
+
+  assert.notEqual(replySurface.background, "rgba(0, 0, 0, 0)", "confirmation surface must be opaque");
+  assert.notEqual(replySurface.shadow, "none", "confirmation must have a floating shadow");
+  assert(replySurface.rect.x >= replySurface.panel.x && replySurface.rect.x + replySurface.rect.width <= replySurface.panel.x + replySurface.panel.width,
+    "reply confirmation stays inside the card horizontally");
+  assert(replySurface.rect.y >= replySurface.panel.y && replySurface.rect.y + replySurface.rect.height <= replySurface.panel.y + replySurface.panel.height,
+    "reply confirmation stays inside the card vertically");
+  assert.match(await replyDeleteDialog.innerText(), /Delete this reply\?/);
+  await clickAtCenter(replyDeleteDialog.getByRole("button", { name: "No", exact: true }));
   assert.match(await panel.innerText(), /second line/, "cancel preserves the reply");
   await clickAtCenter(secondReplyRow.getByRole("button", { name: /more actions for reply/i }));
   await clickAtCenter(secondReplyRow.getByRole("button", { name: "Delete", exact: true }));
-  await clickAtCenter(secondReplyRow.getByRole("button", { name: "Confirm", exact: true }));
+  await clickAtCenter(secondReplyRow.getByRole("button", { name: "Yes", exact: true }));
   await settle();
   assert.equal(await panel.locator("[data-mesurer-annotation-reply]").count(), 1);
 
@@ -233,6 +314,18 @@ try {
 
   await clickAtCenter(panel.getByRole("button", { name: /resolve note/i }));
   await settle();
+  const resolvedButton = panel.getByRole("button", { name: "Reopen note", exact: true });
+  assert.equal(await resolvedButton.locator("svg").count(), 1);
+  assert.equal(await resolvedButton.evaluate((button) => button.textContent.trim()), "");
+  assert.equal(await resolvedButton.getAttribute("aria-pressed"), "true");
+
+  const resolveColors = await resolvedButton.locator("[data-mesurer-annotation-resolve-check='true']").evaluate((path) => ({
+    check: getComputedStyle(path).stroke,
+    fill: getComputedStyle(path.ownerSVGElement.querySelector("circle")).fill,
+  }));
+
+  assert.notEqual(resolveColors.check, resolveColors.fill, "resolved check stroke must contrast with its circle fill");
+  await page.screenshot({ path: `${output}/note-card-resolved.png` });
   const resolved = await getAnnotations("Preserve the original review note.");
   assert.equal(resolved.status, "resolved");
   assert(Number.isFinite(resolved.resolvedAt));
@@ -243,7 +336,6 @@ try {
   assert.match(await page.evaluate(() => navigator.clipboard.readText()), /Status: resolved/);
   await clickAtCenter(panel.getByRole("button", { name: /reopen note/i }));
   assert.equal((await getAnnotations("Preserve the original review note.")).status, "open");
-
   const beforeReload = await getAnnotations("Preserve the original review note.");
   const repliesBeforeReload = structuredClone(beforeReload.replies);
   await page.reload({ waitUntil: "networkidle" });
@@ -256,6 +348,63 @@ try {
   assert.deepEqual(restored.baseline, originalBaseline);
   assert.deepEqual(restored.anchor, originalAnchor);
   assert.equal(restored.status, "open");
+  await clickAtCenter(marker);
+  const restoredPanel = page.locator("[data-mesurer-annotation-panel='true']");
+  const deleteNote = restoredPanel.getByRole("button", { name: "Delete annotation", exact: true });
+  await clickAtCenter(deleteNote);
+  const noteDialog = page.getByRole("dialog", { name: "Delete note", exact: true });
+  await noteDialog.waitFor({ state: "visible" });
+  assert(await getAnnotations("Preserve the original review note."));
+
+  const noteSurface = await noteDialog.evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    shadow: getComputedStyle(element).boxShadow,
+  }));
+
+  assert.notEqual(noteSurface.background, "rgba(0, 0, 0, 0)", "note confirmation surface must be opaque");
+  assert.notEqual(noteSurface.shadow, "none", "note confirmation must have a floating shadow");
+
+  const noteBounds = await noteDialog.evaluate((element) => {
+    const dialog = element.getBoundingClientRect();
+    const panel = element.closest("[data-mesurer-annotation-panel]").getBoundingClientRect();
+
+    return {
+      insidePanel: dialog.left >= panel.left && dialog.right <= panel.right
+        && dialog.top >= panel.top && dialog.bottom <= panel.bottom,
+    };
+  });
+
+  assert(noteBounds.insidePanel, "note confirmation must remain inside the card bounds");
+  await page.screenshot({ path: `${output}/note-card-delete-confirmation.png` });
+  await page.keyboard.press("Escape");
+  await noteDialog.waitFor({ state: "hidden" });
+  assert.equal(await restoredPanel.isVisible(), true);
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Delete annotation");
+  assert(await getAnnotations("Preserve the original review note."));
+  await page.locator("[data-mesurer-context-root='true']").evaluate((root) => root.setAttribute("data-theme", "dark"));
+  await clickAtCenter(deleteNote);
+  const darkNoteDialog = page.getByRole("dialog", { name: "Delete note", exact: true });
+  await darkNoteDialog.waitFor({ state: "visible" });
+
+  const darkSurface = await darkNoteDialog.evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    shadow: getComputedStyle(element).boxShadow,
+  }));
+
+  assert.notEqual(darkSurface.background, "rgba(0, 0, 0, 0)", "dark confirmation surface must be opaque");
+  assert.notEqual(darkSurface.shadow, "none", "dark confirmation must have a floating shadow");
+  await page.screenshot({ path: `${output}/note-card-delete-confirmation-dark.png` });
+  await page.keyboard.press("Escape");
+  await darkNoteDialog.waitFor({ state: "hidden" });
+  await page.locator("[data-mesurer-context-root='true']").evaluate((root) => root.setAttribute("data-theme", "light"));
+  await clickAtCenter(deleteNote);
+  await page.mouse.click(10, 10);
+  await noteDialog.waitFor({ state: "hidden" });
+  assert(await getAnnotations("Preserve the original review note."));
+  await clickAtCenter(deleteNote);
+  await clickAtCenter(page.getByRole("dialog", { name: "Delete note", exact: true }).getByRole("button", { name: "Yes", exact: true }));
+  await restoredPanel.waitFor({ state: "hidden" });
+  assert.equal(await getAnnotations("Preserve the original review note."), null);
 
   await writeFile(`${output}/result.json`, JSON.stringify({
     annotationId: initial.id,
@@ -269,6 +418,10 @@ try {
     persisted: beforeReload.id === initial.id && restored.id === initial.id,
   }, null, 2));
   await page.screenshot({ path: `${output}/replied-thread.png`, fullPage: true });
+  await clickAtCenter(secondMarker);
+  await page.locator("[data-mesurer-context-root='true']").evaluate((root) => root.setAttribute("data-theme", "dark"));
+  await settle();
+  await page.screenshot({ path: `${output}/note-card-dark.png` });
   assert.deepEqual(errors, [], `browser diagnostics should be clean: ${errors.join("\n")}`);
 } catch (error) {
   await page.screenshot({ path: `${output}/failure.png`, fullPage: true }).catch(() => {});

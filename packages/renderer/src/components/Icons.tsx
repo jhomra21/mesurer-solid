@@ -107,6 +107,19 @@ export const CheckIcon = (props: IconProps) => (
   </IconBase>
 );
 
+export const AnnotationResolveIcon = (props: IconProps & { resolved: boolean }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 14} height={props.size ?? 14} viewBox="0 0 12 12" fill="none" aria-hidden="true" class={props.class}>
+    <circle cx="6" cy="6" r="5.375" fill={props.resolved ? "currentColor" : "none"} stroke="currentColor" stroke-width="1.25" />
+    <path data-mesurer-annotation-resolve-check="true" d="m3.5 6.1 1.65 1.65L8.6 4.3" stroke={props.resolved ? "var(--msr-surface)" : "currentColor"} stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>
+);
+
+export const MoreIcon = (props: IconProps) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 14} height={props.size ?? 14} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class={props.class}>
+    <circle cx="3" cy="8" r="1" /><circle cx="8" cy="8" r="1" /><circle cx="13" cy="8" r="1" />
+  </svg>
+);
+
 export const MinusIcon = (props: IconProps) => (
   <IconBase size={props.size ?? 12} class={props.class}>
     <path d="M228,128a12,12,0,0,1-12,12H40a12,12,0,0,1,0-24H216A12,12,0,0,1,228,128Z" />

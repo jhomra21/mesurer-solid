@@ -5,6 +5,11 @@ import { chromium } from "playwright";
 
 const url = process.env.RESPONSIVE_CONTEXT_URL ?? "http://127.0.0.1:4190/responsive-preview.html";
 
+const deleteNote = async (locator) => {
+  await click(locator.getByRole("button", { name: "Delete annotation", exact: true }));
+  await click(page.getByRole("dialog", { name: "Delete note", exact: true }).getByRole("button", { name: "Yes", exact: true }));
+};
+
 const output = process.env.RESPONSIVE_CONTEXT_OUT ?? "responsive-context-artifacts";
 
 await mkdir(output, { recursive: true });
@@ -151,7 +156,7 @@ try {
   assert.equal(await page.locator("[data-mesurer-responsive-stage]").count(), 1,
     "Escape closes the preview note without closing Responsive");
   await click(page.locator(`[data-mesurer-annotation-marker='true'][data-mesurer-annotation-id='${lateAnnotation.id}']`));
-  await click(page.getByRole("button", { name: "Delete annotation", exact: true }));
+  await deleteNote(page.locator("[data-mesurer-annotation-panel='true']"));
   assert.equal((await annotations()).length, 1, "Late preview annotation can be saved and removed");
   const a = await save("Viewport A");
   const scope = a.anchor.targets[0].viewport;
@@ -196,7 +201,7 @@ try {
     "Context binds the note to its duplicate preview rather than the matching-size sibling",
   );
   await click(page.locator(`[data-mesurer-annotation-marker='true'][data-mesurer-annotation-id='${duplicate.id}']`));
-  await click(page.getByRole("button", { name: "Delete annotation", exact: true }));
+  await deleteNote(page.locator("[data-mesurer-annotation-panel='true']"));
   await page.getByLabel("Remove preview").nth(1).click();
 
   const nestedTarget = page.frameLocator("iframe[data-mesurer-responsive-frame]")
@@ -214,7 +219,7 @@ try {
   await settle();
   assert.equal((await page.evaluate((id) => window.__MESURER__.context({ annotation: id }), nested.id)).scope.targetStatus, "connected");
   await click(page.locator(`[data-mesurer-annotation-marker='true'][data-mesurer-annotation-id='${nested.id}']`));
-  await click(page.getByRole("button", { name: "Delete annotation", exact: true }));
+  await deleteNote(page.locator("[data-mesurer-annotation-panel='true']"));
   assert.equal((await annotations()).length, 2, "Deleting a preview note preserves root and other notes");
 
   await frames.first().evaluate((frame) => {
@@ -261,7 +266,7 @@ try {
   await settle();
   assert.equal((await page.evaluate((id) => window.__MESURER__.context({ annotation: id }), shadow.id)).scope.targetStatus, "connected");
   await click(shadowMarker);
-  await click(page.getByRole("button", { name: "Delete annotation", exact: true }));
+  await deleteNote(page.locator("[data-mesurer-annotation-panel='true']"));
 
   await page.getByLabel("Add a size").selectOption("375x667");
   await page.frameLocator("iframe[data-mesurer-responsive-frame]").nth(1).locator("#inspection-target").waitFor();
