@@ -5,6 +5,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 ## Unreleased
 
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.3-beta.12 - 2026-10-18
+
 - Added chronological replies and resolve/reopen status to saved Context notes, including session persistence, annotation Context output, and content-safe Codex completion cleanup. Bulk Codex delivery now includes open notes only.
 - Added a Context-owned Notes toolbar panel with note/reply search, Open/Resolved/All filters, reply counts, muted resolved rows, and explicit saved-target reveal. Responsive reveal reuses or creates only an exact saved viewport and refuses ambiguous or unsafe targets; Context reads never trigger presentation changes.
 - Added the Inspect info card with source-document CSS and dimensions, copyable values, expandable layout details, and persisted Click/Hover mode and layout-details controls in Settings. Responsive selected cards remain interactive in the root overlay; Motion embeds the same CSS details in its inspection panel.
