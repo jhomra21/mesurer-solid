@@ -91,7 +91,7 @@ export function AnnotationComposer(props: AnnotationComposerProps) {
         aria-label={props.label === "Reply to note" ? "Send reply" : props.label}
         title={`${props.label === "Reply to note" ? "Send reply" : props.label} · Enter`}
         disabled={!value().trim()}
-        class={`msr:absolute msr:right-1.5 msr:outline-none msr:disabled:opacity-40 ${expanded() ? "msr:bottom-1.5" : "msr:top-1/2 msr:-translate-y-1/2"}`}
+        class={`msr:absolute msr:right-1.5 msr:flex msr:size-6 msr:items-center msr:justify-center msr:rounded-full msr:bg-[#0d99ff] msr:text-white msr:outline-none msr:disabled:opacity-40 ${expanded() ? "msr:bottom-1.5" : "msr:top-1/2 msr:-translate-y-1/2"}`}
         onPointerDown={(event) => {
           event.preventDefault();
           event.stopPropagation();
