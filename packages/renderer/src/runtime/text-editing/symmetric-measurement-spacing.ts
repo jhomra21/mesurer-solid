@@ -189,6 +189,15 @@ export function installSymmetricMeasurementSpacing(
 
     if (cardRect.width <= 0 || cardRect.height <= 0 || cardRect.top < host.bottom) return;
 
+    // A selected dimensions label can remount inside an already-registered
+    // measurement root (e.g. after the Inspect card stops suppressing it), which
+    // the root-level observers do not report.
+    seedMeasurementRoots(portalTarget);
+
+    if (sourcePortalTarget !== portalTarget) seedMeasurementRoots(sourcePortalTarget);
+
+    if (ownerDocument.body && ownerDocument.body !== portalTarget) seedMeasurementRoots(ownerDocument.body);
+
     const labelRect = matchingLabelRect(host);
     const sourceGap = labelRect.top - host.bottom;
     const typographyGap = cardRect.top - labelRect.bottom;
