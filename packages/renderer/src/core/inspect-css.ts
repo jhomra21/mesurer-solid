@@ -81,6 +81,7 @@ const add = (rows: InspectCssPart[], label: string, value: string | null | undef
 export const formatInspectCssParts = (
   measurement: Pick<InspectMeasurement, "padding" | "margin">,
   style: CSSStyleDeclaration,
+  sourceColor?: string,
 ): InspectCssPart[] => {
   const rows: InspectCssPart[] = [];
   const padding = edgeShorthand(measurement.padding);
@@ -119,7 +120,7 @@ export const formatInspectCssParts = (
     rows.push({ label: "background", value: background });
   }
 
-  const color = style.color.trim();
+  const color = (sourceColor ?? style.color).trim();
   const parsedColor = rgb(color);
 
   if (color && !(parsedColor && parsedColor.a >= 0.999 && parsedColor.r === 0 && parsedColor.g === 0 && parsedColor.b === 0)) rows.push({ label: "color", value: color });

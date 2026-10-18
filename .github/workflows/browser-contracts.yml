@@ -316,7 +316,7 @@ jobs:
         run: bun tests/visual-parity/responsive-inspection-contract.mjs
       - name: Exercise Inspect information card
         env:
-          INSPECT_INFO_URL: http://127.0.0.1:4174/responsive-preview.html
+          INSPECT_INFO_URL: http://127.0.0.1:4174/
           INSPECT_INFO_OUT: inspect-info-artifacts
         run: bun tests/visual-parity/inspect-info-contract.mjs
       - name: Exercise Responsive Guides

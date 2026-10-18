@@ -79,7 +79,7 @@ const isLinePattern = (value: unknown): value is LinePattern => value === "solid
 
 const isTheme = (value: unknown): value is MesurerTheme => value === "system" || value === "light" || value === "dark";
 
-const isInfoCardMode = (value: unknown): value is InfoCardMode => value === "hover" || value === "click";
+const isInfoCardMode = (value: unknown): value is InfoCardMode => value === "off" || value === "hover" || value === "click";
 
 const isToolMode = (value: unknown): value is ToolMode => value === "none" || value === "select" || value === "guides" || value === "text-inspector" || value === "xray" || value === "rulers";
 

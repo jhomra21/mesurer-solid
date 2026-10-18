@@ -2,7 +2,7 @@ export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 
 export type MesurerTheme = "system" | "light" | "dark";
 
-export type InfoCardMode = "hover" | "click";
+export type InfoCardMode = "off" | "hover" | "click";
 
 export type ColorSample = { red: number; green: number; blue: number; alpha: number };
 

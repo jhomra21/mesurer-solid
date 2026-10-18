@@ -235,6 +235,7 @@ async function snapshotUiContract(page) {
           })),
           controls: [...dialog.querySelectorAll('button,input,select,textarea,[role="slider"],[role="switch"]')]
             .map(controlContract),
+          currentOnlyExtensions: window.__PARITY_CURRENT_ONLY_SETTINGS_EXTENSIONS__ ?? [],
         }
       : null;
 
@@ -379,6 +380,35 @@ const normalizeSharedParitySurface = async (page, implementation) => {
 
   if ((await extensions.count()) > 0) {
     await extensions.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
+    changed = true;
+  }
+
+  const inspectExtensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-current-only-extension]');
+
+  if ((await inspectExtensions.count()) > 0) {
+    const contract = await inspectExtensions.evaluateAll((nodes) => nodes.map((node) => ({
+      id: node.getAttribute("data-mesurer-current-only-extension"),
+      name: node.getAttribute("aria-label") ?? node.querySelector("span")?.textContent?.trim() ?? node.textContent?.trim().replace(/\s+/g, " "),
+      role: node.getAttribute("role") ?? node.tagName.toLowerCase(),
+      value: node.querySelector("select")?.value ?? node.getAttribute("aria-checked"),
+    })));
+
+    const expected = [
+      { id: "inspect-info-mode", name: "Info card mode", role: "label", value: "off" },
+      { id: "inspect-info-layout", name: "Layout details", role: "switch", value: "true" },
+    ];
+
+    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
+      throw new Error(`Unexpected current-only Inspect Settings controls: ${JSON.stringify(contract)}`);
+    }
+
+    await page.evaluate((values) => {
+      window.__PARITY_CURRENT_ONLY_SETTINGS_EXTENSIONS__ = values;
+      document.querySelectorAll('[data-mesurer-current-only-extension]').forEach((node) => {
+        const row = node.closest("label") ?? node;
+        row.remove();
+      });
+    }, contract);
     changed = true;
   }
 
@@ -542,6 +572,19 @@ try {
           },
         });
       });
+
+      if (implementation === "solid") {
+        await page.addInitScript(() => {
+          // Historical React 605d202 predates Inspect. Disable only this new
+          // Solid surface in the historical lane; shipping still defaults on.
+          localStorage.setItem("mesurer-settings", JSON.stringify({
+            version: 2,
+            settings: { infoCardMode: "off" },
+            workspace: null,
+          }));
+        });
+      }
+
       await page.goto(url, { waitUntil: "networkidle" });
       await page.locator(".mesurer-toolbar-surface").waitFor();
       await page.waitForTimeout(120);

@@ -7,7 +7,7 @@ This page lists the public Mesurer features and the APIs that expose them for `m
 | Tool | What it does |
 | --- | --- |
 | Select | Select one or many rendered HTML or SVG elements and report exact geometry, including accessible same-origin iframe documents. Invoking Select clears the current element and Guide selection before toggling the tool. |
-| Inspect info card | Show a compact selector, source CSS-pixel dimensions, typography, and ordered nondefault CSS details for a selected element. **Settings > Select** chooses Click (default) or Hover; Hover previews are pass-through, while the selected card remains interactive for copying and expanding CSS details. |
+| Inspect info card | Show a compact selector, source CSS-pixel dimensions, typography, and ordered nondefault CSS details for a selected element. **Settings > Select** chooses Off, Click (default), or Hover; Hover previews are pass-through, while the selected card remains interactive for copying and expanding CSS details. |
 | X-ray | Show page structure without changing application source. |
 | Motion | Built into Select; inspect motion on the selected element with a live preview, play/pause, scrubbing, preset or custom speed, Web Animations API targets, and grouped, copyable keyframe details. The expandable inspection panel also embeds the selected element's Inspect CSS details. Observed JavaScript motion is read-only. |
 | Same-origin iframes | Select, measurement geometry, X-ray, Motion, and Context work across accessible same-origin frames, including 2D-scaled or transformed frame ancestry. Cross-origin frames are inaccessible and fail closed. |

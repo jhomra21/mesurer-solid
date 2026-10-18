@@ -94,4 +94,4 @@ export type ToolMode =
   | "xray"
   | "rulers";
 
-export type InfoCardMode = "hover" | "click";
+export type InfoCardMode = "off" | "hover" | "click";

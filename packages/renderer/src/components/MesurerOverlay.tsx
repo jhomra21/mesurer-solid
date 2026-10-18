@@ -140,7 +140,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   };
 
   const selectedCardMeasurement = createMemo(() => {
-    if (props.model.state.toolMode !== "select" || !props.model.state.enabled) return null;
+    if (props.model.state.settings.infoCardMode === "off"
+      || props.model.state.toolMode !== "select"
+      || !props.model.state.enabled) return null;
 
     if (props.model.state.settingsOpen || props.model.state.isDragging || props.model.state.altPressed
       || props.model.state.draggingGuideId || props.model.state.colorPickerActive
@@ -149,8 +151,6 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     const element = selected?.elementRef;
 
     if (!selected || !element?.isConnected || selected.id.startsWith("group-")) return null;
-
-    if (props.model.state.hoverElement && props.model.state.hoverElement !== element) return null;
 
     return { element, measurement: selected };
   });
@@ -745,6 +745,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
             theme={props.model.state.settings.theme}
             documentMounted
             layoutDetailsEnabled={props.model.state.settings.layoutDetailsEnabled}
+            singleSelection={props.model.state.selectedMeasurements.length <= 1}
           />
         </Portal>;
       }}</Show>
@@ -762,6 +763,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
             theme={props.model.state.settings.theme}
             documentMounted
             layoutDetailsEnabled={props.model.state.settings.layoutDetailsEnabled}
+            singleSelection
             passThrough
           />
         </Portal>;
