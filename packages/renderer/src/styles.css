@@ -3,9 +3,7 @@
 
 @theme {
   --color-ink-50: #f8fafc;
-  --color-ink-100: #f1f5f9;
   --color-ink-200: #e2e8f0;
-  --color-ink-300: #cbd5e1;
   --color-ink-500: #64748b;
   --color-ink-700: #334155;
   --color-ink-900: #0f172a;
@@ -14,9 +12,7 @@
 :root,
 :host {
   --color-ink-50: #f8fafc;
-  --color-ink-100: #f1f5f9;
   --color-ink-200: #e2e8f0;
-  --color-ink-300: #cbd5e1;
   --color-ink-500: #64748b;
   --color-ink-700: #334155;
   --color-ink-900: #0f172a;
@@ -466,6 +462,12 @@ body.mesurer-solid-xray .mesurer-ti-close {
   [data-mesurer-annotation-badge="true"] {
     transition: none !important;
   }
+}
+
+/* Ink shades the historical prefix above does not define. */
+@theme {
+  --color-ink-100: #f1f5f9;
+  --color-ink-300: #cbd5e1;
 }
 
 /* Upstream Mesurer c20ad51 theme parity. Keep this after the historical
