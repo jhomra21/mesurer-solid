@@ -5,12 +5,24 @@ on:
 
 permissions:
   contents: read
+  # A workflow_dispatch run is not attached to the release PR. Report the result
+  # as a commit status on the release head so the PR shows it as a check.
+  statuses: write
 
 jobs:
   validate-release:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      STATUS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
+      - name: Report pending release-check status
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -f state=pending -f context=release-check \
+            -f description="Validating release PR" -f target_url="$STATUS_URL" >/dev/null
+
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 2
@@ -76,3 +88,17 @@ jobs:
         run: |
           node scripts/check-identity.mjs
           node --test scripts/release.test.mjs
+
+      - name: Report final release-check status
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          case "$JOB_STATUS" in
+            success) state=success; description="Release PR validated" ;;
+            cancelled) state=error; description="Release check was cancelled" ;;
+            *) state=failure; description="Release PR validation failed" ;;
+          esac
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -f state="$state" -f context=release-check \
+            -f description="$description" -f target_url="$STATUS_URL" >/dev/null

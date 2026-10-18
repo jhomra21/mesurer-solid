@@ -56,7 +56,7 @@ The workflow moves `Unreleased` changelog entries into the new version section, 
 
 Only one release PR may be open at a time. The generated release commit contains GitHub's native `[skip ci]` marker because the release PR changes release metadata only. Runtime and compatibility checks must already be green on the source changes before release preparation.
 
-`prepare-release` dispatches `release-check.yml` against the generated release branch after opening the PR. `workflow_dispatch` is not suppressed by the release commit's skip marker, so **release-check is the single expected release-PR validation gate**. No PAT or long-lived publishing token is required.
+`prepare-release` dispatches `release-check.yml` against the generated release branch after opening the PR. `workflow_dispatch` is not suppressed by the release commit's skip marker, so **release-check is the single expected release-PR validation gate**. Because a dispatched run is not attached to the PR, the workflow also posts its pending and final result as a `release-check` commit status on the release head commit, which is how the PR shows it as a check. No PAT or long-lived publishing token is required.
 
 If GitHub Actions cannot create pull requests under the repository settings, PR creation fails closed and the workflow removes the remote release branch so the release can be retried after the setting changes.
 
