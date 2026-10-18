@@ -261,6 +261,27 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     changed = true;
   }
 
+  const inspectExtensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-current-only-extension]');
+
+  if ((await inspectExtensions.count()) > 0) {
+    const contract = await inspectExtensions.evaluateAll((nodes) => nodes.map((node) => ({
+      id: node.getAttribute("data-mesurer-current-only-extension"),
+      value: node.querySelector("select")?.value ?? node.getAttribute("aria-checked"),
+    })));
+
+    const expected = [
+      { id: "inspect-info-mode", value: "off" },
+      { id: "inspect-info-layout", value: "true" },
+    ];
+
+    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
+      throw new Error(`Unexpected current-only Inspect Settings controls: ${JSON.stringify(contract)}`);
+    }
+
+    await inspectExtensions.evaluateAll((nodes) => nodes.forEach((node) => (node.closest("label") ?? node).remove()));
+    changed = true;
+  }
+
   const extensions = page.locator(
     "[data-mesurer-distance='true'], [data-mesurer-plugin-settings='true']",
   );
@@ -559,6 +580,20 @@ try {
           },
         });
       });
+
+      if (implementation === "solid") {
+        await page.addInitScript(() => {
+          // Historical React predates Inspect. Disable only this new Solid
+          // surface in the historical lane; shipping still defaults it on.
+          if (localStorage.getItem("mesurer-settings") !== null) return;
+          localStorage.setItem("mesurer-settings", JSON.stringify({
+            version: 2,
+            settings: { infoCardMode: "off" },
+            workspace: null,
+          }));
+        });
+      }
+
       await page.goto(url, { waitUntil: "networkidle" });
       await page.locator(".mesurer-toolbar-surface").waitFor();
       await sleep(page, 100);
