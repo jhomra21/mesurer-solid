@@ -4,7 +4,33 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.3 - 2026-10-18
+
 - The published package now declares `engines.node: ">=22"`, matching the Node versions CI tests. This affects only the command-line tools and Codex bridge; browser usage is unchanged.
+- Polish Context note cards with consistent icon controls, a clear SVG resolve/reopen state, and themed reply composition.
+- Require confirmation before deleting notes or replies.
+- Added chronological replies and resolve/reopen status to saved Context notes, including session persistence, annotation Context output, and content-safe Codex completion cleanup. Bulk Codex delivery now includes open notes only.
+- Added a Context-owned Notes toolbar panel with note/reply search, Open/Resolved/All filters, reply counts, muted resolved rows, and explicit saved-target reveal. Responsive reveal reuses or creates only an exact saved viewport and refuses ambiguous or unsafe targets; Context reads never trigger presentation changes.
+- Added the Inspect info card with source-document CSS and dimensions, copyable values, expandable layout details, and persisted Click/Hover mode and layout-details controls in Settings. Responsive selected cards remain interactive in the root overlay; Motion embeds the same CSS details in its inspection panel.
+- Fixed toolbar dragging while Responsive is open, including drags over the preview stage and iframe.
+- Fixed compact toolbar mode hiding the active Select tool.
+- Keep Responsive open while Color Picker, Screenshot, or Recording is active, and layer those tools above preview content.
+- Add per-preview device/breakpoint sizing, duplicate previews, and a six-preview limit; preserve sibling frames when resizing.
+- Route Escape from a Responsive preview through the root surface-dismissal order.
+- Fix Responsive preview inspection so measurement labels use preview CSS pixels and Typography stays above the stage.
+- Document the built-in, default-on Responsive inspector as complete, including same-origin limits, that each preview reruns the page's scripts, memory cost, and extension behavior. Preview Delete and Escape work from inside the same-origin frame, including from the Chromium extension's built assets, without broad host permissions.
+- Fix a `Mesurer renderer model is unavailable` page error when a mount is disposed while a plugin state change is still being delivered; listeners removed during delivery are no longer called.
+- Add viewport-scoped Context notes in Responsive, with exact URL/width/height/preview identity, root-projected markers and panels, conservative rebind after preview recreation, and viewport metadata in Context and capture plans. Removing or closing previews hides their notes and releases their watchers without deleting saved review records; root-page notes remain separate.
+- Add independent per-preview Guides in Responsive, with preview-document snapping, CSS-pixel positions, selection, multi-select, Alt distance feedback, Delete, and drag-off removal. Preview guides persist across close/reopen in page memory and clear on page-key change; Layout Guides project into each preview. Rulers remain page-only and close the stage.
+- Responsive now supports up to six presets or page-breakpoint viewports, per-axis resize, reorder without iframe reload, remove, shared Fit/manual zoom, and stage/frame wheel routing. Preview list and zoom survive close/reopen in page memory only and reset when the page key changes.
+- Responsive previews now route Select, marquee selection, measurements, X-ray, and Typography inspection to accessible same-origin preview documents. Preview targets cannot create Context annotations yet; the Add Note command is blocked consistently, and the agent inspection API remains rooted in the original page.
+- Add the Responsive inspector with one live iPhone 15 same-origin preview.
+- Simplified annotation writing to a compact, auto-growing text field with an in-field Send button, matching upstream. Enter sends, Shift+Enter adds a line, and Escape discards.
+- Add opt-in toolbar edge/corner docking, vertical side layouts, and optional auto-hide in Settings. Free dragging remains the default; dock placement survives tab reloads and respects native window controls.
+- Build Mesurer with Solid 2.0.0-rc.15 (previously 2.0.0-rc.0). Solid stays bundled inside `mesurer-solid`, so applications do not need to install or upgrade Solid.
+- Show Motion for animations on the selected element's children and grandchildren as well as the element itself, matching upstream Mesurer. Animations nested deeper still belong to a more specific element and stay off the parent's Motion card.
 
 ## 0.2.3-beta.14 - 2026-10-18
 
