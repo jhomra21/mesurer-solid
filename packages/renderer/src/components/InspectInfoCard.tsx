@@ -1,9 +1,11 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { getElementSelector } from "@jhomra21/mesurer-solid-dom";
 import { formatInspectCssParts, visibleInspectCssParts } from "../core/inspect-css";
+import { getRectFromDom } from "../core/dom";
 import type { InspectMeasurement, Rect } from "../core/types";
 import { installNestedScrollCompensation } from "../runtime/nested-scroll-compensation";
 import { placeInspectInfoCard } from "../runtime/inspect-info";
+import { intersectRect, responsivePreviewVisibleRect } from "../runtime/responsive-preview-geometry";
 import { TypographyInspector } from "../runtime/typography/typography";
 import { CheckIcon } from "./Icons";
 import { InspectDetailRow } from "./InspectDetailRow";
@@ -80,7 +82,7 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
       ?.shadowRoot;
 
     return [...(root?.querySelectorAll<HTMLElement>(
-      "[data-mesurer-annotation-trigger='true'], [data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
+      "[data-mesurer-annotation-trigger='true'], [data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true'], [data-mesurer-annotation-marker='true']",
     ) ?? [])]
       .flatMap((element) => {
         const { left, top, width, height } = element.getBoundingClientRect();
@@ -89,16 +91,45 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
       });
   };
 
+  const placementViewport = () => {
+    const visible = responsivePreviewVisibleRect(sourceDocument());
+
+    return visible === undefined
+      ? { width: props.ownerWindow.innerWidth, height: props.ownerWindow.innerHeight }
+      : visible ?? { left: 0, top: 0, width: 0, height: 0 };
+  };
+
   const position = () => {
+    const previewVisible = responsivePreviewVisibleRect(sourceDocument());
+
+    if (previewVisible === undefined) {
+      const placed = placeInspectInfoCard(
+        props.rect,
+        { width: cardWidth(), height: cardHeight() },
+        { width: props.ownerWindow.innerWidth, height: props.ownerWindow.innerHeight },
+        props.passThrough === true,
+        contextRects(),
+      );
+
+      return placed ? { left: `${placed.left}px`, top: `${placed.top}px` } : {};
+    }
+
+    evidenceRevision();
+    const currentRect = intersectRect(getRectFromDom(props.element), previewVisible);
+
+    if (currentRect.width <= 0 || currentRect.height <= 0) return { display: "none" };
+
     const placed = placeInspectInfoCard(
-      props.rect,
+      currentRect,
       { width: cardWidth(), height: cardHeight() },
-      { width: props.ownerWindow.innerWidth, height: props.ownerWindow.innerHeight },
+      placementViewport(),
       props.passThrough === true,
       contextRects(),
     );
 
-    return { left: `${placed.left}px`, top: `${placed.top}px` };
+    return placed
+      ? { left: `${placed.left}px`, top: `${placed.top}px` }
+      : { display: "none" };
   };
 
   const baseStyle = () => ({
@@ -115,7 +146,16 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
 
   const cardStyle = () => props.embedded
     ? { position: "static" as const, ...baseStyle() }
-    : { position: "fixed" as const, ...position(), ...baseStyle() };
+    : responsivePreviewVisibleRect(sourceDocument()) === undefined
+      ? { position: "fixed" as const, ...position(), ...baseStyle() }
+      : {
+        position: "fixed" as const,
+        ...position(),
+        "max-width": `${Math.max(0, placementViewport().width - 16)}px`,
+        "max-height": `${Math.max(0, placementViewport().height - 16)}px`,
+        overflow: "auto",
+        ...baseStyle(),
+      };
 
   createEffect(() => [cardElement(), props.ownerWindow] as const, ([node, ownerWindow]) => {
     // Expansion and source retargeting can change the card height; the ResizeObserver
@@ -163,6 +203,7 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
 
     // SAFETY: sourceWindow() is the global for the selected element's owning document.
     const owner = source as Window & typeof globalThis;
+    const inPreview = responsivePreviewVisibleRect(element.ownerDocument) !== undefined;
     let pending = 0;
 
     const invalidate = () => {
@@ -197,8 +238,20 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
       ancestor = ancestor.parentElement ?? (root instanceof owner.ShadowRoot ? root.host : null);
     }
 
+    // Root-page cards follow scroll through nested scroll compensation; re-placing
+    // them on scroll as well would apply the scroll offset twice.
+    if (inPreview) {
+      owner.addEventListener("scroll", invalidate, { capture: true, passive: true });
+      props.ownerWindow.addEventListener("mesurer:responsive-preview-geometry-change", invalidate);
+    }
+
     return () => {
       observer.disconnect();
+
+      if (inPreview) {
+        owner.removeEventListener("scroll", invalidate, true);
+        props.ownerWindow.removeEventListener("mesurer:responsive-preview-geometry-change", invalidate);
+      }
 
       if (pending) owner.cancelAnimationFrame(pending);
     };

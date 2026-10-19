@@ -16,6 +16,8 @@ function Fixture() {
         title="Nested preview target"
         srcdoc="<button data-testid='nested-inspection-target' style='margin:48px;width:170px;height:72px'>Nested target</button>"
       />
+      {new URLSearchParams(window.location.search).has("responsiveInspection")
+        && <div aria-hidden="true" data-testid="responsive-inspection-scroll-content" style={{ height: "1800px" }} />}
       <style>{`
         body { margin: 0 }
         #root-only-target { position: fixed; left: 16px; top: 260px; width: 116px; height: 48px; z-index: 2; }

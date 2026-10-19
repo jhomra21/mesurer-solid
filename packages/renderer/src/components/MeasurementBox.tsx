@@ -1,12 +1,13 @@
 import { Show, createSignal, onSettled } from "solid-js";
 import { Portal } from "@solidjs/web";
-import type { InspectMeasurement, Measurement } from "../core/types";
+import type { InspectMeasurement, Measurement, Rect } from "../core/types";
 import type { EdgeVisibility } from "../core/edge-visibility";
 import type { MesurerTheme } from "../core/persistence";
 import { MEASURE_LABEL_OFFSET, MEASURE_TRANSITION_MS } from "../core/constants";
 import { installNestedScrollCompensation } from "../runtime/nested-scroll-compensation";
 import { registerSelectionChromeTarget } from "../runtime/native-scroll-registry";
 import { getRectFromDom } from "../core/dom";
+import { intersectRect, responsivePreviewVisibleRect } from "../runtime/responsive-preview-geometry";
 
 export type MeasurementBoxProps = {
   measurement: Measurement | InspectMeasurement | null;
@@ -14,6 +15,7 @@ export type MeasurementBoxProps = {
   fillColor: string;
   edgeVisibility?: EdgeVisibility;
   showLabel?: boolean;
+  clipRect?: Rect | null;
   theme?: MesurerTheme;
 };
 
@@ -64,8 +66,9 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   const syncSelectedGeometry = () => {
     const target = liveSelectedTarget();
 
-    if (!target || !chromeElement || !labelElement) return;
-    const rect = getRectFromDom(target);
+    if (!target || !chromeElement) return;
+    const clipRect = responsivePreviewVisibleRect(target.ownerDocument);
+    const rect = intersectRect(getRectFromDom(target), clipRect);
     const ownerWindow = target.ownerDocument.defaultView;
     const selectionRoot = chromeElement.parentElement;
 
@@ -89,11 +92,16 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       top: `${top}px`,
       width: `${rect.width}px`,
       height: `${rect.height}px`,
+      display: rect.width > 0 && rect.height > 0 ? "" : "none",
     });
-    Object.assign(labelElement.style, {
-      left: `${left + rect.width / 2}px`,
-      top: `${top + rect.height + MEASURE_LABEL_OFFSET}px`,
-    });
+
+    if (labelElement) {
+      Object.assign(labelElement.style, {
+        left: `${left + rect.width / 2}px`,
+        top: `${top + rect.height + MEASURE_LABEL_OFFSET}px`,
+        display: rect.width > 0 && rect.height > 0 && labelIsVisible({ ...props.measurement!, rect }) ? "" : "none",
+      });
+    }
   };
 
   onSettled(() => {
@@ -150,11 +158,33 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     // frame-locked to the target.
     const targetResizeObserver = new ownerWindow.ResizeObserver(syncSelectedGeometry);
 
+    const rootWindow = (() => {
+      let current = ownerWindow;
+
+      while (current.frameElement) {
+        const parent = current.frameElement.ownerDocument.defaultView;
+
+        if (!parent || parent === current) break;
+        current = parent;
+      }
+
+      return current;
+    })();
+
     syncSelectedGeometry();
     nestedScroll?.sync();
     targetResizeObserver.observe(target);
     ownerWindow.addEventListener("scroll", syncOnScroll, { capture: true, passive: true });
+
+    const previewDocument = responsivePreviewVisibleRect(target.ownerDocument) !== undefined;
+
+    if (rootWindow !== ownerWindow && previewDocument) {
+      rootWindow.addEventListener("mesurer:responsive-preview-geometry-change", syncOnScroll);
+    }
+
     ownerWindow.addEventListener("resize", syncSelectedGeometry, true);
+
+    if (rootWindow !== ownerWindow && previewDocument) rootWindow.addEventListener("resize", syncSelectedGeometry, true);
 
     return () => {
       targetResizeObserver.disconnect();
@@ -163,13 +193,20 @@ export function MeasurementBox(props: MeasurementBoxProps) {
 
       if (scrollFrame) ownerWindow.cancelAnimationFrame(scrollFrame);
       ownerWindow.removeEventListener("scroll", syncOnScroll, true);
+
+      if (rootWindow !== ownerWindow && previewDocument) {
+        rootWindow.removeEventListener("mesurer:responsive-preview-geometry-change", syncOnScroll);
+      }
+
       ownerWindow.removeEventListener("resize", syncSelectedGeometry, true);
+
+      if (rootWindow !== ownerWindow && previewDocument) rootWindow.removeEventListener("resize", syncSelectedGeometry, true);
     };
   });
 
   const surfaces = (measurement: () => Measurement | InspectMeasurement) => <>
     <Show when={!isSelectionGroup()}>
-      <div ref={(element) => { chromeElement = element; }} data-mesurer-measurement-chrome="true" class="msr:pointer-events-none msr:absolute" style={{
+      <div ref={(element) => { chromeElement = element; }} data-mesurer-measurement-chrome="true" data-mesurer-selected-outline={isSelectedMeasurement() ? "true" : undefined} class="msr:pointer-events-none msr:absolute" style={{
         left: `${measurement().rect.left + selectedPortalOffset().x}px`,
         top: `${measurement().rect.top + selectedPortalOffset().y}px`,
         width: `${measurement().rect.width}px`,
@@ -188,7 +225,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
         <Show when={edges().left}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
       </div>
     </Show>
-    <Show when={props.showLabel !== false}>
+    <Show when={props.showLabel !== false && labelIsVisible(measurement())}>
       <div ref={(element) => { labelElement = element; }} data-mesurer-measurement-label="true" class="msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:-translate-x-1/2 msr:bg-ink-900/90" style={{
         left: `${measurement().rect.left + selectedPortalOffset().x + measurement().rect.width / 2}px`,
         top: `${measurement().rect.top + selectedPortalOffset().y + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
@@ -207,6 +244,20 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       </div>
     </Show>
   </>;
+
+  const labelIsVisible = (measurement: Measurement | InspectMeasurement) => {
+    const bounds = liveSelectedTarget()
+      ? responsivePreviewVisibleRect(liveSelectedTarget()!.ownerDocument)
+      : props.clipRect;
+
+    if (!bounds) return true;
+    const rect = measurement.rect;
+    const center = rect.left + rect.width / 2;
+    const top = rect.top + rect.height + MEASURE_LABEL_OFFSET;
+
+    return center >= bounds.left && center <= bounds.left + bounds.width
+      && top >= bounds.top && top + 18 <= bounds.top + bounds.height;
+  };
 
   return (
     <Show when={props.measurement}>
