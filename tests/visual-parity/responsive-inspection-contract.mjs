@@ -239,8 +239,11 @@ try {
   await page.waitForFunction(() => {
     const card = document.querySelector("[data-mesurer-island]")?.shadowRoot?.querySelector("[data-mesurer-inspect-info-card]");
 
-    return !card || card.getBoundingClientRect().width === 0;
-  });
+    const hover = document.querySelector("[data-mesurer-hover-measurement='true']")
+      ?? document.querySelector("[data-mesurer-island]")?.shadowRoot?.querySelector("[data-mesurer-hover-measurement='true']");
+
+    return (!card || card.getBoundingClientRect().width === 0) && !hover;
+  }, null, { timeout: 2000 });
   assert.equal(await inspectCard.isVisible().catch(() => false), false,
     "Inspect card must hide when the preview target is completely scrolled out");
   assert.equal(await selectedOutlineRect().then((rect) => !rect || rect.width === 0), true,

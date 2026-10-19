@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Keep Responsive preview selection outlines aligned after the preview stage scrolls in published builds.
+
 ## 0.2.4-beta.0 - 2026-10-19
 
 - Keep Responsive preview selection and Inspect cards clipped, scroll-synchronized, and inside the visible preview stage.
