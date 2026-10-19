@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { Portal } from "@solidjs/web";
 import { GUIDE_DRAG_HOLD_MS, GUIDE_HITBOX_SIZE, MEASURE_LABEL_OFFSET } from "../core/constants";
-import { getInspectMeasurement } from "../core/dom";
+import { getInspectMeasurement, getRectFromDom } from "../core/dom";
 import { getSelectionSpacingOverlays } from "../core/distances";
 import { getEdgeVisibilityForRects } from "../core/edge-visibility";
 import { trySetPointerCapture } from "../core/events";
@@ -13,6 +13,7 @@ import { documentHoverPortalTarget } from "../runtime/document-hover-portal";
 import { hasNativeScrollAnchoring } from "../runtime/native-scroll-registry";
 import { ensureMesurerStyles } from "../runtime/style-inject";
 import { MESURER_STYLES } from "../styles.generated";
+import { intersectRect, responsivePreviewVisibleRect } from "../runtime/responsive-preview-geometry";
 import { DistanceOverlayItem, type SelectionSpacingInteraction } from "./DistanceOverlayItem";
 import { MeasurementBox } from "./MeasurementBox";
 import { InspectInfoCard } from "./InspectInfoCard";
@@ -103,6 +104,48 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const selectedOutline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 96%, transparent)`;
   const selectedFill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 15.36%, transparent)`;
   const selectedMeasurements = createMemo(() => props.model.state.selectedMeasurements);
+  const [previewGeometryRevision, setPreviewGeometryRevision] = createSignal(0);
+  onSettled(() => {
+    const owner = overlayElement?.ownerDocument.defaultView;
+
+    if (!owner) return;
+    let frame = 0;
+
+    const invalidate = () => {
+      if (frame) return;
+      frame = owner.requestAnimationFrame(() => {
+        frame = 0;
+        setPreviewGeometryRevision((revision) => revision + 1);
+      });
+    };
+
+    owner.addEventListener("mesurer:responsive-preview-geometry-change", invalidate);
+    owner.addEventListener("scroll", invalidate, { capture: true, passive: true });
+
+    return () => {
+      owner.removeEventListener("mesurer:responsive-preview-geometry-change", invalidate);
+      owner.removeEventListener("scroll", invalidate, true);
+
+      if (frame) owner.cancelAnimationFrame(frame);
+    };
+  });
+
+  const presentMeasurement = (measurement: InspectMeasurement) => {
+    const sourceDocument = measurement.sourceDocument ?? measurement.elementRef?.ownerDocument;
+    const visible = sourceDocument ? responsivePreviewVisibleRect(sourceDocument) : undefined;
+
+    // Measurements outside Responsive previews keep their identity so ordinary
+    // page scrolling does not re-render every selected measurement.
+    if (visible === undefined) return measurement;
+    previewGeometryRevision();
+    const rect = intersectRect(measurement.rect, visible);
+
+    return rect.width > 0 && rect.height > 0 ? { ...measurement, rect } : null;
+  };
+
+  const displayedPresentedMeasurements = createMemo(() =>
+    displayedSelectedMeasurements().map(presentMeasurement).filter((item): item is InspectMeasurement => Boolean(item)),
+  );
 
   const inspectCardSuppressed = () => {
     const root = props.model.rendererRoot;
@@ -152,7 +195,12 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     if (!selected || !element?.isConnected || selected.id.startsWith("group-")) return null;
 
-    return { element, measurement: selected };
+    if (responsivePreviewVisibleRect(element.ownerDocument) !== undefined && contextSurfaceActive()) return null;
+    const presented = presentMeasurement(selected);
+
+    if (!presented) return null;
+
+    return { element, measurement: presented };
   });
 
   const hoverCardSource = createMemo(() => {
@@ -174,11 +222,14 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       || selectedMeasurements().length
       || inspectCardSuppressed()) return null;
     const source = hoverCardSource();
-    const rect = props.model.state.hoverRect;
+    const rect = source ? getRectFromDom(source.element) : props.model.state.hoverRect;
 
-    if (!source || !rect) return null;
+    if (!source || !rect || rect.width <= 0 || rect.height <= 0) return null;
+    const presented = intersectRect(rect, responsivePreviewVisibleRect(source.element.ownerDocument));
 
-    return { ...source, rect };
+    if (presented.width <= 0 || presented.height <= 0) return null;
+
+    return { ...source, rect: presented };
   });
 
   // Spacing pills remain interactive inside the protected top layer. The
@@ -291,7 +342,15 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   };
 
   const hoverSurface = () => {
-    const rect = props.model.state.hoverRect!;
+    previewGeometryRevision();
+    const source = props.model.state.hoverElement;
+    const rawRect = source ? getRectFromDom(source) : props.model.state.hoverRect;
+
+    const rect = rawRect && source
+      ? intersectRect(rawRect, responsivePreviewVisibleRect(source.ownerDocument))
+      : rawRect;
+
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null;
     const documentLayer = Boolean(hoverPortalTarget());
     const offset = hoverPortalOffset();
 
@@ -411,12 +470,12 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       const active = Boolean(surface && surface.getBoundingClientRect().height > 0);
 
       const contextSurface = props.model.rendererRoot?.querySelector(
-        "[data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
+        "[data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true'], [data-mesurer-annotation-marker='true']",
       ) ?? ownerDocument.querySelector(
-        "[data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
+        "[data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true'], [data-mesurer-annotation-marker='true']",
       ) ?? ownerDocument.querySelector<HTMLElement>("[data-mesurer-island='true']")
         ?.shadowRoot?.querySelector(
-          "[data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
+          "[data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true'], [data-mesurer-annotation-marker='true']",
         );
 
       if (active !== motionSurfaceActive()) setMotionSurfaceActive(active);
@@ -473,7 +532,17 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       const chrome = hoverChromeElement;
 
       if (!target?.isConnected || !chrome?.isConnected) return;
-      const rect = target.getBoundingClientRect();
+      const rawRect = target.getBoundingClientRect();
+      const bounds = responsivePreviewVisibleRect(target.ownerDocument);
+      const rect = intersectRect(rawRect, bounds);
+
+      if (rect.width <= 0 || rect.height <= 0) {
+        chrome.style.visibility = "hidden";
+
+        return;
+      }
+
+      chrome.style.removeProperty("visibility");
       const documentLayer = chrome.dataset.mesurerDocumentHoverLayer === "true";
       const offsetX = documentLayer ? ownerWindow.scrollX : 0;
       const offsetY = documentLayer ? ownerWindow.scrollY : 0;
@@ -641,13 +710,14 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const SelectedPresentation = () => (
     <>
       <For
-        each={displayedSelectedMeasurements()}
+        each={displayedPresentedMeasurements()}
         keyed={(measurement) => measurement.id}
       >{(measurement, index) => (
         <MeasurementBox
           measurement={measurement()}
           showLabel={!(props.model.state.selectedMeasurements.length === 1
             && selectedCardMeasurement()?.element === measurement().elementRef)}
+          clipRect={responsivePreviewVisibleRect(measurement().sourceDocument ?? measurement().elementRef?.ownerDocument)}
           edgeVisibility={selectedEdges()[index()]}
           outlineColor={selectedOutline()}
           fillColor={selectedFill()}

@@ -9,6 +9,7 @@ import {
   registerResponsiveAnnotationRevealController,
   type ResponsiveAnnotationRevealController,
 } from "../../runtime/annotation-reveal";
+import { registerResponsivePreviewGeometry } from "../../runtime/responsive-preview-geometry";
 
 type Size = { width: number; height: number };
 
@@ -237,6 +238,20 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
     const row = doc.createElement("div");
     row.dataset.mesurerResponsiveRow = "";
     setStyles(row, { minHeight: "0", flex: "1", overflowX: "auto", overflowY: "auto", overscrollBehavior: "contain" });
+    let geometryFrame = 0;
+
+    const invalidateGeometry = () => {
+      if (geometryFrame) return;
+      geometryFrame = win.requestAnimationFrame(() => {
+        geometryFrame = 0;
+        win.dispatchEvent(new CustomEvent("mesurer:responsive-preview-geometry-change"));
+      });
+    };
+
+    const onRowScroll = invalidateGeometry;
+
+    row.addEventListener("scroll", onRowScroll, { passive: true });
+
     row.addEventListener("pointerdown", (event) => {
       event.stopPropagation();
 
@@ -249,6 +264,8 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
     props.host.append(stage);
 
     const frames = new Map<number, HTMLIFrameElement>();
+    const unregisterPreviewGeometry = new Map<number, () => void>();
+    const previewScrollCleanups = new Map<number, () => void>();
     const sections = new Map<number, HTMLElement>();
     const guards = new Map<number, () => void>();
     const keyHandlers = new Map<number, (event: KeyboardEvent) => void>();
@@ -342,6 +359,8 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       revealAborters.get(id)?.();
       revealAborters.delete(id);
       const frame = frames.get(id);
+      previewScrollCleanups.get(id)?.();
+      previewScrollCleanups.delete(id);
 
       props.onPreviewRemove();
 
@@ -371,6 +390,8 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       try { guards.get(id)?.(); } catch { /* A navigated cross-origin frame may reject guard restoration. */ }
 
       guards.delete(id);
+      unregisterPreviewGeometry.get(id)?.();
+      unregisterPreviewGeometry.delete(id);
       previewGuideLayers.get(id)?.dispose();
       previewGuideLayers.delete(id);
       layoutGuideObservers.get(id)?.disconnect();
@@ -510,6 +531,31 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       const frame = doc.createElement("iframe");
       frame.dataset.mesurerResponsiveFrame = "true";
       frame.dataset.mesurerResponsivePreviewId = String(item.id);
+      unregisterPreviewGeometry.set(item.id, registerResponsivePreviewGeometry(frame, {
+        visibleRect: () => {
+          const frameRect = frame.getBoundingClientRect();
+          const frameScaleX = frame.offsetWidth ? frameRect.width / frame.offsetWidth : 1;
+          const frameScaleY = frame.offsetHeight ? frameRect.height / frame.offsetHeight : 1;
+
+          const content = {
+            left: frameRect.left + frame.clientLeft * frameScaleX,
+            top: frameRect.top + frame.clientTop * frameScaleY,
+            width: frame.clientWidth * frameScaleX,
+            height: frame.clientHeight * frameScaleY,
+          };
+
+          const stageRect = stage.getBoundingClientRect();
+          const rowRect = row.getBoundingClientRect();
+          const left = Math.max(content.left, stageRect.left, rowRect.left, 0);
+          const top = Math.max(content.top, stageRect.top, rowRect.top, 0);
+          const right = Math.min(content.left + content.width, stageRect.right, rowRect.right, win.innerWidth);
+          const bottom = Math.min(content.top + content.height, stageRect.bottom, rowRect.bottom, win.innerHeight);
+
+          return right > left && bottom > top
+            ? { left, top, width: right - left, height: bottom - top }
+            : null;
+        },
+      }));
       frame.title = `${item.name} preview`;
       frame.setAttribute("sandbox", RESPONSIVE_FRAME_SANDBOX);
       frame.src = win.location.href;
@@ -519,6 +565,9 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       setStyles(status, { position: "absolute", inset: "0", zIndex: "2", display: "grid", placeItems: "center", padding: "16px", boxSizing: "border-box", background: "var(--msr-surface-raised, white)", fontSize: "12px", textAlign: "center", pointerEvents: "none" });
 
       const onLoad = () => {
+        previewScrollCleanups.get(item.id)?.();
+        previewScrollCleanups.delete(item.id);
+
         try {
           const previousDocument = frame.contentDocument;
           const previousKeyHandler = keyHandlers.get(item.id);
@@ -604,6 +653,48 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
           childPresses.set(item.id, pressHandler);
           childDoc.addEventListener("wheel", wheelHandler, { passive: false });
           childDoc.addEventListener("pointerdown", pressHandler, true);
+          const previewDocuments = new Set<Document>();
+          const previewObservers: MutationObserver[] = [];
+          const frameLoadListeners = new Map<HTMLIFrameElement, () => void>();
+
+          const observePreviewDocument = (source: Document) => {
+            if (previewDocuments.has(source)) return;
+            previewDocuments.add(source);
+            source.addEventListener("scroll", invalidateGeometry, { capture: true, passive: true });
+
+            const scanFrames = () => {
+              for (const nestedFrame of source.querySelectorAll<HTMLIFrameElement>("iframe")) {
+                if (!frameLoadListeners.has(nestedFrame)) {
+                  const onNestedLoad = () => {
+                    const nestedDocument = getAccessibleFrameDocument(nestedFrame);
+
+                    if (nestedDocument) observePreviewDocument(nestedDocument);
+                  };
+
+                  frameLoadListeners.set(nestedFrame, onNestedLoad);
+                  nestedFrame.addEventListener("load", onNestedLoad);
+                }
+
+                const nestedDocument = getAccessibleFrameDocument(nestedFrame);
+
+                if (nestedDocument) observePreviewDocument(nestedDocument);
+              }
+            };
+
+            scanFrames();
+            const observer = new MutationObserver(scanFrames);
+            observer.observe(source, { childList: true, subtree: true });
+            previewObservers.push(observer);
+          };
+
+          observePreviewDocument(childDoc);
+          previewScrollCleanups.set(item.id, () => {
+            for (const observer of previewObservers) observer.disconnect();
+
+            for (const source of previewDocuments) source.removeEventListener("scroll", invalidateGeometry, true);
+
+            for (const [nestedFrame, listener] of frameLoadListeners) nestedFrame.removeEventListener("load", listener);
+          });
           status.style.display = "none";
 
           const guideLayer = mountPreviewGuides({
@@ -991,6 +1082,15 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
       try {
         win.removeEventListener("resize", onResize);
         stage.removeEventListener("wheel", onWheel);
+        row.removeEventListener("scroll", onRowScroll);
+
+        if (geometryFrame) win.cancelAnimationFrame(geometryFrame);
+
+        for (const cleanup of previewScrollCleanups.values()) cleanup();
+        previewScrollCleanups.clear();
+
+        for (const unregister of unregisterPreviewGeometry.values()) unregister();
+        unregisterPreviewGeometry.clear();
 
         for (const [id, frame] of frames) {
           previewGuideLayers.get(id)?.dispose();

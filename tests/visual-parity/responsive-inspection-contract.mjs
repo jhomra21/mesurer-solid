@@ -3,7 +3,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { chromium } from "playwright";
 
-const url = process.env.RESPONSIVE_INSPECTION_URL ?? "http://127.0.0.1:4190/responsive-preview.html";
+const url = new URL(process.env.RESPONSIVE_INSPECTION_URL ?? "http://127.0.0.1:4190/responsive-preview.html");
+
+url.searchParams.set("responsiveInspection", "1");
 
 const output = process.env.RESPONSIVE_INSPECTION_OUT ?? "responsive-inspection-artifacts";
 
@@ -24,7 +26,7 @@ page.on("console", (message) => {
 const settle = () => page.evaluate(() => new Promise((resolve) =>
   requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
-const frame = page.locator("iframe[data-mesurer-responsive-frame]");
+const frame = page.locator("iframe[data-mesurer-responsive-frame]").first();
 
 const open = async () => {
   await page.locator("button[data-mesurer-builtin='responsive']").click();
@@ -85,8 +87,37 @@ const expectedProjection = () => page.evaluate(() => {
   };
 });
 
+const previewVisibleBounds = async () => page.evaluate(() => {
+  const root = document.querySelector("[data-mesurer-island]")?.shadowRoot;
+  const frame = root.querySelector("iframe[data-mesurer-responsive-frame]");
+  const stage = root.querySelector("[data-mesurer-responsive-stage]").getBoundingClientRect();
+  const row = root.querySelector("[data-mesurer-responsive-row]").getBoundingClientRect();
+  const frameRect = frame.getBoundingClientRect();
+  const left = Math.max(frameRect.left, stage.left, row.left, 0);
+  const top = Math.max(frameRect.top, stage.top, row.top, 0);
+  const right = Math.min(frameRect.right, stage.right, row.right, innerWidth);
+  const bottom = Math.min(frameRect.bottom, stage.bottom, row.bottom, innerHeight);
+
+  return { left, top, right, bottom };
+});
+
+const selectedOutlineRect = () => page.evaluate(() => {
+  const root = document.querySelector("[data-mesurer-island]")?.shadowRoot ?? document;
+
+  const element = root.querySelector("[data-mesurer-selected-measurement='true'] > div")
+    ?? document.querySelector("[data-mesurer-selected-measurement='true'] > div");
+
+  return element?.getBoundingClientRect().toJSON() ?? null;
+});
+
+const assertContained = (rect, bounds, label) => assert(
+  rect.left >= bounds.left - 1 && rect.top >= bounds.top - 1
+  && rect.right <= bounds.right + 1 && rect.bottom <= bounds.bottom + 1,
+  `${label} escapes visible bounds: ${JSON.stringify({ rect, bounds })}`,
+);
+
 try {
-  await page.goto(url, { waitUntil: "networkidle" });
+  await page.goto(url.href, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER__));
   await page.evaluate(() => window.__MESURER__.ready());
   const rootRect = await page.locator("[data-testid='edit-target']").boundingBox();
@@ -96,6 +127,12 @@ try {
   assert.equal(rootXrayBefore, "solid", "X-ray must be enabled on the root page before opening Responsive");
 
   await open();
+  await page.getByLabel("Add a size").selectOption("1470x956");
+  await page.locator("[data-mesurer-responsive-frame]").nth(1).waitFor();
+  await page.locator("[data-mesurer-island]").evaluate((host) => {
+    host.shadowRoot.querySelector("[data-mesurer-responsive-row]").scrollLeft = 0;
+  });
+  await settle();
   const expected = await expectedProjection();
   await frame.evaluate((node) => {
     node.contentDocument.__contractPointerMoves = 0;
@@ -118,6 +155,114 @@ try {
   assertRect(await targetRectInRoot("[data-mesurer-selected-measurement='true'] > div"), expected, "Preview selection outline");
   const inspectCard = page.locator("[data-mesurer-inspect-info-card]");
   await inspectCard.waitFor({ state: "visible" });
+  const beforeStageScroll = await previewVisibleBounds();
+  const outlineRect = await selectedOutlineRect();
+  const outlineBounds = { left: outlineRect.left, top: outlineRect.top, right: outlineRect.right, bottom: outlineRect.bottom };
+
+  assertContained(outlineBounds, beforeStageScroll, "Preview outline before stage scroll");
+  await page.screenshot({ path: join(output, "preview-selected-before-scroll.png"), fullPage: true });
+
+  await page.waitForFunction(() => {
+    const row = document.querySelector("[data-mesurer-island]")?.shadowRoot?.querySelector("[data-mesurer-responsive-row]");
+
+    return Boolean(row && row.scrollWidth > row.clientWidth);
+  });
+  await page.locator("[data-mesurer-island]").evaluate((host) => {
+    const row = host.shadowRoot.querySelector("[data-mesurer-responsive-row]");
+
+    row.scrollLeft = 60;
+  });
+  await settle();
+  const afterStageScroll = await previewVisibleBounds();
+
+  const stageOutlineRect = await selectedOutlineRect();
+  const stageOutline = { left: stageOutlineRect.left, top: stageOutlineRect.top, right: stageOutlineRect.right, bottom: stageOutlineRect.bottom };
+
+  assertContained(stageOutline, afterStageScroll, "Preview outline after stage scroll");
+  const rawTargetAfterStageScroll = await expectedProjection();
+
+  const targetAfterStageScroll = {
+    ...rawTargetAfterStageScroll,
+    x: Math.max(rawTargetAfterStageScroll.x, afterStageScroll.left),
+    y: Math.max(rawTargetAfterStageScroll.y, afterStageScroll.top),
+    width: Math.max(0, Math.min(rawTargetAfterStageScroll.x + rawTargetAfterStageScroll.width, afterStageScroll.right)
+      - Math.max(rawTargetAfterStageScroll.x, afterStageScroll.left)),
+    height: Math.max(0, Math.min(rawTargetAfterStageScroll.y + rawTargetAfterStageScroll.height, afterStageScroll.bottom)
+      - Math.max(rawTargetAfterStageScroll.y, afterStageScroll.top)),
+  };
+
+  assertRect(await targetRectInRoot("[data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true']"),
+    targetAfterStageScroll, "Preview outline remains aligned after stage scroll");
+  const stageCard = await inspectCard.boundingBox();
+  assert(stageCard, "Preview Inspect card remains visible after stage scroll");
+  assertContained({ left: stageCard.x, top: stageCard.y, right: stageCard.x + stageCard.width, bottom: stageCard.y + stageCard.height },
+    await previewVisibleBounds(), "Preview Inspect card after stage scroll");
+  const uncutInspection = (await selectedContext()).targets[0]?.inspection.rect;
+  assert(Math.abs(uncutInspection.width - expected.width) <= 1,
+    "Context inspection retains the full element width after stage clipping");
+  assert(Math.abs(uncutInspection.height - expected.height) <= 1,
+    "Context inspection retains the full element height after stage clipping");
+  await page.screenshot({ path: join(output, "preview-selected-after-stage-scroll.png"), fullPage: true });
+
+  const hoverTarget = page.frameLocator("iframe[data-mesurer-responsive-frame]").first().getByRole("heading", { name: "Responsive preview fixture" });
+  const hoverBounds = await hoverTarget.boundingBox();
+  assert(hoverBounds, "Preview heading is visible after stage scroll");
+  await page.mouse.move(hoverBounds.x + hoverBounds.width / 2, hoverBounds.y + hoverBounds.height / 2);
+  await page.locator("[data-mesurer-hover-measurement='true']").waitFor({ state: "visible" });
+  const stageHover = await page.locator("[data-mesurer-hover-measurement='true']").boundingBox();
+  assert(stageHover, "Preview hover outline remains visible while the stage is scrolled");
+  assertContained({ left: stageHover.x, top: stageHover.y, right: stageHover.x + stageHover.width, bottom: stageHover.y + stageHover.height },
+    await previewVisibleBounds(), "Preview hover outline after stage scroll");
+
+  await frame.evaluate((node) => node.contentWindow.scrollTo({ top: 30, behavior: "instant" }));
+  await settle();
+  const rawDocumentTarget = await expectedProjection();
+  const documentClip = await previewVisibleBounds();
+
+  const targetAfterDocumentScroll = {
+    ...rawDocumentTarget,
+    x: Math.max(rawDocumentTarget.x, documentClip.left),
+    y: Math.max(rawDocumentTarget.y, documentClip.top),
+    width: Math.max(0, Math.min(rawDocumentTarget.x + rawDocumentTarget.width, documentClip.right)
+      - Math.max(rawDocumentTarget.x, documentClip.left)),
+    height: Math.max(0, Math.min(rawDocumentTarget.y + rawDocumentTarget.height, documentClip.bottom)
+      - Math.max(rawDocumentTarget.y, documentClip.top)),
+  };
+
+  assertRect(await targetRectInRoot("[data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true']"),
+    targetAfterDocumentScroll, "Preview outline remains aligned after preview document scroll");
+  const documentOutlineRect = await selectedOutlineRect();
+  assertContained({ left: documentOutlineRect.left, top: documentOutlineRect.top, right: documentOutlineRect.right, bottom: documentOutlineRect.bottom },
+    await previewVisibleBounds(), "Preview outline after preview document scroll");
+  await page.screenshot({ path: join(output, "preview-selected-after-document-scroll.png"), fullPage: true });
+  await frame.evaluate((node) => node.contentWindow.scrollTo({ top: 2000, behavior: "instant" }));
+  await page.waitForFunction(() => {
+    const card = document.querySelector("[data-mesurer-island]")?.shadowRoot?.querySelector("[data-mesurer-inspect-info-card]");
+
+    return !card || card.getBoundingClientRect().width === 0;
+  });
+  assert.equal(await inspectCard.isVisible().catch(() => false), false,
+    "Inspect card must hide when the preview target is completely scrolled out");
+  assert.equal(await selectedOutlineRect().then((rect) => !rect || rect.width === 0), true,
+    "Selection outline must hide when the preview target is completely scrolled out");
+  assert.equal(await page.locator("[data-mesurer-measurement-label='true']").count(), 0,
+    "Dimension labels must hide when the preview target is completely scrolled out");
+  assert.equal(await page.locator("[data-mesurer-hover-measurement='true']").count(), 0,
+    "Hover outline must hide when the preview target is completely scrolled out");
+  await frame.evaluate((node) => node.contentWindow.scrollTo({ top: 0, behavior: "instant" }));
+  await page.evaluate(() => {
+    const row = document.querySelector("[data-mesurer-island]")?.shadowRoot?.querySelector("[data-mesurer-responsive-row]");
+
+    if (row) row.scrollLeft = 0;
+  });
+  await page.locator("[data-preview]").nth(1).getByLabel("Remove preview").click();
+  await settle();
+  await close();
+  await open();
+  const refreshedTarget = await expectedProjection();
+  await page.mouse.move(refreshedTarget.x + refreshedTarget.width / 2, refreshedTarget.y + refreshedTarget.height / 2);
+  await page.mouse.click(refreshedTarget.x + refreshedTarget.width / 2, refreshedTarget.y + refreshedTarget.height / 2);
+  await page.locator("[data-mesurer-inspect-info-card]").waitFor({ state: "visible" });
 
   const sourceCardEvidence = await frame.evaluate((node) => {
     const target = node.contentDocument.querySelector("[data-testid='inspection-target']");
@@ -222,7 +367,7 @@ try {
   assert(typographyBox, "Typography target should be visible");
   await page.mouse.move(typographyBox.x + typographyBox.width / 2, typographyBox.y + typographyBox.height / 2);
   await page.locator(".mesurer-ti-box[data-state='visible']").waitFor();
-  assertRect(await targetRectInRoot(".mesurer-ti-box[data-state='visible']"), expected, "Preview Typography hover");
+  assertRect(await targetRectInRoot(".mesurer-ti-box[data-state='visible']"), await expectedProjection(), "Preview Typography hover");
   await typographyTarget.evaluate((element) => element.blur());
   await page.mouse.click(typographyBox.x + typographyBox.width / 2, typographyBox.y + typographyBox.height / 2);
   await page.locator(".mesurer-ti-card:has(.mesurer-ti-close)[data-state='visible']").waitFor();
