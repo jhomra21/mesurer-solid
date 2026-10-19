@@ -138,7 +138,10 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     // page scrolling does not re-render every selected measurement.
     if (visible === undefined) return measurement;
     previewGeometryRevision();
-    const rect = intersectRect(measurement.rect, visible);
+    // Stage scrolling moves preview targets without refreshing stored selection
+    // rects, so clip the live element geometry.
+    const element = measurement.elementRef;
+    const rect = intersectRect(element?.isConnected ? getRectFromDom(element) : measurement.rect, visible);
 
     return rect.width > 0 && rect.height > 0 ? { ...measurement, rect } : null;
   };
