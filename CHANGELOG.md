@@ -5,6 +5,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 ## Unreleased
 
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.4-beta.0 - 2026-10-19
+
 - Keep Responsive preview selection and Inspect cards clipped, scroll-synchronized, and inside the visible preview stage.
 
 ## 0.2.3 - 2026-10-18
