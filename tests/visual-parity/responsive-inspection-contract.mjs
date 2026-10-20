@@ -142,6 +142,23 @@ try {
   await page.mouse.move(point.x, point.y, { steps: 3 });
   await page.locator("[data-mesurer-hover-measurement='true']").waitFor({ state: "visible" });
   assertRect(await targetRectInRoot("[data-mesurer-hover-measurement='true']"), expected, "Preview hover");
+
+  // The hover chrome is pointer-transparent, so probe paint order by letting it
+  // hit-test for one synchronous check: the outline must sit above the stage.
+  const hoverPaintsAboveStage = await page.locator("[data-mesurer-island]").evaluate((host, at) => {
+    const hover = host.shadowRoot.querySelector("[data-mesurer-hover-measurement='true']");
+    const layers = [hover, ...hover.querySelectorAll("*")];
+
+    for (const layer of layers) layer.style.setProperty("pointer-events", "auto", "important");
+    const topmost = host.shadowRoot.elementFromPoint(at.x, at.y);
+
+    for (const layer of layers) layer.style.removeProperty("pointer-events");
+    hover.style.pointerEvents = "none";
+
+    return hover.contains(topmost);
+  }, point);
+
+  assert(hoverPaintsAboveStage, "Preview hover outline paints above the Responsive stage");
   await page.mouse.click(point.x, point.y);
   await page.waitForFunction(() => {
     const root = document.querySelector("[data-mesurer-island]")?.shadowRoot ?? document;
