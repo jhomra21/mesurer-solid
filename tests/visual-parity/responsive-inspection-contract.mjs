@@ -296,6 +296,43 @@ try {
   await page.locator("[data-mesurer-hover-measurement='true']").waitFor({ state: "visible", timeout: 2000 });
   await page.screenshot({ path: join(output, "preview-card-beside-hover.png"), fullPage: true });
 
+  // A narrow embedded browser leaves less than a full card width beside the device.
+  await page.setViewportSize({ width: 860, height: 1006 });
+  await page.waitForFunction(() => {
+    const root = document.querySelector("[data-mesurer-island]").shadowRoot;
+    const card = root.querySelector("[data-mesurer-inspect-info-card]")?.getBoundingClientRect();
+    const preview = root.querySelector("[data-preview]")?.getBoundingClientRect();
+    const row = root.querySelector("[data-mesurer-responsive-row]")?.getBoundingClientRect();
+
+    return Boolean(card && preview && row
+      && (card.right <= preview.left || card.left >= preview.right)
+      && card.left >= row.left && card.right <= row.right);
+  }, null, { timeout: 3000 }).catch(() => undefined);
+
+  const narrowLayout = await page.evaluate(() => {
+    const root = document.querySelector("[data-mesurer-island]").shadowRoot;
+
+    const box = (element) => {
+      const { left, top, right, bottom, width } = element.getBoundingClientRect();
+
+      return { left, top, right, bottom, width };
+    };
+
+    return {
+      card: box(root.querySelector("[data-mesurer-inspect-info-card]")),
+      preview: box(root.querySelector("[data-preview]")),
+      row: box(root.querySelector("[data-mesurer-responsive-row]")),
+    };
+  });
+
+  assert.equal(overlaps(narrowLayout.card, narrowLayout.preview), false,
+    `Inspect card narrows to stay beside the device preview in a narrow viewport: ${JSON.stringify(narrowLayout)}`);
+  assertContained(narrowLayout.card, narrowLayout.row, "Narrowed preview Inspect card");
+  assert(narrowLayout.card.width >= 168, `Narrowed Inspect card stays legible: ${narrowLayout.card.width}`);
+  await page.screenshot({ path: join(output, "preview-card-beside-narrow.png") });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await settle();
+
   const sourceCardEvidence = await frame.evaluate((node) => {
     const target = node.contentDocument.querySelector("[data-testid='inspection-target']");
     const rect = target.getBoundingClientRect();

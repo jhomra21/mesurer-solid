@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Narrow selected Responsive preview Inspect cards to fit beside the device preview in smaller windows, and reposition them when the window resizes.
+
 ## 0.2.4-beta.2 - 2026-10-20
 
 - Place selected Responsive preview Inspect cards beside the device preview when the stage has room, so the rest of the preview stays hoverable; cards fall back inside the preview when it doesn't.
