@@ -9,9 +9,13 @@ const intersects = (a: Rect, b: Rect) =>
   && a.top < b.top + b.height
   && a.top + a.height > b.top;
 
+/** Narrowest Inspect card that still shows its truncated selector and values legibly. */
+export const INSPECT_INFO_CARD_MIN_WIDTH = 168;
+
 /**
  * Place a Responsive preview card in the stage beside its device frame so it
- * does not cover preview content. Returns null when no side has room.
+ * does not cover preview content. The card narrows to fit a smaller gutter,
+ * down to INSPECT_INFO_CARD_MIN_WIDTH. Returns null when no side has room.
  */
 export const placeInspectInfoCardBesidePreview = (
   target: Rect,
@@ -19,26 +23,30 @@ export const placeInspectInfoCardBesidePreview = (
   preview: Rect,
   stage: Rect,
   avoidRects: Rect[] = [],
-): InspectInfoCardPlacement | null => {
-  const { width, height } = card;
+): (InspectInfoCardPlacement & { width: number }) | null => {
+  const { height } = card;
   const minTop = stage.top + 8;
   const maxTop = stage.top + stage.height - height - 8;
 
   if (maxTop < minTop) return null;
   const top = Math.max(minTop, Math.min(target.top, maxTop));
+  const rightGutter = stage.left + stage.width - 8 - (preview.left + preview.width + 8);
+  const leftGutter = preview.left - 8 - (stage.left + 8);
 
-  const candidates = [
-    { left: preview.left + preview.width + 8, top },
-    { left: preview.left - width - 8, top },
-  ];
+  // Prefer the right side, but take whichever side fits a wider card.
+  const sides = [
+    { side: "right" as const, gutter: rightGutter },
+    { side: "left" as const, gutter: leftGutter },
+  ].sort((a, b) => Math.min(b.gutter, card.width) - Math.min(a.gutter, card.width));
 
-  for (const candidate of candidates) {
-    const bounds = { ...candidate, width, height };
+  for (const { side, gutter } of sides) {
+    const width = Math.min(card.width, gutter);
 
-    const withinStage = candidate.left >= stage.left + 8
-      && candidate.left + width <= stage.left + stage.width - 8;
+    if (width < INSPECT_INFO_CARD_MIN_WIDTH) continue;
+    const left = side === "right" ? preview.left + preview.width + 8 : preview.left - width - 8;
+    const bounds = { left, top, width, height };
 
-    if (withinStage && avoidRects.every((rect) => !intersects(bounds, rect))) return candidate;
+    if (avoidRects.every((rect) => !intersects(bounds, rect))) return { left, top, width };
   }
 
   return null;

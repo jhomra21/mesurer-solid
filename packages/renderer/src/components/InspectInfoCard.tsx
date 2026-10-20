@@ -14,6 +14,9 @@ import { TypographyInspector } from "../runtime/typography/typography";
 import { CheckIcon } from "./Icons";
 import { InspectDetailRow } from "./InspectDetailRow";
 
+// Matches the card's msr:w-60 class.
+const INSPECT_INFO_CARD_WIDTH = 240;
+
 export type InspectInfoCardProps = {
   element: Element;
   measurement: InspectMeasurement;
@@ -134,9 +137,11 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
         centerX >= rect.left && centerX <= rect.left + rect.width
         && centerY >= rect.top && centerY <= rect.top + rect.height) ?? previewVisible;
 
+      // Use the natural card width; the measured width shrinks once this
+      // placement narrows the card and would otherwise feed back into it.
       const beside = placeInspectInfoCardBesidePreview(
         currentRect,
-        { width: cardWidth(), height: cardHeight() },
+        { width: INSPECT_INFO_CARD_WIDTH, height: cardHeight() },
         preview,
         stageArea.bounds,
         [...stageArea.previews, ...contextRects()],
@@ -146,6 +151,7 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
         return {
           left: `${beside.left}px`,
           top: `${beside.top}px`,
+          "max-width": `${beside.width}px`,
           "max-height": `${Math.max(0, stageArea.bounds.height - 16)}px`,
         };
       }

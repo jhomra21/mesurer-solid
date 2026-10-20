@@ -352,6 +352,7 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
 
       preset.disabled = previews.length >= MAX_PREVIEWS;
       win.dispatchEvent(new CustomEvent("mesurer:responsive-stage-change"));
+      invalidateGeometry();
     };
 
     const removePreview = (id: number) => {
