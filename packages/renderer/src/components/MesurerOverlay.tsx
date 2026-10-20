@@ -348,13 +348,14 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     previewGeometryRevision();
     const source = props.model.state.hoverElement;
     const rawRect = source ? getRectFromDom(source) : props.model.state.hoverRect;
-
-    const rect = rawRect && source
-      ? intersectRect(rawRect, responsivePreviewVisibleRect(source.ownerDocument))
-      : rawRect;
+    const previewVisible = source ? responsivePreviewVisibleRect(source.ownerDocument) : undefined;
+    const rect = rawRect && source ? intersectRect(rawRect, previewVisible) : rawRect;
 
     if (!rect || rect.width <= 0 || rect.height <= 0) return null;
     const documentLayer = Boolean(hoverPortalTarget());
+    // The Responsive stage is a positioned sibling in this overlay's stacking
+    // context, so preview hover chrome needs an explicit layer to paint above it.
+    const zIndex = documentLayer || previewVisible ? "2147482700" : undefined;
     const offset = hoverPortalOffset();
 
     return <div
@@ -365,7 +366,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       style={{
         position: "absolute",
         "pointer-events": "none",
-        "z-index": documentLayer ? "2147482700" : undefined,
+        "z-index": zIndex,
         left: `${rect.left + offset.x}px`,
         top: `${rect.top + offset.y}px`,
         width: `${rect.width}px`,
