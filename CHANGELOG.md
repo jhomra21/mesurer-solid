@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.2.4-beta.4 - 2026-10-20
+
 - Show Select hover outlines inside Responsive previews; they were drawn underneath the preview stage.
 
 ## 0.2.4-beta.3 - 2026-10-20
