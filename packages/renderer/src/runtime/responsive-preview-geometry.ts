@@ -1,9 +1,40 @@
 import type { Rect } from "../core/types";
 import { projectRectToDocument } from "../core/frame-geometry";
 
-type PreviewGeometry = { visibleRect(): Rect | null };
+type PreviewStageArea = { bounds: Rect; previews: Rect[] };
+
+type PreviewGeometry = {
+  visibleRect(): Rect | null;
+  stageArea(): PreviewStageArea | null;
+};
 
 const previewGeometry = new WeakMap<HTMLIFrameElement, PreviewGeometry>();
+
+/** Visible Responsive stage area around the preview that contains `source`. */
+export function responsivePreviewStageArea(source: Document | undefined): PreviewStageArea | null {
+  let view = source?.defaultView;
+
+  while (view) {
+    let frame: Element | null = null;
+
+    try {
+      frame = view.frameElement;
+    } catch {
+      return null;
+    }
+
+    if (!frame) return null;
+
+    if (frame.hasAttribute("data-mesurer-responsive-frame")) {
+      // SAFETY: This marker is written only on iframe elements by ResponsiveStage.
+      return previewGeometry.get(frame as HTMLIFrameElement)?.stageArea() ?? null;
+    }
+
+    view = frame.ownerDocument.defaultView;
+  }
+
+  return null;
+}
 
 export function registerResponsivePreviewGeometry(
   frame: HTMLIFrameElement,

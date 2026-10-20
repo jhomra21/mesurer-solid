@@ -4,8 +4,12 @@ import { formatInspectCssParts, visibleInspectCssParts } from "../core/inspect-c
 import { getRectFromDom } from "../core/dom";
 import type { InspectMeasurement, Rect } from "../core/types";
 import { installNestedScrollCompensation } from "../runtime/nested-scroll-compensation";
-import { placeInspectInfoCard } from "../runtime/inspect-info";
-import { intersectRect, responsivePreviewVisibleRect } from "../runtime/responsive-preview-geometry";
+import { placeInspectInfoCard, placeInspectInfoCardBesidePreview } from "../runtime/inspect-info";
+import {
+  intersectRect,
+  responsivePreviewStageArea,
+  responsivePreviewVisibleRect,
+} from "../runtime/responsive-preview-geometry";
 import { TypographyInspector } from "../runtime/typography/typography";
 import { CheckIcon } from "./Icons";
 import { InspectDetailRow } from "./InspectDetailRow";
@@ -118,17 +122,52 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
     const currentRect = intersectRect(getRectFromDom(props.element), previewVisible);
 
     if (currentRect.width <= 0 || currentRect.height <= 0) return { display: "none" };
+    const stageArea = responsivePreviewStageArea(sourceDocument());
+
+    if (stageArea && previewVisible) {
+      const centerX = previewVisible.left + previewVisible.width / 2;
+      const centerY = previewVisible.top + previewVisible.height / 2;
+
+      // Anchor to the whole preview card (header and device frame), not only
+      // its visible content, so the Inspect card never overlaps preview chrome.
+      const preview = stageArea.previews.find((rect) =>
+        centerX >= rect.left && centerX <= rect.left + rect.width
+        && centerY >= rect.top && centerY <= rect.top + rect.height) ?? previewVisible;
+
+      const beside = placeInspectInfoCardBesidePreview(
+        currentRect,
+        { width: cardWidth(), height: cardHeight() },
+        preview,
+        stageArea.bounds,
+        [...stageArea.previews, ...contextRects()],
+      );
+
+      if (beside) {
+        return {
+          left: `${beside.left}px`,
+          top: `${beside.top}px`,
+          "max-height": `${Math.max(0, stageArea.bounds.height - 16)}px`,
+        };
+      }
+    }
+
+    const viewport = placementViewport();
 
     const placed = placeInspectInfoCard(
       currentRect,
       { width: cardWidth(), height: cardHeight() },
-      placementViewport(),
+      viewport,
       props.passThrough === true,
       contextRects(),
     );
 
     return placed
-      ? { left: `${placed.left}px`, top: `${placed.top}px` }
+      ? {
+        left: `${placed.left}px`,
+        top: `${placed.top}px`,
+        "max-width": `${Math.max(0, viewport.width - 16)}px`,
+        "max-height": `${Math.max(0, viewport.height - 16)}px`,
+      }
       : { display: "none" };
   };
 
@@ -151,8 +190,6 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
       : {
         position: "fixed" as const,
         ...position(),
-        "max-width": `${Math.max(0, placementViewport().width - 16)}px`,
-        "max-height": `${Math.max(0, placementViewport().height - 16)}px`,
         overflow: "auto",
         ...baseStyle(),
       };
