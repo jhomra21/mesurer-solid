@@ -3,6 +3,47 @@ import type { Rect } from "../core/types";
 
 export type InspectInfoCardPlacement = { left: number; top: number };
 
+const intersects = (a: Rect, b: Rect) =>
+  a.left < b.left + b.width
+  && a.left + a.width > b.left
+  && a.top < b.top + b.height
+  && a.top + a.height > b.top;
+
+/**
+ * Place a Responsive preview card in the stage beside its device frame so it
+ * does not cover preview content. Returns null when no side has room.
+ */
+export const placeInspectInfoCardBesidePreview = (
+  target: Rect,
+  card: { width: number; height: number },
+  preview: Rect,
+  stage: Rect,
+  avoidRects: Rect[] = [],
+): InspectInfoCardPlacement | null => {
+  const { width, height } = card;
+  const minTop = stage.top + 8;
+  const maxTop = stage.top + stage.height - height - 8;
+
+  if (maxTop < minTop) return null;
+  const top = Math.max(minTop, Math.min(target.top, maxTop));
+
+  const candidates = [
+    { left: preview.left + preview.width + 8, top },
+    { left: preview.left - width - 8, top },
+  ];
+
+  for (const candidate of candidates) {
+    const bounds = { ...candidate, width, height };
+
+    const withinStage = candidate.left >= stage.left + 8
+      && candidate.left + width <= stage.left + stage.width - 8;
+
+    if (withinStage && avoidRects.every((rect) => !intersects(bounds, rect))) return candidate;
+  }
+
+  return null;
+};
+
 /** Place the source-linked card beside its projected target without covering it when space permits. */
 export const placeInspectInfoCard = (
   target: Rect,
@@ -33,12 +74,6 @@ export const placeInspectInfoCard = (
     { left: Math.min(target.left + target.width + 4, viewportLeft + viewport.width - width - 8), top: clampedTop },
     { left, top: Math.max(viewportTop + 8, Math.min(below, viewportTop + viewport.height - height - 8)) },
   ];
-
-  const intersects = (a: Rect, b: Rect) =>
-    a.left < b.left + b.width
-    && a.left + a.width > b.left
-    && a.top < b.top + b.height
-    && a.top + a.height > b.top;
 
   for (const candidate of candidates) {
     const bounds = { ...candidate, width, height };

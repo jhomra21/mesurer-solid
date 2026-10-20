@@ -266,6 +266,35 @@ try {
   await page.mouse.move(refreshedTarget.x + refreshedTarget.width / 2, refreshedTarget.y + refreshedTarget.height / 2);
   await page.mouse.click(refreshedTarget.x + refreshedTarget.width / 2, refreshedTarget.y + refreshedTarget.height / 2);
   await page.locator("[data-mesurer-inspect-info-card]").waitFor({ state: "visible" });
+  await settle();
+
+  const besideLayout = await page.evaluate(() => {
+    const root = document.querySelector("[data-mesurer-island]").shadowRoot;
+
+    const box = (element) => {
+      const { left, top, right, bottom } = element.getBoundingClientRect();
+
+      return { left, top, right, bottom };
+    };
+
+    return {
+      card: box(root.querySelector("[data-mesurer-inspect-info-card]")),
+      preview: box(root.querySelector("[data-preview]")),
+      row: box(root.querySelector("[data-mesurer-responsive-row]")),
+    };
+  });
+
+  const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+
+  assert.equal(overlaps(besideLayout.card, besideLayout.preview), false,
+    `Selected preview Inspect card sits beside the device preview when the stage has room: ${JSON.stringify(besideLayout)}`);
+  assertContained(besideLayout.card, besideLayout.row, "Preview Inspect card beside the device preview");
+  const otherPreviewTarget = page.frameLocator("iframe[data-mesurer-responsive-frame]").first().getByTestId("breakpoint-label");
+  const otherPreviewBox = await otherPreviewTarget.boundingBox();
+  assert(otherPreviewBox, "A second preview element is visible while the first is selected");
+  await page.mouse.move(otherPreviewBox.x + otherPreviewBox.width / 2, otherPreviewBox.y + otherPreviewBox.height / 2, { steps: 4 });
+  await page.locator("[data-mesurer-hover-measurement='true']").waitFor({ state: "visible", timeout: 2000 });
+  await page.screenshot({ path: join(output, "preview-card-beside-hover.png"), fullPage: true });
 
   const sourceCardEvidence = await frame.evaluate((node) => {
     const target = node.contentDocument.querySelector("[data-testid='inspection-target']");

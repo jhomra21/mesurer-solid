@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Place selected Responsive preview Inspect cards beside the device preview when the stage has room, so the rest of the preview stays hoverable; cards fall back inside the preview when it doesn't.
+
 ## 0.2.4-beta.1 - 2026-10-19
 
 - Keep Responsive preview selection outlines aligned after the preview stage scrolls in published builds.

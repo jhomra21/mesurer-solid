@@ -555,6 +555,25 @@ export function ResponsiveStage(props: ResponsiveStageProps) {
             ? { left, top, width: right - left, height: bottom - top }
             : null;
         },
+        stageArea: () => {
+          const stageRect = stage.getBoundingClientRect();
+          const rowRect = row.getBoundingClientRect();
+          const left = Math.max(stageRect.left, rowRect.left, 0);
+          const top = Math.max(stageRect.top, rowRect.top, 0);
+          const right = Math.min(stageRect.right, rowRect.right, win.innerWidth);
+          const bottom = Math.min(stageRect.bottom, rowRect.bottom, win.innerHeight);
+
+          if (right <= left || bottom <= top) return null;
+
+          return {
+            bounds: { left, top, width: right - left, height: bottom - top },
+            previews: [...row.querySelectorAll<HTMLElement>("[data-preview]")].map((section) => {
+              const rect = section.getBoundingClientRect();
+
+              return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+            }),
+          };
+        },
       }));
       frame.title = `${item.name} preview`;
       frame.setAttribute("sandbox", RESPONSIVE_FRAME_SANDBOX);
