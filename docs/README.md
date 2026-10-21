@@ -1,6 +1,6 @@
 # Documentation
 
-Mesurer Solid is a browser inspection and visual-intent tool. The current stable package is `mesurer-solid@0.2.2` on `latest`. Start with setup, then open the guide for the task you are doing.
+Mesurer Solid is a browser inspection and visual-intent tool. The current stable package is `mesurer-solid@0.2.4` on `latest`. Start with setup, then open the guide for the task you are doing.
 
 ## Start here
 
