@@ -1,6 +1,6 @@
 # Mesurer browser extension
 
-The first-party Manifest V3 extension injects the same Mesurer renderer and runtime into arbitrary Chromium pages without changing application source. This guide matches `mesurer-solid@0.2.2` stable.
+The first-party Manifest V3 extension injects the same Mesurer renderer and runtime into arbitrary Chromium pages without changing application source. This guide matches `mesurer-solid@0.2.4` stable.
 
 ## Build and load
 

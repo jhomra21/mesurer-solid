@@ -1,6 +1,6 @@
 # Mesurer agent integration
 
-Mesurer's agent integration is the rendered page itself. This guide matches `mesurer-solid@0.2.2` stable. The coding agent reads `window.__MESURER__` through the browser control it already has, consumes human visual intent, edits normal application source, and verifies the real Live result.
+Mesurer's agent integration is the rendered page itself. This guide matches `mesurer-solid@0.2.4` stable. The coding agent reads `window.__MESURER__` through the browser control it already has, consumes human visual intent, edits normal application source, and verifies the real Live result.
 
 The normal agent workflow requires no Mesurer MCP server, Send-to-agent callback, or special browser transport. The optional `codex()` plugin is a separate human convenience path for sending Context feedback into local Codex threads; it does not replace the browser-state contract described here. In Electron it can use the native preload bridge. In an ordinary browser it can use the local Mesurer Codex Bridge companion on loopback. Neither path is the Mesurer Solid ChatGPT/Codex agent plugin.
 
