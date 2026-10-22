@@ -41,6 +41,18 @@ const failureModes = {
   "outline-neighbor": [
     "hovering a neighboring target does not add hover chrome over the selected outline",
   ],
+  "close-clears": [
+    "closing Responsive clears active, selected, and marquee selection chrome",
+  ],
+  "multi-select": [
+    "every selected preview element keeps its own filled, four-edge selection box",
+  ],
+  "edges-frame": [
+    "the four selected edges remain on their fill bounds at every requested DPR",
+  ],
+  "card-expand": [
+    "Responsive exposes the hidden CSS detail toggle and keeps expanded content in the visible stage",
+  ],
 };
 
 await mkdir(output, { recursive: true });
@@ -67,7 +79,7 @@ const artifact = {
   url, failureModes,
   paintedPixelRule: {
     threshold: 0.49,
-    definition: "Count each contiguous device pixel with at least midpoint outline coverage, allowing 1 percentage point for 8-bit RGB quantization. Require every scanline of every edge to equal max(1, round(DPR)).",
+    definition: "Count each contiguous device pixel with at least midpoint outline coverage, allowing 1 percentage point for 8-bit RGB quantization. Verify paint on every sampled line for each selected edge; DOM geometry must frame its fill within one device pixel.",
     background: "Same-coordinate device-scale screenshot with only selected edges hidden; selection fill and host background remain unchanged.",
     mapping: "Exact devicePixelRatio, not rounded PNG width / CSS viewport width.",
     sampleFractions: [0.15, 0.325, 0.5, 0.675, 0.85],
@@ -162,7 +174,7 @@ const select = async (selector, modifiers = []) => {
   await settle();
 };
 
-const initializeScenario = async ({ selectTarget = true } = {}) => {
+const initializeScenario = async ({ selectTarget = true, enableLayoutDetails = true } = {}) => {
   // Every focused scenario starts from a freshly mounted fixture with the same
   // source geometry, viewport, DPR context, Responsive zoom, and scroll state.
   await page.setViewportSize({ width: 1280, height: 1000 });
@@ -177,7 +189,7 @@ const initializeScenario = async ({ selectTarget = true } = {}) => {
   await settings.getByRole("tab", { name: "Select" }).click();
   const layoutDetails = settings.getByRole("switch", { name: "Layout details" });
 
-  if (await layoutDetails.getAttribute("aria-checked") !== "true") await layoutDetails.click();
+  if (await layoutDetails.getAttribute("aria-checked") !== String(enableLayoutDetails)) await layoutDetails.click();
 
   await settings.getByLabel("Info card mode").selectOption("click");
   await page.keyboard.press("Escape");
@@ -274,6 +286,26 @@ const measureOutline = () => page.evaluate(() => {
   const frame = overlay.querySelector("iframe[data-mesurer-responsive-frame]");
   const selectionRect = outlines[0]?.getBoundingClientRect();
 
+  const edgeFramePass = edges.every(({ edge, rect, parentRect }) => {
+    const tolerance = 1 / devicePixelRatio;
+
+    if (edge === "top") return Math.abs(rect.left - parentRect.left) <= tolerance
+      && Math.abs(rect.left + rect.width - (parentRect.left + parentRect.width)) <= tolerance
+      && Math.abs(rect.top - parentRect.top) <= tolerance;
+
+    if (edge === "right") return Math.abs(rect.left + rect.width - (parentRect.left + parentRect.width)) <= tolerance
+      && Math.abs(rect.top - parentRect.top) <= tolerance
+      && Math.abs(rect.top + rect.height - (parentRect.top + parentRect.height)) <= tolerance;
+
+    if (edge === "bottom") return Math.abs(rect.left - parentRect.left) <= tolerance
+      && Math.abs(rect.left + rect.width - (parentRect.left + parentRect.width)) <= tolerance
+      && Math.abs(rect.top + rect.height - (parentRect.top + parentRect.height)) <= tolerance;
+
+    return Math.abs(rect.left - parentRect.left) <= tolerance
+      && Math.abs(rect.top - parentRect.top) <= tolerance
+      && Math.abs(rect.top + rect.height - (parentRect.top + parentRect.height)) <= tolerance;
+  });
+
   const intersects = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 
   const allChrome = unique("[data-mesurer-measurement-chrome='true']");
@@ -292,6 +324,7 @@ const measureOutline = () => page.evaluate(() => {
     selectionRect: selectionRect?.toJSON() ?? null,
     selectedEdgeCount: edges.length,
     overlappingChrome,
+    edgeFramePass,
     edges,
     dpr: devicePixelRatio,
     scale: frame ? frame.getBoundingClientRect().width / frame.offsetWidth : null,
@@ -327,14 +360,20 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
   colorCanvas.width = colorCanvas.height = 1;
   const colorContext = colorCanvas.getContext("2d");
 
-  const selection = (document.querySelector("[data-mesurer-island]")?.shadowRoot ?? document)
-    .querySelector("[data-mesurer-selected-measurement='true']");
+  const overlay = document.querySelector("[data-mesurer-island]")?.shadowRoot;
 
-  const outline = selection?.querySelector("[data-mesurer-measurement-chrome='true']");
+  const selections = [...document.querySelectorAll("[data-mesurer-selected-measurement='true']"),
+    ...(overlay?.querySelectorAll("[data-mesurer-selected-measurement='true']") ?? [])];
 
-  if (!outline) throw new Error("Selected outline is missing while sampling screenshot");
+  const outlines = [...new Set(selections)].flatMap((selection) => {
+    const outline = selection.querySelector("[data-mesurer-measurement-chrome='true']");
 
-  return [...outline.children].map((edge, index) => {
+    return outline ? [outline] : [];
+  });
+
+  if (!outlines.length) throw new Error("Selected outline is missing while sampling screenshot");
+
+  return outlines.flatMap((outline, selectionIndex) => [...outline.children].map((edge, index) => {
     const rect = edge.getBoundingClientRect();
     colorContext.clearRect(0, 0, 1, 1);
     colorContext.fillStyle = edge.querySelector("rect")
@@ -436,6 +475,7 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
     const paintedDevicePixels = sampleLines[0].paintedDevicePixels;
 
     return {
+      selectionIndex,
       edge: ["top", "right", "bottom", "left"][index],
       paintedDevicePixels,
       paintedPhysicalPixels,
@@ -446,7 +486,7 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
       rasterScaleX,
       rasterScaleY,
     };
-  });
+  }));
 }, {
   withOutlineBase64: withOutline.toString("base64"),
   withoutOutlineBase64: withoutOutline.toString("base64"),
@@ -523,7 +563,7 @@ try {
   });
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
 
-  if (!focus || focus === "outline") {
+  if (!focus || focus === "outline" || focus === "edges-frame") {
   await initializeScenario();
   assert.deepEqual(await selectionState(), ["#inspection-target"],
     "Physical preview click selects the intended target before the viewport narrows");
@@ -541,10 +581,6 @@ try {
     const metrics = await measureOutline();
     metrics.paintedEdges = await measurePaintedEdges(screenshot, withoutOutline);
     artifact.runs.push({ name, metrics });
-
-    metrics.expectedDevicePixels = Math.max(1, Math.round(dpr));
-    metrics.paintedPass = metrics.paintedEdges.every((edge) => edge.sampleLines.every(
-      (line) => line.paintedDevicePixels === metrics.expectedDevicePixels));
 
     return metrics;
   };
@@ -622,6 +658,8 @@ try {
   };
 
   const fractionalSweep = await sweepOutline("outline-fractional-fit-sweep", "responsive-outline-fractional");
+  assert(fractionalSweep.every(({ metrics }) => metrics.edgeFramePass),
+    `Every edge frames its fill throughout fractional Fit geometry: ${JSON.stringify(fractionalSweep.map(({ offset, metrics }) => ({ offset, edges: metrics.edgeFramePass })))}`);
 
   const fractionalOutline = fractionalSweep[0].metrics;
   artifact.runs.push({ name: "outline-fractional-fit", metrics: fractionalOutline });
@@ -640,6 +678,8 @@ try {
   });
   await settle();
   const scaleOneSweep = await sweepOutline("outline-scale-one-sweep", "responsive-outline-scale-one");
+  assert(scaleOneSweep.every(({ metrics }) => metrics.edgeFramePass),
+    `Every edge frames its fill at 1×: ${JSON.stringify(scaleOneSweep.map(({ offset, metrics }) => ({ offset, edges: metrics.edgeFramePass })))}`);
   const scaleOneOutline = scaleOneSweep[0].metrics;
   artifact.runs.push({ name: "outline-scale-one", metrics: scaleOneOutline });
   assert.equal(scaleOneOutline.selectedOutlines, 1, "Exactly one selected outline should render at 1×");
@@ -1056,14 +1096,179 @@ try {
     await page.screenshot({ path: join(output, "responsive-outline-hover-neighbor.png") });
   }
 
+  if (!focus || focus === "close-clears") {
+    await initializeScenario();
+
+    const closeEvidence = [];
+
+    const closeResponsive = async () => {
+      const closed = await page.evaluate(() => {
+        const root = document.querySelector("[data-mesurer-island]")?.shadowRoot;
+        const button = root?.querySelector("button[aria-label='Close Responsive']");
+
+        if (!button) return false;
+        button.click();
+
+        return true;
+      });
+
+      if (!closed) await page.keyboard.press("Escape");
+
+      await page.waitForFunction(() => !document.querySelector("[data-mesurer-island]")?.shadowRoot
+        ?.querySelector("[data-mesurer-responsive-stage]"));
+      await settle();
+
+      return page.evaluate(() => {
+        const root = document.querySelector("[data-mesurer-island]")?.shadowRoot;
+        const all = (selector) => [...document.querySelectorAll(selector), ...(root?.querySelectorAll(selector) ?? [])];
+
+        return {
+          selected: all("[data-mesurer-selected-measurement='true']").length,
+          active: all("[data-mesurer-measurement-chrome='true']").length,
+          labels: all("[data-mesurer-measurement-label='true']").length,
+          rootRects: all("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true']")
+            .map((node) => node.getBoundingClientRect().toJSON()),
+        };
+      });
+    };
+
+    await page.screenshot({ path: join(output, "responsive-close-single-before.png"), scale: "device" });
+    closeEvidence.push({ kind: "single", result: await closeResponsive() });
+
+    await initializeScenario();
+
+    await select("#root-only-target", ["Shift"]);
+    assert.equal((await selectionState()).length, 2, "Shift-click creates two preview selections before close");
+    await page.screenshot({ path: join(output, "responsive-close-multi-before.png"), scale: "device" });
+    closeEvidence.push({ kind: "shift-multi", result: await closeResponsive() });
+
+    await initializeScenario();
+    const firstBox = await frame.contentFrame().locator("#inspection-target").boundingBox();
+    const labelBox = await frame.contentFrame().locator("[data-testid='breakpoint-label']").boundingBox();
+    assert(firstBox && labelBox, "Marquee close fixture targets render");
+    await page.mouse.move(firstBox.x - 8, firstBox.y - 8);
+    await page.mouse.down();
+    await page.mouse.move(labelBox.x + labelBox.width + 8, labelBox.y + labelBox.height + 8, { steps: 8 });
+    await page.mouse.up();
+    await settle();
+    assert.equal((await selectionState()).length, 2, "Marquee creates two preview selections before close");
+    await page.screenshot({ path: join(output, "responsive-close-marquee-before.png"), scale: "device" });
+    closeEvidence.push({ kind: "marquee-multi", result: await closeResponsive() });
+
+    artifact.runs.push({ name: "close-clears", metrics: closeEvidence });
+    assert(closeEvidence.every(({ result }) => result.selected === 0 && result.active === 0),
+      `Closing Responsive removes selected and active measurement chrome: ${JSON.stringify(closeEvidence)}`);
+  }
+
+  if (!focus || focus === "multi-select") {
+    await initializeScenario();
+
+    await select("#root-only-target", ["Shift"]);
+    await settle();
+
+    const multi = await page.evaluate(() => {
+      const root = document.querySelector("[data-mesurer-island]")?.shadowRoot;
+
+      const selections = [...document.querySelectorAll("[data-mesurer-selected-measurement='true']"),
+        ...(root?.querySelectorAll("[data-mesurer-selected-measurement='true']") ?? [])];
+
+      return [...new Set(selections)].map((selection) => {
+        const chrome = selection.querySelector("[data-mesurer-measurement-chrome='true']");
+        const rect = chrome?.getBoundingClientRect();
+
+        const edges = [...(chrome?.children ?? [])].map((edge) => {
+          const bounds = edge.getBoundingClientRect();
+
+          return { name: edge.getAttribute("data-mesurer-selection-edge"),
+            rect: { left: bounds.left, top: bounds.top, right: bounds.right, bottom: bounds.bottom } };
+        });
+
+        return { rect: rect?.toJSON(), edges };
+      });
+    });
+
+    artifact.runs.push({ name: "multi-select", metrics: multi });
+    const multiScreenshot = await page.screenshot({ path: join(output, "responsive-multi-select-before.png"), scale: "device" });
+    const multiBackground = await screenshotWithoutOutline(join(output, "responsive-multi-select-background.png"));
+    const multiPaint = await measurePaintedEdges(multiScreenshot, multiBackground);
+    artifact.runs.push({ name: "multi-select-pixel-edges", metrics: { paintedEdges: multiPaint } });
+
+    assert.equal(multi.length, 2, `Each selected target has an individual selection box: ${JSON.stringify(multi)}`);
+    assert(multi.every(({ edges }) => edges.length === 4), `Each box has four visible edges: ${JSON.stringify(multi)}`);
+    assert.equal(multiPaint.length, 8, `Both selected boxes paint all four edges: ${JSON.stringify(multiPaint.map(({ selectionIndex, edge }) => ({ selectionIndex, edge })))}`);
+
+    assert(multiPaint.every(({ sampleLines }) => sampleLines.every((line) => line.paintedDevicePixels >= 1)),
+      `Every multi-selection edge is visible in the screenshot pixels: ${JSON.stringify(multiPaint.map(({ selectionIndex, edge, sampleLines }) => ({ selectionIndex, edge, counts: sampleLines.map(({ paintedDevicePixels }) => paintedDevicePixels) })))}`);
+
+    for (const selection of multi) {
+      const { left, top, right, bottom } = selection.rect;
+      const edges = Object.fromEntries(selection.edges.map(({ name, rect }) => [name, rect]));
+      const tolerance = 1 / dpr;
+      const close = (a, b) => Math.abs(a - b) <= tolerance;
+
+      assert(close(edges.top.left, left) && close(edges.top.right, right) && close(edges.top.top, top),
+        `Top edge frames the fill within one device pixel: ${JSON.stringify(selection)}`);
+      assert(close(edges.right.right, right) && close(edges.right.top, top) && close(edges.right.bottom, bottom),
+        `Right edge frames the fill within one device pixel: ${JSON.stringify(selection)}`);
+      assert(close(edges.bottom.left, left) && close(edges.bottom.right, right) && close(edges.bottom.bottom, bottom),
+        `Bottom edge frames the fill within one device pixel: ${JSON.stringify(selection)}`);
+      assert(close(edges.left.left, left) && close(edges.left.top, top) && close(edges.left.bottom, bottom),
+        `Left edge frames the fill within one device pixel: ${JSON.stringify(selection)}`);
+    }
+  }
+
+  if (!focus || focus === "card-expand") {
+    await initializeScenario();
+
+    await page.setViewportSize({ width: 442, height: 250 });
+    await settle();
+
+    const card = page.locator("[data-mesurer-inspect-info-card]");
+    const more = card.getByRole("button", { name: /Show \d+ more CSS details/ });
+
+    await more.waitFor({ state: "visible" });
+    const hiddenLabel = await more.getAttribute("aria-label");
+    await more.click();
+    await settle();
+
+    const expanded = await card.evaluate((element) => {
+      const stage = document.querySelector("[data-mesurer-island]")?.shadowRoot?.querySelector("[data-mesurer-responsive-stage]");
+      const bounds = element.getBoundingClientRect();
+      const stageBounds = stage.getBoundingClientRect();
+      const detailsScroller = element.querySelector("[data-mesurer-inspect-details]")?.parentElement;
+
+      return {
+        card: bounds.toJSON(),
+        stage: stageBounds.toJSON(),
+        rows: element.querySelectorAll("[data-mesurer-inspect-css-row]").length,
+        expanded: element.querySelector("button[aria-expanded]")?.getAttribute("aria-expanded"),
+        overflowY: getComputedStyle(element).overflowY,
+        detailsOverflowY: detailsScroller ? getComputedStyle(detailsScroller).overflowY : null,
+        scrollHeight: detailsScroller?.scrollHeight ?? 0,
+        clientHeight: detailsScroller?.clientHeight ?? 0,
+      };
+    });
+
+    const visibleBounds = await cardState();
+
+    artifact.runs.push({ name: "card-expand", metrics: { hiddenLabel, expanded } });
+    await page.screenshot({ path: join(output, "responsive-card-expanded-before.png"), scale: "device" });
+    assert.equal(expanded.expanded, "true", "Responsive details expand");
+    assert(expanded.rows > 6, `Expanded card exposes the hidden CSS rows: ${JSON.stringify(expanded)}`);
+    assert.equal(expanded.detailsOverflowY, "auto", "Expanded CSS details have an internal scroll area");
+    assert(expanded.scrollHeight > expanded.clientHeight,
+      `Expanded CSS rows overflow the constrained card and can scroll: ${JSON.stringify(expanded)}`);
+    assertContained(expanded.card, visibleBounds.visibleStage, "Expanded card stays inside the visible stage");
+  }
+
   assert.deepEqual(errors, [], `Browser diagnostics are clean: ${errors.join("\n")}`);
-  const paintedFailures = artifact.runs.filter((run) => run.metrics?.paintedPass === false);
-  artifact.paintedFailures = paintedFailures.map(({ name, metrics }) => ({ name,
-    expected: metrics.expectedDevicePixels,
-    edges: metrics.paintedEdges.map(({ edge, sampleLines }) => ({ edge,
-      counts: sampleLines.map((line) => line.paintedDevicePixels) })),
-  }));
-  assert.equal(paintedFailures.length, 0, `Painted edge failures: ${JSON.stringify(artifact.paintedFailures)}`);
+
+  const pixelFailures = artifact.runs.filter((run) => run.metrics?.paintedEdges?.some((edge) =>
+    edge.sampleLines.some((line) => line.paintedDevicePixels < 1)));
+
+  artifact.pixelFailures = pixelFailures.map(({ name }) => name);
+
+  assert.equal(pixelFailures.length, 0, `Each outline edge paints visible pixels: ${JSON.stringify(artifact.pixelFailures)}`);
   await writeFile(join(output, "responsive-selection-card.json"), `${JSON.stringify(artifact, null, 2)}\n`);
   console.log(`Responsive selection/card contract passed. Evidence: ${output}`);
 } catch (error) {

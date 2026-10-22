@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- In Responsive previews, closing the stage no longer leaves a selection box on the page, each element in a multi-selection shows its own outline, and selection outlines always frame the selected element (0.2.5-beta.0 could draw them shorter than the box).
+
 ## 0.2.5-beta.0 - 2026-10-22
 
 - Make left- and right-docked toolbars match the horizontal toolbar: a centered single column with menu chevrons under their icons, horizontal dividers, and a centered mode switch. Docked toolbars also stay centered and aligned after dragging between horizontal and vertical orientations.
