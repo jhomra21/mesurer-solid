@@ -339,8 +339,10 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   const groupedSelection = createMemo(() => unionSelection(model.state.selectedMeasurements, model.state.selectionOriginRect));
 
-  const displayedSelectedMeasurements = createMemo(() => groupedSelection()
-    ? [groupedSelection()!]
+  const displayedSelectedMeasurements = createMemo(() => input.responsiveOpen && model.state.selectedMeasurements.length > 1
+    ? model.state.selectedMeasurements
+    : groupedSelection()
+      ? [groupedSelection()!]
     : model.state.selectedMeasurements.length
       ? model.state.selectedMeasurements
       : model.state.selectedMeasurement ? [model.state.selectedMeasurement] : []);
@@ -882,6 +884,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       textInspector?.clearResponsivePreview();
 
       model.setSelectedMeasurements([], null);
+      model.setActiveMeasurement(null);
       model.setSelectedGuideIds([]);
       model.setHoverTarget(null, null);
       model.setTransient({

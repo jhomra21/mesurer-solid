@@ -284,6 +284,12 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
   const displayedSelectedMeasurements = createMemo(() => props.displayedSelectedMeasurements);
 
+  const selectionIsResponsive = () => selectedMeasurements().some((measurement) => {
+    const sourceDocument = measurement.elementRef?.ownerDocument;
+
+    return sourceDocument ? responsivePreviewVisibleRect(sourceDocument) !== undefined : false;
+  });
+
   const hoverTargetsSelected = createMemo(() => {
     const target = props.model.state.hoverElement;
 
@@ -860,7 +866,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
       <Show when={selectionVisible()}>
         <Show
-          when={selectedMeasurements().length > 1 ? selectionDocumentTarget() : null}
+          when={selectedMeasurements().length > 1 && !selectionIsResponsive() ? selectionDocumentTarget() : null}
           fallback={<SelectedPresentation />}
         >
           {(mount) => <Portal mount={mount()}>

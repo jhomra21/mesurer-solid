@@ -63,43 +63,6 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     return { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
   };
 
-  const edgeStyle = (currentMeasurement: Measurement | InspectMeasurement, edge: "top" | "right" | "bottom" | "left") => {
-    const rect = currentMeasurement.rect;
-    const paintingWindow = chromeElement?.ownerDocument.defaultView;
-    // The edges are DOM children of the root overlay, so its window owns the
-    // raster grid even when the measured element belongs to a preview iframe.
-    const ratio = paintingWindow?.devicePixelRatio || 1;
-    const snap = (value: number) => Math.round(value * ratio) / ratio;
-    const thickness = Math.max(1, Math.round(ratio)) / ratio;
-    const bounds = chromeElement?.getBoundingClientRect();
-    const originLeft = bounds?.left ?? rect.left;
-    const originTop = bounds?.top ?? rect.top;
-    const left = snap(originLeft);
-    const right = snap(originLeft + (bounds?.width ?? rect.width));
-    const top = snap(originTop);
-    const bottom = snap(originTop + (bounds?.height ?? rect.height));
-    // Transform the unit quad rather than laying out fractional CSS lengths.
-    // Chromium snaps layout box edges before applying device scale, which can
-    // turn a nominal one-device-pixel div into unequal painted edges.
-
-    const quad = (x: number, y: number, width: number, height: number) => ({
-      left: "0px", top: "0px", width: "1px", height: "1px",
-      "transform-origin": "0 0",
-      transform: `translate(${x}px, ${y}px) scale(${width}, ${height})`,
-    });
-
-    switch (edge) {
-      case "top":
-        return quad(left - originLeft, top - originTop, right - left, thickness);
-      case "right":
-        return quad(right - originLeft - thickness, top - originTop, thickness, bottom - top);
-      case "bottom":
-        return quad(left - originLeft, bottom - originTop - thickness, right - left, thickness);
-      case "left":
-        return quad(left - originLeft, top - originTop, thickness, bottom - top);
-    }
-  };
-
   const syncSelectedGeometry = () => {
     const target = liveSelectedTarget();
 
@@ -131,18 +94,6 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       height: `${rect.height}px`,
       display: rect.width > 0 && rect.height > 0 ? "" : "none",
     });
-
-    const edgeNames = ["top", "right", "bottom", "left"] as const;
-
-    for (const edge of edgeNames) {
-      const element = chromeElement.querySelector<SVGSVGElement>(`[data-mesurer-selection-edge="${edge}"]`);
-
-      if (!element) continue;
-
-      for (const [property, value] of Object.entries(edgeStyle(props.measurement!, edge))) {
-        element.style.setProperty(property, value);
-      }
-    }
 
     if (labelElement) {
       Object.assign(labelElement.style, {
@@ -268,19 +219,10 @@ export function MeasurementBox(props: MeasurementBoxProps) {
         animation: "none",
         "animation-name": "none",
       }}>
-        <Show when={liveSelectedTarget() && responsivePreviewVisibleRect(liveSelectedTarget()!.ownerDocument) !== undefined} fallback={<>
-          <Show when={edges().top}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ "background-color": props.outlineColor }} /></Show>
-          <Show when={edges().right}><div class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
-          <Show when={edges().bottom}><div class="msr:absolute msr:bottom-0 msr:left-0 msr:h-px msr:w-full" style={{ "background-color": props.outlineColor }} /></Show>
-          <Show when={edges().left}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
-        </>}>
-        {/* oxlint-disable anti-slop/no-shape-in-symbol-names -- Standard SVG paint attribute. */}
-        <Show when={edges().top}><svg data-mesurer-selection-edge="top" class="msr:absolute" style={edgeStyle(measurement(), "top")}><rect width="1" height="1" fill={props.outlineColor} shape-rendering="crispEdges" /></svg></Show>
-        <Show when={edges().right}><svg data-mesurer-selection-edge="right" class="msr:absolute" style={edgeStyle(measurement(), "right")}><rect width="1" height="1" fill={props.outlineColor} shape-rendering="crispEdges" /></svg></Show>
-        <Show when={edges().bottom}><svg data-mesurer-selection-edge="bottom" class="msr:absolute" style={edgeStyle(measurement(), "bottom")}><rect width="1" height="1" fill={props.outlineColor} shape-rendering="crispEdges" /></svg></Show>
-        <Show when={edges().left}><svg data-mesurer-selection-edge="left" class="msr:absolute" style={edgeStyle(measurement(), "left")}><rect width="1" height="1" fill={props.outlineColor} shape-rendering="crispEdges" /></svg></Show>
-        {/* oxlint-enable anti-slop/no-shape-in-symbol-names */}
-        </Show>
+        <Show when={edges().top}><div data-mesurer-selection-edge="top" class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ "background-color": props.outlineColor }} /></Show>
+        <Show when={edges().right}><div data-mesurer-selection-edge="right" class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
+        <Show when={edges().bottom}><div data-mesurer-selection-edge="bottom" class="msr:absolute msr:bottom-0 msr:left-0 msr:h-px msr:w-full" style={{ "background-color": props.outlineColor }} /></Show>
+        <Show when={edges().left}><div data-mesurer-selection-edge="left" class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
       </div>
     </Show>
     <Show when={props.showLabel !== false && labelIsVisible(measurement())}>
