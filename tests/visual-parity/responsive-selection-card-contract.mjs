@@ -1290,6 +1290,8 @@ try {
     assert.equal(await header.evaluate((element) => getComputedStyle(element).cursor), "grab",
       "Responsive card header advertises its drag affordance");
     await page.screenshot({ path: join(output, "responsive-card-drag-before.png"), scale: "device" });
+    const clipboardSentinel = "responsive-card-drag-must-not-copy";
+    await page.evaluate((value) => navigator.clipboard.writeText(value), clipboardSentinel);
     await page.mouse.move(headerBox.x + 4, headerBox.y + headerBox.height / 2);
     await page.mouse.down();
     await page.mouse.move(headerBox.x + 4 - 200, headerBox.y + headerBox.height / 2 + 150, { steps: 12 });
@@ -1297,6 +1299,10 @@ try {
       "Responsive card header shows grabbing during the drag");
     await page.mouse.up();
     await settle();
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), clipboardSentinel,
+      "Dragging the selector header does not copy its selector");
+    assert.equal(await card.getByRole("status").count(), 0,
+      "Dragging the selector header does not show copy feedback");
     const dragged = await cardState();
     const selectedAfter = await selectionState();
     const boxAfter = await outlineRect();

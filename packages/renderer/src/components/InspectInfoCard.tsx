@@ -60,6 +60,8 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
     moved: boolean;
   } | null = null;
 
+  let suppressNextHeaderClick = false;
+
   const sourceDocument = () => props.element.ownerDocument;
   const sourceWindow = () => sourceDocument().defaultView;
 
@@ -192,12 +194,11 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
     const dragBounds = stageArea?.bounds ?? previewVisible;
 
     if (props.responsivePosition && dragBounds) {
-      const width = Math.min(cardWidth(), Math.max(0, dragBounds.width - 16));
-      const height = Math.min(cardHeight(), Math.max(0, dragBounds.height - 16));
+      const clamped = clampResponsivePosition(props.responsivePosition.left, props.responsivePosition.top);
 
       return {
-        left: `${Math.max(dragBounds.left + 8, Math.min(props.responsivePosition.left, dragBounds.left + dragBounds.width - width - 8))}px`,
-        top: `${Math.max(dragBounds.top + 8, Math.min(props.responsivePosition.top, dragBounds.top + dragBounds.height - height - 8))}px`,
+        left: `${clamped.left}px`,
+        top: `${clamped.top}px`,
         "max-width": `${Math.max(0, dragBounds.width - 16)}px`,
         "max-height": `${Math.max(0, dragBounds.height - 16)}px`,
         overflow: "auto",
@@ -319,6 +320,7 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
 
   const onHeaderPointerDown = (event: PointerEvent) => {
     if (!props.onResponsivePositionChange || event.button !== 0 || event.isPrimary === false) return;
+    suppressNextHeaderClick = false;
     event.preventDefault();
     event.stopPropagation();
     const captureTarget = event.target instanceof Element ? event.target : headerElement;
@@ -356,25 +358,39 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
 
   const onHeaderPointerEnd = (event: PointerEvent) => {
     if (!headerDrag || headerDrag.pointerId !== event.pointerId) return;
-    event.stopPropagation();
+
+    if (headerDrag.moved) {
+      event.stopPropagation();
+
+      if (event.type === "pointerup") event.preventDefault();
+
+      suppressNextHeaderClick = true;
+    }
+
     headerDrag = null;
     setDragging(false);
   };
 
-  const onHeaderPointerUpCapture = (event: PointerEvent) => {
-    if (headerDrag?.pointerId === event.pointerId && headerDrag.moved) {
-      event.preventDefault();
-      event.stopPropagation();
-      headerDrag = null;
-      setDragging(false);
-    }
-  };
-
   const setHeaderElement = (element: HTMLDivElement) => {
     headerElement = element;
-    element.addEventListener("pointerup", onHeaderPointerUpCapture, true);
+    element.addEventListener("pointerup", onHeaderPointerEnd, true);
+    element.addEventListener("pointercancel", onHeaderPointerEnd, true);
 
-    onCleanup(() => element.removeEventListener("pointerup", onHeaderPointerUpCapture, true));
+    const suppressDraggedClick = (event: MouseEvent) => {
+      if (!suppressNextHeaderClick) return;
+
+      suppressNextHeaderClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    element.addEventListener("click", suppressDraggedClick, true);
+
+    onCleanup(() => {
+      element.removeEventListener("pointerup", onHeaderPointerEnd, true);
+      element.removeEventListener("pointercancel", onHeaderPointerEnd, true);
+      element.removeEventListener("click", suppressDraggedClick, true);
+    });
   };
 
   createEffect(() => [cardElement(), props.ownerWindow] as const, ([node, ownerWindow]) => {
@@ -582,8 +598,6 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
         style={{ "touch-action": props.onResponsivePositionChange ? "none" : undefined }}
         onPointerDown={onHeaderPointerDown}
         onPointerMove={onHeaderPointerMove}
-        onPointerUp={onHeaderPointerEnd}
-        onPointerCancel={onHeaderPointerEnd}
       >
         {props.passThrough
           ? <span data-mesurer-inspect-selector="true" class="msr:min-w-0 msr:flex-1 msr:truncate msr:font-mono msr:font-medium">{selector()}</span>
