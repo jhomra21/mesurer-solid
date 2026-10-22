@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Snap selection and hover outlines to the overlay window's device-pixel grid, keeping all visible edges one device pixel thick in Responsive previews.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.5-beta.1 - 2026-10-22

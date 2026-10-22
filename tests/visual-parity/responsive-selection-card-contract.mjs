@@ -21,6 +21,11 @@ const failureModes = {
     "a hover or duplicate selected measurement paints over selected chrome",
     "scale-one geometry differs from fractional Fit geometry",
     "stationary-pointer target resize leaves selected edges at their old geometry",
+    "a fractional offset in an ancestor or transformed containing block survives local snapping",
+    "document-mounted portals use viewport rather than document coordinates",
+    "browser zoom or a DPR change leaves stale snapping or edge thickness",
+    "paint snapping changes labels, measurement values, or Context geometry",
+    "clipped boxes lose the edge-visibility mask or hover differs from selection",
   ],
   card: [
     "narrow fallback chooses a fitting vertical side before clamping below",
@@ -48,7 +53,7 @@ const failureModes = {
     "every selected preview element keeps its own filled, four-edge selection box",
   ],
   "edges-frame": [
-    "the four selected edges remain on their fill bounds at every requested DPR",
+    "selected edges paint equally at exactly one device-pixel thickness without partial-coverage neighbors",
   ],
   "card-expand": [
     "Responsive exposes the hidden CSS detail toggle and keeps expanded content in the visible stage",
@@ -174,6 +179,29 @@ const select = async (selector, modifiers = []) => {
   await settle();
 };
 
+const hoverTarget = async (selector) => {
+  const point = await page.evaluate((targetSelector) => {
+    const preview = document.querySelector("[data-mesurer-island]")?.shadowRoot
+      ?.querySelector("iframe[data-mesurer-responsive-frame]");
+
+    const target = preview?.contentDocument?.querySelector(targetSelector);
+
+    if (!(preview instanceof HTMLIFrameElement) || !target) return null;
+    const frameRect = preview.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const scale = frameRect.width / preview.offsetWidth;
+
+    return {
+      x: frameRect.left + (targetRect.left + preview.clientLeft) * scale + targetRect.width * scale / 2,
+      y: frameRect.top + (targetRect.top + preview.clientTop) * scale + targetRect.height * scale / 2,
+    };
+  }, selector);
+
+  assert(point, `Preview hover target has projected geometry: ${selector}`);
+  await page.mouse.move(point.x, point.y);
+  await settle();
+};
+
 const initializeScenario = async ({ selectTarget = true, enableLayoutDetails = true } = {}) => {
   // Every focused scenario starts from a freshly mounted fixture with the same
   // source geometry, viewport, DPR context, Responsive zoom, and scroll state.
@@ -223,22 +251,33 @@ const selectionState = () => page.evaluate(async () => {
   }
 });
 
-const screenshotWithoutOutline = async (path) => {
-  const styles = await page.evaluate(() => {
+const screenshotWithoutOutline = async (path, includeRootSource = false) => {
+  const styles = await page.evaluate((includeRootSource) => {
     const overlay = document.querySelector("[data-mesurer-island]")?.shadowRoot ?? document;
 
+    const sourceTargets = includeRootSource
+      ? [...document.querySelectorAll("[data-mesurer-source-selection-paint='true']")]
+      : [];
+
+    const sourceStyles = sourceTargets.map((target) => ({
+      outline: target.style.getPropertyValue("outline"),
+      priority: target.style.getPropertyPriority("outline"),
+    }));
+
+    sourceTargets.forEach((target) => target.style.setProperty("outline", "none", "important"));
+
     const edges = [...new Set([
-      ...document.querySelectorAll("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true'] > *"),
-      ...overlay.querySelectorAll("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true'] > *"),
+      ...document.querySelectorAll("[data-mesurer-measurement-chrome='true'] > *, [data-mesurer-hover-measurement='true'] > *"),
+      ...overlay.querySelectorAll("[data-mesurer-measurement-chrome='true'] > *, [data-mesurer-hover-measurement='true'] > *"),
     ])];
 
-    return edges.map((edge) => {
+    return { edges: edges.map((edge) => {
       const visibility = edge.style.visibility;
       edge.style.visibility = "hidden";
 
       return visibility;
-    });
-  });
+    }), sourceStyles };
+  }, includeRootSource);
 
   try {
     return await page.screenshot(path ? { path, scale: "device" } : { scale: "device" });
@@ -247,11 +286,21 @@ const screenshotWithoutOutline = async (path) => {
       const overlay = document.querySelector("[data-mesurer-island]")?.shadowRoot ?? document;
 
       const edges = [...new Set([
-        ...document.querySelectorAll("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true'] > *"),
-        ...overlay.querySelectorAll("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true'] > *"),
+        ...document.querySelectorAll("[data-mesurer-measurement-chrome='true'] > *, [data-mesurer-hover-measurement='true'] > *"),
+        ...overlay.querySelectorAll("[data-mesurer-measurement-chrome='true'] > *, [data-mesurer-hover-measurement='true'] > *"),
       ])];
 
-      edges.forEach((edge, index) => { edge.style.visibility = previousStyles[index] ?? ""; });
+      edges.forEach((edge, index) => { edge.style.visibility = previousStyles.edges[index] ?? ""; });
+      const sourceTargets = [...document.querySelectorAll("[data-mesurer-source-selection-paint='true']")];
+
+      for (const [index, { outline, priority }] of previousStyles.sourceStyles.entries()) {
+        const target = sourceTargets[index];
+
+        if (!target) continue;
+
+        if (outline) target.style.setProperty("outline", outline, priority);
+        else target.style.removeProperty("outline");
+      }
     }, styles);
   }
 };
@@ -280,6 +329,20 @@ const measureOutline = () => page.evaluate(() => {
       computed: { width: style.width, height: style.height, border: style.borderWidth },
       inlineStyle: edge.getAttribute("style"),
       parentRect: edge.parentElement?.getBoundingClientRect().toJSON() ?? null,
+      chromeStyle: edge.parentElement?.getAttribute("style"),
+      positioningAncestor: edge.parentElement?.offsetParent instanceof HTMLElement
+        ? {
+          tagName: edge.parentElement.offsetParent.tagName,
+          rect: edge.parentElement.offsetParent.getBoundingClientRect().toJSON(),
+          offsetWidth: edge.parentElement.offsetParent.offsetWidth,
+          offsetHeight: edge.parentElement.offsetParent.offsetHeight,
+          clientLeft: edge.parentElement.offsetParent.clientLeft,
+          clientTop: edge.parentElement.offsetParent.clientTop,
+          scrollLeft: edge.parentElement.offsetParent.scrollLeft,
+          scrollTop: edge.parentElement.offsetParent.scrollTop,
+          style: edge.parentElement.offsetParent.getAttribute("style"),
+        }
+        : null,
     };
   }));
 
@@ -331,7 +394,7 @@ const measureOutline = () => page.evaluate(() => {
   };
 });
 
-const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate(async ({ withOutlineBase64, withoutOutlineBase64 }) => {
+const measurePaintedEdges = async (withOutline, withoutOutline, kind = "selected") => page.evaluate(async ({ withOutlineBase64, withoutOutlineBase64, kind }) => {
   const decode = async (base64) => {
     const image = new Image();
     image.src = `data:image/png;base64,${base64}`;
@@ -362,22 +425,63 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
 
   const overlay = document.querySelector("[data-mesurer-island]")?.shadowRoot;
 
-  const selections = [...document.querySelectorAll("[data-mesurer-selected-measurement='true']"),
-    ...(overlay?.querySelectorAll("[data-mesurer-selected-measurement='true']") ?? [])];
+  const selector = kind === "hover"
+    ? "[data-mesurer-hover-measurement='true']"
+    : kind === "root"
+      ? "[data-mesurer-source-selection-paint='true']"
+      : "[data-mesurer-selected-measurement='true']";
+
+  const selections = [...document.querySelectorAll(selector),
+    ...(overlay?.querySelectorAll(selector) ?? [])];
 
   const outlines = [...new Set(selections)].flatMap((selection) => {
-    const outline = selection.querySelector("[data-mesurer-measurement-chrome='true']");
+    const outline = kind === "hover" || kind === "root"
+      ? selection
+      : selection.querySelector("[data-mesurer-measurement-chrome='true']");
 
     return outline ? [outline] : [];
   });
 
-  if (!outlines.length) throw new Error("Selected outline is missing while sampling screenshot");
+  if (!outlines.length) throw new Error(`${kind} outline is missing while sampling screenshot`);
 
-  return outlines.flatMap((outline, selectionIndex) => [...outline.children].map((edge, index) => {
-    const rect = edge.getBoundingClientRect();
+  const edgeEntries = kind === "root"
+    ? outlines.flatMap((target, selectionIndex) => {
+      const bounds = target.getBoundingClientRect();
+      const thickness = parseFloat(target.style.getPropertyValue("--mesurer-selected-source-outline-width"));
+      const inset = Math.abs(parseFloat(getComputedStyle(target).outlineOffset));
+
+      const inner = {
+        left: bounds.left,
+        top: bounds.top,
+        right: bounds.right,
+        bottom: bounds.bottom,
+      };
+
+      const color = target.style.getPropertyValue("--mesurer-selected-source-outline");
+
+      return [
+        { selectionIndex, index: 0, edge: "top", rect: { left: inner.left + inset, top: inner.top + inset, width: inner.right - inner.left - inset * 2, height: thickness }, color },
+        { selectionIndex, index: 1, edge: "right", rect: { left: inner.right - inset - thickness, top: inner.top + inset, width: thickness, height: inner.bottom - inner.top - inset * 2 }, color },
+        { selectionIndex, index: 2, edge: "bottom", rect: { left: inner.left + inset, top: inner.bottom - inset - thickness, width: inner.right - inner.left - inset * 2, height: thickness }, color },
+        { selectionIndex, index: 3, edge: "left", rect: { left: inner.left + inset, top: inner.top + inset, width: thickness, height: inner.bottom - inner.top - inset * 2 }, color },
+      ];
+    })
+    : outlines.flatMap((outline, selectionIndex) => [...outline.children].map((edge, index) => ({
+      selectionIndex,
+      index,
+      edge: ["top", "right", "bottom", "left"][index],
+      rect: edge.getBoundingClientRect().toJSON(),
+      color: edge.querySelector("line")
+        ? getComputedStyle(edge.querySelector("line")).stroke
+        : edge.querySelector("rect")
+          ? getComputedStyle(edge.querySelector("rect")).fill
+          : getComputedStyle(edge).backgroundColor,
+    })));
+
+  return edgeEntries.map(({ selectionIndex, edge: edgeName, index, rect: bounds }) => {
+    const rect = new DOMRect(bounds.left, bounds.top, bounds.width, bounds.height);
     colorContext.clearRect(0, 0, 1, 1);
-    colorContext.fillStyle = edge.querySelector("rect")
-      ? getComputedStyle(edge.querySelector("rect")).fill : getComputedStyle(edge).backgroundColor;
+    colorContext.fillStyle = edgeEntries.find((entry) => entry.selectionIndex === selectionIndex && entry.index === index).color;
     colorContext.fillRect(0, 0, 1, 1);
     const [colorRed, colorGreen, colorBlue, colorAlphaByte] = colorContext.getImageData(0, 0, 1, 1).data;
     const colorAlpha = colorAlphaByte / 255;
@@ -431,9 +535,8 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
         : 0;
     };
 
-    // Compare each edge to a screenshot with the edge hidden. Count every
-    // device pixel with meaningful projected-color coverage so fractional
-    // antialiasing at either boundary is visible to the contract.
+    // Compare each edge to a screenshot with the edge hidden. A device-grid
+    // snapped edge must paint a solid run with no antialiased neighbors.
     // Midpoint classification with a one-percentage-point RGB-quantization
     // allowance: a nominal 50% sample must not flip because of 8-bit rounding.
     // Keep raw coverage and every scanline, never round integrated coverage.
@@ -461,9 +564,15 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
         Math.abs(a.reduce((sum, item) => sum + item.devicePixelDelta, 0) / a.length)
         - Math.abs(b.reduce((sum, item) => sum + item.devicePixelDelta, 0) / b.length))[0] ?? [];
 
+      const firstRunDelta = selectedRun[0]?.devicePixelDelta ?? 0;
+      const lastRunDelta = selectedRun.at(-1)?.devicePixelDelta ?? 0;
+
       return {
         alongFraction: fraction,
         paintedDevicePixels: selectedRun.length,
+        partialCoverageDevicePixels: samples.filter((item) => item.coverage >= 0.1 && item.coverage < 0.5
+          && (item.devicePixelDelta === firstRunDelta - 1 || item.devicePixelDelta === lastRunDelta + 1))
+          .map(({ devicePixelDelta, coverage: value }) => ({ devicePixelDelta, coverage: value })),
         paintedPhysicalPixels: samples.reduce((sum, item) => sum + item.coverage, 0),
         samples,
       };
@@ -476,7 +585,7 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
 
     return {
       selectionIndex,
-      edge: ["top", "right", "bottom", "left"][index],
+      edge: edgeName,
       paintedDevicePixels,
       paintedPhysicalPixels,
       sampleLines,
@@ -486,11 +595,25 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
       rasterScaleX,
       rasterScaleY,
     };
-  }));
+  });
 }, {
   withOutlineBase64: withOutline.toString("base64"),
   withoutOutlineBase64: withoutOutline.toString("base64"),
+  kind,
 });
+
+const assertPixelThickness = (edges, context, { checkPartial = true } = {}) => {
+  const expected = Math.max(1, Math.round(dpr));
+  assert(edges.length > 0, `${context} exposes painted outline edges`);
+  assert(edges.every(({ sampleLines }) => sampleLines.every((line) =>
+    line.paintedDevicePixels === expected && (!checkPartial || line.partialCoverageDevicePixels.length === 0))),
+  `${context} edges paint exactly ${expected} complete device pixel(s)${checkPartial ? " without partial-coverage neighbors" : ""}: ${JSON.stringify(edges.map(({ selectionIndex, edge, sampleLines }) => ({ selectionIndex, edge, counts: sampleLines.map(({ paintedDevicePixels }) => paintedDevicePixels), partial: sampleLines.map(({ partialCoverageDevicePixels }) => partialCoverageDevicePixels) })))}`);
+
+  for (const selectionIndex of new Set(edges.map(({ selectionIndex }) => selectionIndex))) {
+    const counts = edges.filter((edge) => edge.selectionIndex === selectionIndex).map((edge) => edge.paintedDevicePixels);
+    assert(counts.every((count) => count === counts[0]), `${context} outline ${selectionIndex} paints all edges equally: ${JSON.stringify(counts)}`);
+  }
+};
 
 const cardState = () => page.evaluate(() => {
   const island = document.querySelector("[data-mesurer-island]");
@@ -569,6 +692,17 @@ try {
     "Physical preview click selects the intended target before the viewport narrows");
   await page.setViewportSize({ width: 442, height: 1000 });
   await setTargets();
+  await settle();
+  await hoverTarget("#root-only-target");
+  await page.waitForFunction(() => Boolean(document.querySelector("[data-mesurer-island]")?.shadowRoot
+    ?.querySelector("[data-mesurer-hover-measurement='true']")));
+  const hoverScreenshot = await page.screenshot({ path: join(output, "responsive-hover-before.png"), scale: "device" });
+  const hoverBackground = await screenshotWithoutOutline(join(output, "responsive-hover-background.png"));
+  const hoverPaint = await measurePaintedEdges(hoverScreenshot, hoverBackground, "hover");
+  artifact.runs.push({ name: "responsive-hover-pixel-edges", metrics: { paintedEdges: hoverPaint } });
+  assert.equal(hoverPaint.length, 4, `Responsive hover paints all four edges: ${JSON.stringify(hoverPaint.map(({ edge }) => edge))}`);
+  assertPixelThickness(hoverPaint, "Responsive hover outline");
+  await page.mouse.move(page.viewportSize().width - 1, page.viewportSize().height - 1);
   await settle();
   // Sweep fractional source geometry so the contract cannot pass because one
   // selected position happened to land on favorable device-pixel boundaries.
@@ -669,6 +803,20 @@ try {
   assert(fractionalOutline.scale < 1 && fractionalOutline.scale > 0.9,
     `Narrow Fit should use fractional scale, got ${fractionalOutline.scale}`);
   assert.equal(fractionalOutline.dpr, dpr, `Contract runs at requested device scale factor ${dpr}`);
+  const fractionalPixels = fractionalOutline.paintedEdges;
+  const expectedDevicePixels = Math.max(1, Math.round(dpr));
+
+  const fractionalCounts = fractionalPixels.map(({ edge, paintedDevicePixels, sampleLines }) => ({
+    edge,
+    paintedDevicePixels,
+    partialCoverage: sampleLines.flatMap((line) => line.partialCoverageDevicePixels),
+  }));
+
+  artifact.runs.push({ name: "fractional-edge-thickness-assertion", metrics: { expectedDevicePixels, edges: fractionalCounts } });
+  assert(fractionalCounts.every(({ paintedDevicePixels, partialCoverage }) =>
+    paintedDevicePixels === expectedDevicePixels && partialCoverage.length === 0),
+  `Each Fit edge paints exactly ${expectedDevicePixels} complete device pixel(s), with no partial-coverage neighbors: ${JSON.stringify(fractionalCounts)}`);
+  assertPixelThickness(fractionalPixels, "Responsive selected Fit outline");
 
   await page.setViewportSize({ width: 1280, height: 800 });
   await settle();
@@ -688,6 +836,35 @@ try {
   assert.equal(scaleOneOutline.allMeasurementChrome, 1, "Only one measurement outline may paint over the selection at 1×");
   assert.equal(scaleOneOutline.overlappingChrome, 0, "No second outline may overlap the selection at 1×");
   assert.equal(scaleOneOutline.hoverOutlines, 0, "Selected targets must not retain overlapping hover chrome at 1×");
+
+  await page.getByRole("button", { name: "Close Responsive" }).click();
+  await settle();
+  await page.locator("#root-only-target").evaluate((element) => {
+    element.style.cssText = "position:fixed;left:16px;top:260px;width:116px;height:48px;margin:0;padding:0;border:0;border-radius:0;box-sizing:border-box";
+  });
+  await settle();
+  await page.evaluate(() => window.__MESURER__.select("#root-only-target"));
+  await page.waitForFunction(() => document.querySelector("[data-mesurer-selected-measurement='true']"));
+  await settle();
+  const rootScreenshot = await page.screenshot({ path: join(output, "root-page-selection-before.png"), scale: "device" });
+  const rootBackground = await screenshotWithoutOutline(join(output, "root-page-selection-background.png"), true);
+  const rootPaint = await measurePaintedEdges(rootScreenshot, rootBackground, "root");
+  artifact.runs.push({ name: "root-page-pixel-edges", metrics: { paintedEdges: rootPaint } });
+  assert.equal(rootPaint.length, 4, `Root-page selection paints all four edges: ${JSON.stringify(rootPaint.map(({ edge }) => edge))}`);
+
+  const rootThickness = await page.locator("#root-only-target").evaluate((target) => ({
+    cssWidth: parseFloat(target.style.getPropertyValue("--mesurer-selected-source-outline-width")),
+    computedOutlineStyle: getComputedStyle(target).outlineStyle,
+  }));
+
+  artifact.runs.push({ name: "root-page-source-outline-thickness", metrics: rootThickness });
+  assert.equal(rootThickness.computedOutlineStyle, "solid", "Root-page selection has a visible source-layer outline");
+  assert(Math.abs(rootThickness.cssWidth - Math.max(1, Math.round(dpr)) / dpr) < 0.01,
+    `Root-page source outline has the expected device-pixel width: ${JSON.stringify({ rootThickness, dpr })}`);
+  const rootCounts = rootPaint.map(({ paintedDevicePixels }) => paintedDevicePixels);
+  assert(rootCounts.every((count) => count === Math.max(1, Math.round(dpr)) && count === rootCounts[0]),
+    `Root-page source outline edges paint equally at the requested device-pixel thickness: ${JSON.stringify(rootPaint.map(({ edge, paintedDevicePixels }) => ({ edge, paintedDevicePixels })))}`);
+  assertPixelThickness(rootPaint, "Root-page source outline", { checkPartial: false });
 
   }
 
@@ -1197,8 +1374,18 @@ try {
     assert(multi.every(({ edges }) => edges.length === 4), `Each box has four visible edges: ${JSON.stringify(multi)}`);
     assert.equal(multiPaint.length, 8, `Both selected boxes paint all four edges: ${JSON.stringify(multiPaint.map(({ selectionIndex, edge }) => ({ selectionIndex, edge })))}`);
 
-    assert(multiPaint.every(({ sampleLines }) => sampleLines.every((line) => line.paintedDevicePixels >= 1)),
-      `Every multi-selection edge is visible in the screenshot pixels: ${JSON.stringify(multiPaint.map(({ selectionIndex, edge, sampleLines }) => ({ selectionIndex, edge, counts: sampleLines.map(({ paintedDevicePixels }) => paintedDevicePixels) })))}`);
+    const expectedDevicePixels = Math.max(1, Math.round(dpr));
+    assert(multiPaint.every(({ sampleLines }) => sampleLines.every((line) =>
+      line.paintedDevicePixels === expectedDevicePixels && line.partialCoverageDevicePixels.length === 0)),
+    `Every multi-selection edge paints exactly ${expectedDevicePixels} whole device pixel(s) without partial-coverage neighbors: ${JSON.stringify(multiPaint.map(({ selectionIndex, edge, sampleLines }) => ({ selectionIndex, edge, counts: sampleLines.map(({ paintedDevicePixels }) => paintedDevicePixels), partial: sampleLines.map(({ partialCoverageDevicePixels }) => partialCoverageDevicePixels) })))}`);
+
+    for (const selectionIndex of [0, 1]) {
+      const counts = multiPaint.filter((edge) => edge.selectionIndex === selectionIndex)
+        .map((edge) => edge.paintedDevicePixels);
+
+      assert(counts.every((count) => count === counts[0]),
+        `Multi-selection ${selectionIndex} paints all four edges at equal thickness: ${JSON.stringify(counts)}`);
+    }
 
     for (const selection of multi) {
       const { left, top, right, bottom } = selection.rect;
@@ -1263,8 +1450,9 @@ try {
 
   assert.deepEqual(errors, [], `Browser diagnostics are clean: ${errors.join("\n")}`);
 
-  const pixelFailures = artifact.runs.filter((run) => run.metrics?.paintedEdges?.some((edge) =>
-    edge.sampleLines.some((line) => line.paintedDevicePixels < 1)));
+  const pixelFailures = artifact.runs.filter((run) => run.name === "fractional-edge-thickness-assertion"
+    && run.metrics.edges.some((edge) => edge.paintedDevicePixels !== run.metrics.expectedDevicePixels
+      || edge.partialCoverage.length > 0));
 
   artifact.pixelFailures = pixelFailures.map(({ name }) => name);
 

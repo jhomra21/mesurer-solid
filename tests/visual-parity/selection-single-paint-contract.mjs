@@ -101,7 +101,8 @@ try {
 
   assert(initialPaint?.sourceOwned, "The selected element must paint the visible outline in its own scroll layer");
   assert.equal(initialPaint.outlineStyle, "solid");
-  assert.equal(initialPaint.outlineWidth, "1px");
+  assert.equal(parseFloat(initialPaint.outlineWidth), Math.max(1, Math.round(await page.evaluate(() => devicePixelRatio)))
+    / await page.evaluate(() => devicePixelRatio));
   assert.equal(initialPaint.detachedOpacity, "0", "Portaled selection paint must not chase compositor scroll");
 
   assert.deepEqual(
