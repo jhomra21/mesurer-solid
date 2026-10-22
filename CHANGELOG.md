@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- In Responsive previews, Shift-click and Shift-marquee now reach elements under a selected element's Inspect card, including when Shift is held before the card appears. In narrow stages the card sits above or below the selection instead of covering it, selection outlines keep even edges at fractional zoom levels, and the selected element no longer shows a duplicate hover outline.
+
 ## 0.2.4 - 2026-10-21
 
 - Show Select hover outlines inside Responsive previews; they were drawn underneath the preview stage.

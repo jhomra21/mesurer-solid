@@ -52,6 +52,45 @@ export const placeInspectInfoCardBesidePreview = (
   return null;
 };
 
+/** Place a Responsive card above or below its target within the visible stage. */
+export const placeInspectInfoCardAboveOrBelow = (
+  target: Rect,
+  card: { width: number; height: number },
+  stage: Rect,
+  avoidRects: Rect[] = [],
+): InspectInfoCardPlacement => {
+  const width = Math.min(card.width, Math.max(0, stage.width - 16));
+  const height = Math.min(card.height, Math.max(0, stage.height - 16));
+
+  const left = Math.max(stage.left + 8, Math.min(
+    target.left + target.width / 2 - width / 2,
+    stage.left + stage.width - width - 8,
+  ));
+
+  const below = { left, top: target.top + target.height + 4 };
+  const above = { left, top: target.top - height - 4 };
+
+  const fitsStage = (position: InspectInfoCardPlacement) =>
+    position.left >= stage.left + 8
+    && position.top >= stage.top + 8
+    && position.left + width <= stage.left + stage.width - 8
+    && position.top + height <= stage.top + stage.height - 8;
+
+  const clear = (position: InspectInfoCardPlacement) => {
+    const bounds = { ...position, width, height };
+
+    return !intersects(bounds, target) && avoidRects.every((rect) => !intersects(bounds, rect));
+  };
+
+  for (const candidate of [below, above]) {
+    if (fitsStage(candidate) && clear(candidate)) return candidate;
+  }
+
+  const maxTop = stage.top + stage.height - height - 8;
+
+  return { left, top: Math.max(stage.top + 8, Math.min(below.top, maxTop)) };
+};
+
 /** Place the source-linked card beside its projected target without covering it when space permits. */
 export const placeInspectInfoCard = (
   target: Rect,
