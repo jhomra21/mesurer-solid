@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.2.5-beta.0 - 2026-10-22
+
 - Make left- and right-docked toolbars match the horizontal toolbar: a centered single column with menu chevrons under their icons, horizontal dividers, and a centered mode switch. Docked toolbars also stay centered and aligned after dragging between horizontal and vertical orientations.
 - In Responsive previews, Shift-click and Shift-marquee now reach elements under a selected element's Inspect card, including when Shift is held before the card appears. In narrow stages the card sits above or below the selection instead of covering it, selection outlines keep even edges at fractional zoom levels, and the selected element no longer shows a duplicate hover outline.
 
