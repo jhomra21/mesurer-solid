@@ -92,17 +92,21 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     const ownerWindow = target.ownerDocument.defaultView;
     const selectionRoot = chromeElement.parentElement;
 
+    // A selected measurement is portaled to <body> for the document native-
+    // anchor path. Its absolute fallback therefore uses document coordinates,
+    // not viewport coordinates. Keeping this fallback correct prevents a
+    // transient native-anchor handoff during direct edit from subtracting the
+    // page scroll offset a second time. Local/Shadow DOM overlays keep the
+    // original viewport-coordinate behavior.
     const documentLayer = Boolean(
       ownerWindow
       && selectionRoot?.parentNode === target.ownerDocument.body,
     );
 
     const offsetX = documentLayer ? ownerWindow!.scrollX : 0;
-
     const offsetY = documentLayer ? ownerWindow!.scrollY : 0;
     const left = rect.left + offsetX;
     const top = rect.top + offsetY;
-
     Object.assign(chromeElement.style, {
       ...snapChromeRect(rect, chromeDpr(), offsetX, offsetY),
       display: rect.width > 0 && rect.height > 0 ? "" : "none",
