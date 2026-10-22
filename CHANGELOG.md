@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.2.5-beta.1 - 2026-10-22
+
 - In Responsive previews, closing the stage no longer leaves a selection box on the page, each element in a multi-selection shows its own outline, and selection outlines always frame the selected element (0.2.5-beta.0 could draw them shorter than the box).
 
 ## 0.2.5-beta.0 - 2026-10-22
