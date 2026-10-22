@@ -8,7 +8,7 @@ import { installNestedScrollCompensation } from "../runtime/nested-scroll-compen
 import { registerSelectionChromeTarget } from "../runtime/native-scroll-registry";
 import { getRectFromDom } from "../core/dom";
 import { intersectRect, responsivePreviewVisibleRect } from "../runtime/responsive-preview-geometry";
-import { chromeEdgeScale, chromeEdgeThickness, snapChromeRect } from "../runtime/device-pixel-chrome";
+import { chromeEdgeThickness, snapChromeRect } from "../runtime/device-pixel-chrome";
 
 export type MeasurementBoxProps = {
   measurement: Measurement | InspectMeasurement | null;
@@ -51,11 +51,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     onCleanup(() => resolution.removeEventListener("change", update));
   });
 
-  const edgeThickness = () => {
-    const { x: scaleX, y: scaleY } = chromeEdgeScale(chromeElement);
-
-    return { x: chromeEdgeThickness(chromeDpr(), scaleX), y: chromeEdgeThickness(chromeDpr(), scaleY) };
-  };
+  const edgeThickness = () => chromeEdgeThickness(chromeDpr());
 
   const labelRect = (measurement: Measurement | InspectMeasurement) =>
     "cssRect" in measurement && measurement.cssRect ? measurement.cssRect : measurement.rect;
@@ -94,25 +90,28 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     const clipRect = responsivePreviewVisibleRect(target.ownerDocument);
     const rect = intersectRect(getRectFromDom(target), clipRect);
     const ownerWindow = target.ownerDocument.defaultView;
-    // A selected measurement is portaled to <body> for the document native-
-    // anchor path. Its absolute fallback therefore uses document coordinates,
-    // not viewport coordinates. Keeping this fallback correct prevents a
-    // transient native-anchor handoff during direct edit from subtracting the
-    // page scroll offset a second time. Local/Shadow DOM overlays keep the
-    // original viewport-coordinate behavior.
-    const offsetX = selectionPortalTarget() === target.ownerDocument.body ? ownerWindow?.scrollX ?? 0 : 0;
-    const offsetY = selectionPortalTarget() === target.ownerDocument.body ? ownerWindow?.scrollY ?? 0 : 0;
-    const snapped = snapChromeRect(rect, chromeElement, chromeDpr());
+    const selectionRoot = chromeElement.parentElement;
+
+    const documentLayer = Boolean(
+      ownerWindow
+      && selectionRoot?.parentNode === target.ownerDocument.body,
+    );
+
+    const offsetX = documentLayer ? ownerWindow!.scrollX : 0;
+
+    const offsetY = documentLayer ? ownerWindow!.scrollY : 0;
+    const left = rect.left + offsetX;
+    const top = rect.top + offsetY;
 
     Object.assign(chromeElement.style, {
-      ...snapped,
+      ...snapChromeRect(rect, chromeDpr(), offsetX, offsetY),
       display: rect.width > 0 && rect.height > 0 ? "" : "none",
     });
 
     if (labelElement) {
       Object.assign(labelElement.style, {
-        left: `${rect.left + offsetX + rect.width / 2}px`,
-        top: `${rect.top + offsetY + rect.height + MEASURE_LABEL_OFFSET}px`,
+        left: `${left + rect.width / 2}px`,
+        top: `${top + rect.height + MEASURE_LABEL_OFFSET}px`,
         display: rect.width > 0 && rect.height > 0 && labelIsVisible({ ...props.measurement!, rect }) ? "" : "none",
       });
     }
@@ -222,7 +221,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   const surfaces = (measurement: () => Measurement | InspectMeasurement) => <>
     <Show when={!isSelectionGroup()}>
       <div ref={(element) => { chromeElement = element; }} data-mesurer-measurement-chrome="true" data-mesurer-selected-outline={isSelectedMeasurement() ? "true" : undefined} class="msr:pointer-events-none msr:absolute" style={{
-        ...snapChromeRect(measurement().rect, chromeElement, chromeDpr()),
+        ...snapChromeRect(measurement().rect, chromeDpr(), selectedPortalOffset().x, selectedPortalOffset().y),
         "z-index": isSelectedMeasurement() ? SELECTED_CHROME_Z_INDEX : undefined,
         "background-color": props.fillColor,
         transition: transition(),
@@ -231,10 +230,10 @@ export function MeasurementBox(props: MeasurementBoxProps) {
         animation: "none",
         "animation-name": "none",
       }}>
-        <Show when={edges().top}><svg data-mesurer-selection-edge="top" class="msr:absolute msr:left-0 msr:top-0 msr:w-full" style={{ height: `${edgeThickness().y}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="0" y1="50%" x2="100%" y2="50%" stroke={props.outlineColor} stroke-width={edgeThickness().y} /></svg></Show>
-        <Show when={edges().right}><svg data-mesurer-selection-edge="right" class="msr:absolute msr:right-0 msr:top-0 msr:h-full" style={{ width: `${edgeThickness().x}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="50%" y1="0" x2="50%" y2="100%" stroke={props.outlineColor} stroke-width={edgeThickness().x} /></svg></Show>
-        <Show when={edges().bottom}><svg data-mesurer-selection-edge="bottom" class="msr:absolute msr:bottom-0 msr:left-0 msr:w-full" style={{ height: `${edgeThickness().y}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="0" y1="50%" x2="100%" y2="50%" stroke={props.outlineColor} stroke-width={edgeThickness().y} /></svg></Show>
-        <Show when={edges().left}><svg data-mesurer-selection-edge="left" class="msr:absolute msr:left-0 msr:top-0 msr:h-full" style={{ width: `${edgeThickness().x}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="50%" y1="0" x2="50%" y2="100%" stroke={props.outlineColor} stroke-width={edgeThickness().x} /></svg></Show>
+        <Show when={edges().top}><svg data-mesurer-selection-edge="top" class="msr:absolute msr:left-0 msr:top-0 msr:w-full" style={{ height: `${edgeThickness()}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="0" y1="50%" x2="100%" y2="50%" stroke={props.outlineColor} stroke-width={edgeThickness()} /></svg></Show>
+        <Show when={edges().right}><svg data-mesurer-selection-edge="right" class="msr:absolute msr:right-0 msr:top-0 msr:h-full" style={{ width: `${edgeThickness()}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="50%" y1="0" x2="50%" y2="100%" stroke={props.outlineColor} stroke-width={edgeThickness()} /></svg></Show>
+        <Show when={edges().bottom}><svg data-mesurer-selection-edge="bottom" class="msr:absolute msr:bottom-0 msr:left-0 msr:w-full" style={{ height: `${edgeThickness()}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="0" y1="50%" x2="100%" y2="50%" stroke={props.outlineColor} stroke-width={edgeThickness()} /></svg></Show>
+        <Show when={edges().left}><svg data-mesurer-selection-edge="left" class="msr:absolute msr:left-0 msr:top-0 msr:h-full" style={{ width: `${edgeThickness()}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="50%" y1="0" x2="50%" y2="100%" stroke={props.outlineColor} stroke-width={edgeThickness()} /></svg></Show>
       </div>
     </Show>
     <Show when={props.showLabel !== false && labelIsVisible(measurement())}>

@@ -26,6 +26,7 @@ const failureModes = {
     "browser zoom or a DPR change leaves stale snapping or edge thickness",
     "paint snapping changes labels, measurement values, or Context geometry",
     "clipped boxes lose the edge-visibility mask or hover differs from selection",
+    "a partially offscreen preview selection drifts from its clipped target geometry",
   ],
   card: [
     "narrow fallback chooses a fitting vertical side before clamping below",
@@ -427,15 +428,13 @@ const measurePaintedEdges = async (withOutline, withoutOutline, kind = "selected
 
   const selector = kind === "hover"
     ? "[data-mesurer-hover-measurement='true']"
-    : kind === "root"
-      ? "[data-mesurer-source-selection-paint='true']"
-      : "[data-mesurer-selected-measurement='true']";
+    : "[data-mesurer-selected-measurement='true']";
 
   const selections = [...document.querySelectorAll(selector),
     ...(overlay?.querySelectorAll(selector) ?? [])];
 
   const outlines = [...new Set(selections)].flatMap((selection) => {
-    const outline = kind === "hover" || kind === "root"
+    const outline = kind === "hover"
       ? selection
       : selection.querySelector("[data-mesurer-measurement-chrome='true']");
 
@@ -444,29 +443,7 @@ const measurePaintedEdges = async (withOutline, withoutOutline, kind = "selected
 
   if (!outlines.length) throw new Error(`${kind} outline is missing while sampling screenshot`);
 
-  const edgeEntries = kind === "root"
-    ? outlines.flatMap((target, selectionIndex) => {
-      const bounds = target.getBoundingClientRect();
-      const thickness = parseFloat(target.style.getPropertyValue("--mesurer-selected-source-outline-width"));
-      const inset = Math.abs(parseFloat(getComputedStyle(target).outlineOffset));
-
-      const inner = {
-        left: bounds.left,
-        top: bounds.top,
-        right: bounds.right,
-        bottom: bounds.bottom,
-      };
-
-      const color = target.style.getPropertyValue("--mesurer-selected-source-outline");
-
-      return [
-        { selectionIndex, index: 0, edge: "top", rect: { left: inner.left + inset, top: inner.top + inset, width: inner.right - inner.left - inset * 2, height: thickness }, color },
-        { selectionIndex, index: 1, edge: "right", rect: { left: inner.right - inset - thickness, top: inner.top + inset, width: thickness, height: inner.bottom - inner.top - inset * 2 }, color },
-        { selectionIndex, index: 2, edge: "bottom", rect: { left: inner.left + inset, top: inner.bottom - inset - thickness, width: inner.right - inner.left - inset * 2, height: thickness }, color },
-        { selectionIndex, index: 3, edge: "left", rect: { left: inner.left + inset, top: inner.top + inset, width: thickness, height: inner.bottom - inner.top - inset * 2 }, color },
-      ];
-    })
-    : outlines.flatMap((outline, selectionIndex) => [...outline.children].map((edge, index) => ({
+  const edgeEntries = outlines.flatMap((outline, selectionIndex) => [...outline.children].map((edge, index) => ({
       selectionIndex,
       index,
       edge: ["top", "right", "bottom", "left"][index],
@@ -696,13 +673,113 @@ try {
   await hoverTarget("#root-only-target");
   await page.waitForFunction(() => Boolean(document.querySelector("[data-mesurer-island]")?.shadowRoot
     ?.querySelector("[data-mesurer-hover-measurement='true']")));
+
+  const hoverGeometry = await page.evaluate(() => {
+    const host = document.querySelector("[data-mesurer-island]");
+    const preview = host.shadowRoot.querySelector("iframe[data-mesurer-responsive-frame]");
+    const target = preview.contentDocument.querySelector("#root-only-target");
+    const frameRect = preview.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const scale = frameRect.width / preview.offsetWidth;
+
+    const projected = {
+      left: frameRect.left + (targetRect.left + preview.clientLeft) * scale,
+      top: frameRect.top + (targetRect.top + preview.clientTop) * scale,
+      right: frameRect.left + (targetRect.right + preview.clientLeft) * scale,
+      bottom: frameRect.top + (targetRect.bottom + preview.clientTop) * scale,
+    };
+
+    const hover = host.shadowRoot.querySelector("[data-mesurer-hover-measurement='true']");
+
+    return { projected, chrome: hover?.getBoundingClientRect().toJSON() ?? null };
+  });
+
+  artifact.runs.push({ name: "fractional-responsive-hover-geometry", metrics: hoverGeometry });
+
+  assert(hoverGeometry.chrome, "Responsive hover chrome remains rendered");
+
+  assert(Math.abs(hoverGeometry.projected.left % 1) > 0.01 || Math.abs(hoverGeometry.projected.top % 1) > 0.01,
+    `Responsive hover fixture projects to a fractional CSS-pixel position: ${JSON.stringify(hoverGeometry)}`);
+
+  for (const edge of ["left", "top", "right", "bottom"]) {
+    assert(Math.abs(hoverGeometry.chrome[edge] - hoverGeometry.projected[edge]) <= 1,
+      `Responsive hover ${edge} remains within 1 CSS px of projected target: ${JSON.stringify(hoverGeometry)}`);
+  }
+
   const hoverScreenshot = await page.screenshot({ path: join(output, "responsive-hover-before.png"), scale: "device" });
+
   const hoverBackground = await screenshotWithoutOutline(join(output, "responsive-hover-background.png"));
+
   const hoverPaint = await measurePaintedEdges(hoverScreenshot, hoverBackground, "hover");
+
   artifact.runs.push({ name: "responsive-hover-pixel-edges", metrics: { paintedEdges: hoverPaint } });
+
   assert.equal(hoverPaint.length, 4, `Responsive hover paints all four edges: ${JSON.stringify(hoverPaint.map(({ edge }) => edge))}`);
+
   assertPixelThickness(hoverPaint, "Responsive hover outline");
+
   await page.mouse.move(page.viewportSize().width - 1, page.viewportSize().height - 1);
+
+  await settle();
+
+  await frame.evaluate((node) => node.contentWindow.scrollTo({ top: 170, behavior: "instant" }));
+
+  await settle();
+
+  const partiallyOffscreen = await page.evaluate(() => {
+    const host = document.querySelector("[data-mesurer-island]");
+    const preview = host.shadowRoot.querySelector("iframe[data-mesurer-responsive-frame]");
+    const target = preview.contentDocument.querySelector("#inspection-target");
+    const targetRect = target.getBoundingClientRect();
+    const frameRect = preview.getBoundingClientRect();
+    const scale = frameRect.width / preview.offsetWidth;
+
+    const projected = {
+      left: frameRect.left + (targetRect.left + preview.clientLeft) * scale,
+      top: frameRect.top + (targetRect.top + preview.clientTop) * scale,
+      right: frameRect.left + (targetRect.right + preview.clientLeft) * scale,
+      bottom: frameRect.top + (targetRect.bottom + preview.clientTop) * scale,
+    };
+
+    const clipped = {
+      left: Math.max(projected.left, frameRect.left),
+      top: Math.max(projected.top, frameRect.top),
+      right: Math.min(projected.right, frameRect.right),
+      bottom: Math.min(projected.bottom, frameRect.bottom),
+    };
+
+    const outline = host.shadowRoot.querySelector("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true']");
+
+    return {
+      source: targetRect.toJSON(),
+      frame: frameRect.toJSON(),
+      clipped,
+      chrome: outline?.getBoundingClientRect().toJSON() ?? null,
+    };
+  });
+
+  artifact.runs.push({ name: "partially-offscreen-responsive-selection-geometry", metrics: partiallyOffscreen });
+
+  assert(partiallyOffscreen.source.top < 0, `Target is partially above the preview viewport: ${JSON.stringify(partiallyOffscreen)}`);
+
+  assert(partiallyOffscreen.chrome, "Partially offscreen selection keeps rendered chrome");
+
+  for (const edge of ["left", "top", "right", "bottom"]) {
+    assert(Math.abs(partiallyOffscreen.chrome[edge] - partiallyOffscreen.clipped[edge]) <= 1,
+      `Partially offscreen chrome ${edge} matches the clipped projected target within 1 CSS px: ${JSON.stringify(partiallyOffscreen)}`);
+  }
+
+  const offscreenScreenshot = await page.screenshot({ path: join(output, "responsive-partially-offscreen-before.png"), scale: "device" });
+
+  const offscreenBackground = await screenshotWithoutOutline(join(output, "responsive-partially-offscreen-background.png"));
+
+  const offscreenPaint = await measurePaintedEdges(offscreenScreenshot, offscreenBackground);
+
+  artifact.runs.push({ name: "partially-offscreen-responsive-selection-pixel-edges", metrics: { paintedEdges: offscreenPaint } });
+
+  assertPixelThickness(offscreenPaint, "Partially offscreen Responsive selection");
+
+  await frame.evaluate((node) => node.contentWindow.scrollTo({ top: 0, behavior: "instant" }));
   await settle();
   // Sweep fractional source geometry so the contract cannot pass because one
   // selected position happened to land on favorable device-pixel boundaries.
@@ -840,31 +917,42 @@ try {
   await page.getByRole("button", { name: "Close Responsive" }).click();
   await settle();
   await page.locator("#root-only-target").evaluate((element) => {
-    element.style.cssText = "position:fixed;left:16px;top:260px;width:116px;height:48px;margin:0;padding:0;border:0;border-radius:0;box-sizing:border-box";
+    element.style.cssText = "position:absolute;left:116px;top:1260px;width:116px;height:48px;margin:0;padding:0;border:0;border-radius:0;box-sizing:border-box";
   });
+
+  await page.evaluate(() => window.scrollTo({ top: 900, behavior: "instant" }));
+
   await settle();
+
   await page.evaluate(() => window.__MESURER__.select("#root-only-target"));
+
   await page.waitForFunction(() => document.querySelector("[data-mesurer-selected-measurement='true']"));
+
   await settle();
-  const rootScreenshot = await page.screenshot({ path: join(output, "root-page-selection-before.png"), scale: "device" });
-  const rootBackground = await screenshotWithoutOutline(join(output, "root-page-selection-background.png"), true);
-  const rootPaint = await measurePaintedEdges(rootScreenshot, rootBackground, "root");
-  artifact.runs.push({ name: "root-page-pixel-edges", metrics: { paintedEdges: rootPaint } });
-  assert.equal(rootPaint.length, 4, `Root-page selection paints all four edges: ${JSON.stringify(rootPaint.map(({ edge }) => edge))}`);
 
-  const rootThickness = await page.locator("#root-only-target").evaluate((target) => ({
-    cssWidth: parseFloat(target.style.getPropertyValue("--mesurer-selected-source-outline-width")),
-    computedOutlineStyle: getComputedStyle(target).outlineStyle,
-  }));
+  const rootScrollGeometry = await page.locator("#root-only-target").evaluate((target) => {
+    const chrome = document.querySelector("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true']");
+    const targetRect = target.getBoundingClientRect();
+    const chromeRect = chrome?.getBoundingClientRect();
 
-  artifact.runs.push({ name: "root-page-source-outline-thickness", metrics: rootThickness });
-  assert.equal(rootThickness.computedOutlineStyle, "solid", "Root-page selection has a visible source-layer outline");
-  assert(Math.abs(rootThickness.cssWidth - Math.max(1, Math.round(dpr)) / dpr) < 0.01,
-    `Root-page source outline has the expected device-pixel width: ${JSON.stringify({ rootThickness, dpr })}`);
-  const rootCounts = rootPaint.map(({ paintedDevicePixels }) => paintedDevicePixels);
-  assert(rootCounts.every((count) => count === Math.max(1, Math.round(dpr)) && count === rootCounts[0]),
-    `Root-page source outline edges paint equally at the requested device-pixel thickness: ${JSON.stringify(rootPaint.map(({ edge, paintedDevicePixels }) => ({ edge, paintedDevicePixels })))}`);
-  assertPixelThickness(rootPaint, "Root-page source outline", { checkPartial: false });
+    return {
+      scrollY: window.scrollY,
+      target: targetRect.toJSON(),
+      chrome: chromeRect?.toJSON() ?? null,
+      selected: Boolean(chrome),
+    };
+  });
+
+  artifact.runs.push({ name: "scrolled-root-page-selection-geometry", metrics: rootScrollGeometry });
+
+  assert(rootScrollGeometry.scrollY > 0, `Root-page scenario has scrolled the document: ${JSON.stringify(rootScrollGeometry)}`);
+
+  assert(rootScrollGeometry.chrome, "Document-portaled selection chrome remains mounted on a scrolled page");
+
+  for (const edge of ["left", "top", "right", "bottom"]) {
+    assert(Math.abs(rootScrollGeometry.chrome[edge] - rootScrollGeometry.target[edge]) <= 1,
+      `Scrolled root-page chrome ${edge} remains within 1 CSS px of target: ${JSON.stringify(rootScrollGeometry)}`);
+  }
 
   }
 

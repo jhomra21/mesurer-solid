@@ -281,8 +281,6 @@ export function installDocumentScrollAnchoring(
     count: number;
     previous: string | null;
     styles: ReturnType<typeof snapshotStyles>;
-    resolution: MediaQueryList;
-    updateDpr: () => void;
   }>();
 
   const selectionBindings = new Map<HTMLElement, SelectionBinding>();
@@ -316,8 +314,8 @@ export function installDocumentScrollAnchoring(
    the same frame. The invisible portaled box remains usable for measurement
    and element identity tests without displaying the delayed duplicate. */
 [data-mesurer-source-selection-paint="true"] {
-  outline: var(--mesurer-selected-source-outline-width, 1px) solid var(--mesurer-selected-source-outline, #0d99ff) !important;
-  outline-offset: calc(-1 * var(--mesurer-selected-source-outline-width, 1px)) !important;
+  outline: 1px solid var(--mesurer-selected-source-outline, #0d99ff) !important;
+  outline-offset: -1px !important;
   /* Tint source text as well as its background: the previous translucent
      portal covered both, while source-local background paint alone would
      leave all antialiased text pixels visibly darker. */
@@ -382,7 +380,6 @@ body:has([data-mesurer-text-editor="true"]) [data-mesurer-source-selection-paint
     "--mesurer-selected-source-fill",
     "--mesurer-selected-source-background",
     "--mesurer-selected-source-text",
-    "--mesurer-selected-source-outline-width",
   ] as const;
 
   const retainSourcePaint = (target: HTMLElement, chrome: HTMLElement) => {
@@ -406,31 +403,12 @@ body:has([data-mesurer-text-editor="true"]) [data-mesurer-source-selection-paint
 
       const styles = snapshotStyles(target, SOURCE_PAINT_STYLES);
 
-      const ownerWindow = target.ownerDocument.defaultView ?? window;
-
-      let resolution: MediaQueryList;
-
-      const updateDpr = () => {
-        const dpr = ownerWindow.devicePixelRatio || 1;
-        target.style.setProperty("--mesurer-selected-source-outline-width", `${Math.max(1, Math.round(dpr)) / dpr}px`);
-        resolution.removeEventListener("change", updateDpr);
-        resolution = ownerWindow.matchMedia(`(resolution: ${dpr}dppx)`);
-        resolution.addEventListener("change", updateDpr);
-      };
-
-      resolution = ownerWindow.matchMedia(`(resolution: ${ownerWindow.devicePixelRatio || 1}dppx)`);
-      resolution.addEventListener("change", updateDpr);
-
       sourcePaintOwners.set(target, {
         count: 1,
         previous: target.getAttribute("data-mesurer-source-selection-paint"),
         styles,
-        resolution,
-        updateDpr,
       });
       target.style.setProperty("--mesurer-selected-source-outline", outline);
-      const dpr = ownerWindow.devicePixelRatio || 1;
-      target.style.setProperty("--mesurer-selected-source-outline-width", `${Math.max(1, Math.round(dpr)) / dpr}px`);
       target.style.setProperty("--mesurer-selected-source-fill", fill);
       target.style.setProperty("--mesurer-selected-source-background", computed.backgroundImage);
       target.style.setProperty("--mesurer-selected-source-text", computed.color);
@@ -451,7 +429,6 @@ body:has([data-mesurer-text-editor="true"]) [data-mesurer-source-selection-paint
 
       if (existing.previous === null) target.removeAttribute("data-mesurer-source-selection-paint");
       else target.setAttribute("data-mesurer-source-selection-paint", existing.previous);
-      existing.resolution.removeEventListener("change", existing.updateDpr);
       restoreStyles(target, existing.styles);
       sourcePaintOwners.delete(target);
     };
@@ -1073,7 +1050,6 @@ body:has([data-mesurer-text-editor="true"]) [data-mesurer-source-selection-paint
     for (const [target, previous] of sourcePaintOwners) {
       if (previous.previous === null) target.removeAttribute("data-mesurer-source-selection-paint");
       else target.setAttribute("data-mesurer-source-selection-paint", previous.previous);
-      previous.resolution.removeEventListener("change", previous.updateDpr);
       restoreStyles(target, previous.styles);
     }
 

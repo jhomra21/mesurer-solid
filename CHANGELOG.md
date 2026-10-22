@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Snap selection and hover outlines to the overlay window's device-pixel grid, keeping all visible edges one device pixel thick in Responsive previews.
+- Snap Responsive selection and hover outlines to the overlay window's device-pixel grid, keeping all visible edges an equal, whole-device-pixel thickness (rounded DPR device pixels).
 
 <!-- Add user-facing changes here before preparing a release. -->
 
