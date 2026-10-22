@@ -113,6 +113,7 @@ on:
       - "tests/visual-parity/responsive-preview-contract.mjs"
       - "tests/visual-parity/responsive-viewports-contract.mjs"
       - "tests/visual-parity/responsive-inspection-contract.mjs"
+      - "tests/visual-parity/responsive-selection-card-contract.mjs"
       - "tests/visual-parity/inspect-info-contract.mjs"
       - "tests/visual-parity/responsive-guides-contract.mjs"
       - "tests/visual-parity/responsive-tools-contract.mjs"
@@ -593,5 +594,84 @@ jobs:
         with:
           name: mesurer-multi-selection-spacing
           path: multi-spacing-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
+  responsive-selection-card:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout Mesurer Solid
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+
+      - name: Install workspace
+        run: bun install --frozen-lockfile
+
+      - name: Build foundations
+        run: bun run build:foundations
+
+      - name: Generate renderer styles
+        run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
+
+      - name: Resolve Playwright version
+        id: playwright_version
+        run: echo "version=$(bunx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      # The resolved Playwright version is part of the key, so dependency bumps cannot reuse a mismatched browser.
+      - name: Cache Playwright Chromium
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright_version.outputs.version }}-chromium
+
+      - name: Install Linux browser dependencies
+        run: bunx playwright install-deps chromium
+
+      - name: Install Chromium
+        run: bunx playwright install chromium
+
+      - name: Start browser fixture
+        shell: bash
+        run: |
+          (
+            cd examples/basic
+            bunx vite --host 127.0.0.1 --port 4174 --strictPort > ../../responsive-selection-card-vite.log 2>&1 &
+            echo $! > ../../responsive-selection-card-vite.pid
+          )
+
+          ready=0
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent --show-error "http://127.0.0.1:4174/responsive-preview.html" >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "Responsive selection card fixture did not become ready"
+            cat responsive-selection-card-vite.log || true
+            exit 1
+          fi
+
+      - name: Exercise Responsive selection and card geometry
+        env:
+          RESPONSIVE_SELECTION_CARD_URL: http://127.0.0.1:4174/responsive-preview.html
+          RESPONSIVE_SELECTION_CARD_OUT: responsive-selection-card-artifacts
+        run: |
+          for dpr in 1 1.25 1.5; do
+            RESPONSIVE_SELECTION_CARD_DPR="$dpr" bun tests/visual-parity/responsive-selection-card-contract.mjs
+          done
+
+      - name: Upload Responsive selection and card evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-responsive-selection-card-contract
+          path: responsive-selection-card-artifacts
           if-no-files-found: warn
           retention-days: 14

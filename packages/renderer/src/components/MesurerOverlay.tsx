@@ -347,6 +347,11 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const hoverSurface = () => {
     previewGeometryRevision();
     const source = props.model.state.hoverElement;
+
+    if (source
+      && responsivePreviewVisibleRect(source.ownerDocument) !== undefined
+      && props.model.state.selectedMeasurements.some((measurement) => measurement.elementRef === source)) return null;
+
     const rawRect = source ? getRectFromDom(source) : props.model.state.hoverRect;
     const previewVisible = source ? responsivePreviewVisibleRect(source.ownerDocument) : undefined;
     const rect = rawRect && source ? intersectRect(rawRect, previewVisible) : rawRect;
