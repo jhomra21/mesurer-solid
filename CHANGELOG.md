@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- In Responsive previews, drag the selected Inspect info card by its header to move it out of the way; its position persists across selection changes, stays clamped to the visible stage, and resets when Responsive closes.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.5-beta.1 - 2026-10-22
