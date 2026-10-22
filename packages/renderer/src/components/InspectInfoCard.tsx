@@ -4,7 +4,11 @@ import { formatInspectCssParts, visibleInspectCssParts } from "../core/inspect-c
 import { getRectFromDom } from "../core/dom";
 import type { InspectMeasurement, Rect } from "../core/types";
 import { installNestedScrollCompensation } from "../runtime/nested-scroll-compensation";
-import { placeInspectInfoCard, placeInspectInfoCardBesidePreview } from "../runtime/inspect-info";
+import {
+  placeInspectInfoCard,
+  placeInspectInfoCardAboveOrBelow,
+  placeInspectInfoCardBesidePreview,
+} from "../runtime/inspect-info";
 import {
   intersectRect,
   responsivePreviewStageArea,
@@ -41,8 +45,53 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
   const [cardWidth, setCardWidth] = createSignal(240);
   const [evidenceRevision, setEvidenceRevision] = createSignal(0);
   const [copyFeedback, setCopyFeedback] = createSignal("");
+  const [shiftHeld, setShiftHeld] = createSignal(false);
   const sourceDocument = () => props.element.ownerDocument;
   const sourceWindow = () => sourceDocument().defaultView;
+
+  createEffect(
+    () => [props.ownerWindow, props.element, sourceWindow()] as const,
+    ([rootWindow, , source]) => {
+      if (!source || responsivePreviewVisibleRect(source.document) === undefined) return;
+
+      const keyDown = (event: KeyboardEvent) => {
+        if (event.key === "Shift") setShiftHeld(true);
+      };
+
+      const keyUp = (event: KeyboardEvent) => {
+        if (event.key === "Shift") setShiftHeld(false);
+      };
+
+      // A card can mount while Shift is already held (first selection, or a
+      // Shift-marquee that unmounted it), so pointer modifiers also sync it
+      // before the covered click's pointerdown is hit-tested.
+      const syncPointerShift = (event: PointerEvent) => {
+        if (event.shiftKey) setShiftHeld(true);
+      };
+
+      const reset = () => setShiftHeld(false);
+
+      const windows = source === rootWindow ? [rootWindow] : [rootWindow, source];
+
+      for (const owner of windows) {
+        owner.addEventListener("keydown", keyDown, true);
+        owner.addEventListener("keyup", keyUp, true);
+        owner.addEventListener("pointermove", syncPointerShift, true);
+        owner.addEventListener("pointerover", syncPointerShift, true);
+        owner.addEventListener("blur", reset);
+      }
+
+      return () => {
+        for (const owner of windows) {
+          owner.removeEventListener("keydown", keyDown, true);
+          owner.removeEventListener("keyup", keyUp, true);
+          owner.removeEventListener("pointermove", syncPointerShift, true);
+          owner.removeEventListener("pointerover", syncPointerShift, true);
+          owner.removeEventListener("blur", reset);
+        }
+      };
+    },
+  );
 
   const style = createMemo(() => {
     evidenceRevision();
@@ -108,6 +157,7 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
 
   const position = () => {
     const previewVisible = responsivePreviewVisibleRect(sourceDocument());
+    const stageArea = responsivePreviewStageArea(sourceDocument());
 
     if (previewVisible === undefined) {
       const placed = placeInspectInfoCard(
@@ -125,7 +175,6 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
     const currentRect = intersectRect(getRectFromDom(props.element), previewVisible);
 
     if (currentRect.width <= 0 || currentRect.height <= 0) return { display: "none" };
-    const stageArea = responsivePreviewStageArea(sourceDocument());
 
     if (stageArea && previewVisible) {
       const centerX = previewVisible.left + previewVisible.width / 2;
@@ -157,13 +206,29 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
       }
     }
 
+    if (stageArea) {
+      const placed = placeInspectInfoCardAboveOrBelow(
+        currentRect,
+        { width: cardWidth(), height: cardHeight() },
+        stageArea.bounds,
+        contextRects(),
+      );
+
+      return {
+        left: `${placed.left}px`,
+        top: `${placed.top}px`,
+        "max-width": `${Math.max(0, stageArea.bounds.width - 16)}px`,
+        "max-height": `${Math.max(0, stageArea.bounds.height - 16)}px`,
+      };
+    }
+
     const viewport = placementViewport();
 
     const placed = placeInspectInfoCard(
       currentRect,
       { width: cardWidth(), height: cardHeight() },
       viewport,
-      props.passThrough === true,
+      true,
       contextRects(),
     );
 
@@ -178,8 +243,6 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
   };
 
   const baseStyle = () => ({
-    // Only hover evidence passes through. Selected cards own their whole surface.
-    "pointer-events": props.passThrough ? "none" as const : "auto" as const,
     "user-select": "text" as const,
     // Keep Context's protected trigger/composer and annotation panel above the
     // inspector even when both are source-linked in the same document.
@@ -385,15 +448,18 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
     <div
       ref={setCardElement}
       data-mesurer-inspect-info-card="true"
+      data-mesurer-pass-through={props.passThrough ? "true" : undefined}
+      data-mesurer-shift-pass-through={shiftHeld() && responsivePreviewVisibleRect(sourceDocument()) !== undefined && !props.passThrough ? "true" : undefined}
       data-mesurer-inspector-ui="true"
       data-theme={props.theme}
       class={`${props.embedded ? "msr:static msr:w-full msr:max-w-none msr:rounded-none msr:py-0" : `${props.documentMounted ? "msr:fixed" : "msr:absolute"} msr:z-[2147483644] msr:w-60 msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:py-2`} msr:flex msr:flex-col msr:overflow-visible msr:text-[10px]`}
-      style={{ ...cardStyle(), "pointer-events": props.passThrough ? "none" : "auto" }}
+      style={cardStyle()}
       onPointerDown={(event) => { if (!props.passThrough) event.stopPropagation(); }}
       onPointerMove={(event) => { if (!props.passThrough) event.stopPropagation(); }}
       onPointerUp={(event) => { if (!props.passThrough) event.stopPropagation(); }}
       onClick={(event) => { if (!props.passThrough) event.stopPropagation(); }}
     >
+      <style>{`[data-mesurer-inspect-info-card]:not([data-mesurer-pass-through="true"]):not([data-mesurer-shift-pass-through="true"]) { pointer-events: auto; } [data-mesurer-inspect-info-card][data-mesurer-pass-through="true"], [data-mesurer-inspect-info-card][data-mesurer-pass-through="true"] *, [data-mesurer-inspect-info-card][data-mesurer-shift-pass-through="true"], [data-mesurer-inspect-info-card][data-mesurer-shift-pass-through="true"] * { pointer-events: none !important; }`}</style>
       <div class="msr:flex msr:items-center msr:justify-between msr:gap-2 msr:px-2">
         {props.passThrough
           ? <span data-mesurer-inspect-selector="true" class="msr:min-w-0 msr:flex-1 msr:truncate msr:font-mono msr:font-medium">{selector()}</span>
@@ -449,7 +515,6 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
             aria-expanded={expanded() ? "true" : "false"}
             aria-label={expanded() ? "Show less CSS details" : `Show ${visible().hiddenCount} more CSS details`}
             class="msr:pointer-events-auto msr:rounded-[5px] msr:text-[10px] msr:text-ink-500 msr:hover:text-ink-900"
-            style={{ "pointer-events": props.passThrough ? "none" : "auto" }}
             onPointerUp={(event) => {
               event.stopPropagation();
 

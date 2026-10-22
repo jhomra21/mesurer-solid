@@ -410,6 +410,40 @@ try {
     "Hover card has no focusable controls or actions");
   const hoverRect = await card.boundingBox();
   assert(hoverRect, "Hover card geometry is visible");
+
+  await page.setViewportSize({ width: 1000, height: 600 });
+  const tallTarget = root;
+  const previousTallTargetStyle = await tallTarget.getAttribute("style");
+  await tallTarget.evaluate((target) => {
+    Object.assign(target.style, {
+      position: "fixed",
+      left: "400px",
+      top: "20px",
+      width: "100px",
+      height: "560px",
+      background: "rgb(230, 230, 230)",
+      zIndex: "9999",
+    });
+  });
+  await hoverInspectedTarget(tallTarget);
+
+  const tallPlacement = await page.evaluate(() => {
+    const target = document.querySelector(".primary-action").getBoundingClientRect();
+    const card = document.querySelector("[data-mesurer-inspect-info-card]").getBoundingClientRect();
+
+    return { target: target.toJSON(), card: card.toJSON() };
+  });
+
+  assert(tallPlacement.card.right <= tallPlacement.target.left + 1
+    || tallPlacement.card.left >= tallPlacement.target.right - 1,
+  `Root-page tall target uses a non-overlapping side candidate: ${JSON.stringify(tallPlacement)}`);
+  await tallTarget.evaluate((target, style) => {
+    if (style === null) target.removeAttribute("style");
+    else target.setAttribute("style", style);
+  }, previousTallTargetStyle);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await hoverInspectedTarget(root);
+
   await hoverInspectedTarget(other);
   await card.waitFor({ state: "visible" });
   assert.notEqual(await card.locator("[data-mesurer-inspect-selector]").innerText(), selectedSelector,
@@ -562,6 +596,7 @@ try {
     previewEvidence,
     previewDimensionsCopied: `${previewEvidence.width} x ${previewEvidence.height}`,
     scrollSamples,
+    tallPlacement,
     errors,
   };
 
