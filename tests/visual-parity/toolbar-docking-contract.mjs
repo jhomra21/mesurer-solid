@@ -232,7 +232,6 @@ try {
     }
   }
 
-
   await drag(140, 24);
   assert.equal(await toolbar.getAttribute("data-dock-align"), "start");
   near((await bounds()).x, 16, "top start corner");

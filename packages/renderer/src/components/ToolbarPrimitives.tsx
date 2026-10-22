@@ -79,8 +79,9 @@ export function ToolbarDivider(props: { visible?: boolean; marker?: string }) {
   return (
     <div
       data-mesurer-toolbar-divider={props.marker ?? "true"}
+      data-visible={visible() ? "true" : "false"}
       aria-hidden="true"
-      class={`msr:self-stretch msr:flex-none msr:bg-black/10 msr:transition-[width,opacity] msr:duration-150 msr:ease-[ease] msr:motion-reduce:transition-none ${visible() ? "msr:w-px msr:opacity-100" : "msr:w-0 msr:opacity-0"}`}
+      class={`mesurer-toolbar-divider msr:self-stretch msr:flex-none msr:bg-black/10 msr:transition-[width,opacity] msr:duration-150 msr:ease-[ease] msr:motion-reduce:transition-none ${visible() ? "msr:opacity-100" : "msr:opacity-0"}`}
     />
   );
 }
