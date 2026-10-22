@@ -94,6 +94,7 @@ on:
       - "tests/visual-parity/color-picker-contract.mjs"
       - "tests/visual-parity/toolbar-drag-contract.mjs"
       - "tests/visual-parity/toolbar-compact-contract.mjs"
+      - "tests/visual-parity/toolbar-vertical-parity-contract.mjs"
       - "tests/visual-parity/presentation-settings-contract.mjs"
       - "tests/visual-parity/selection-scroll-contract.mjs"
       - "tests/visual-parity/selection-hit-testing-contract.mjs"
@@ -210,6 +211,21 @@ jobs:
         env:
           TOOLBAR_COMPACT_URL: http://127.0.0.1:4174/
         run: bun tests/visual-parity/toolbar-compact-contract.mjs
+
+      - name: Verify vertical toolbar parity
+        env:
+          TOOLBAR_VERTICAL_URL: http://127.0.0.1:4174/
+          TOOLBAR_VERTICAL_OUT: vertical-toolbar-artifacts
+        run: bun tests/visual-parity/toolbar-vertical-parity-contract.mjs
+
+      - name: Upload vertical toolbar evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-vertical-toolbar-parity
+          path: vertical-toolbar-artifacts
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Exercise Edit movement and drag
         env:

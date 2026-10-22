@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Make left- and right-docked toolbars match the horizontal toolbar: a centered single column with menu chevrons under their icons, horizontal dividers, and a centered mode switch. Docked toolbars also stay centered and aligned after dragging between horizontal and vertical orientations.
+
 ## 0.2.4 - 2026-10-21
 
 - Show Select hover outlines inside Responsive previews; they were drawn underneath the preview stage.

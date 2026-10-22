@@ -173,12 +173,6 @@ export function Toolbar(props: ToolbarProps) {
   const colorPickerOwnerWindow = () => toolbarElement?.ownerDocument.defaultView ?? props.ownerWindow;
   const barSize = () => ({ width: toolbarElement?.offsetWidth ?? 0, height: toolbarElement?.offsetHeight ?? 0 });
 
-  const sizeFor = (upright: boolean) => {
-    const size = barSize();
-
-    return upright === vertical() ? size : { width: size.height, height: size.width };
-  };
-
   const safePosition = (point: { x: number; y: number }, size = barSize()) =>
     constrainToolbarPosition(props.ownerWindow, point, size, viewport(), snapping() && dockEdge() ? 16 : 8);
 
@@ -216,6 +210,8 @@ export function Toolbar(props: ToolbarProps) {
     setPosition(safePosition(alignedDockPosition(result.side, dockAlign, barSize(), viewport())));
     playTurn();
   };
+
+  let scheduleDockSettle: (() => void) | null = null;
 
   const recordingActive = () => (props.pluginTools ?? []).some(
     (tool) => tool.id === "recording" && (tool.active?.() ?? false),
@@ -687,6 +683,16 @@ export function Toolbar(props: ToolbarProps) {
     const origin = position();
     const surface = event.currentTarget;
     const rect = surface.getBoundingClientRect();
+    // Dock-zone geometry must use one settled size for the whole gesture. The
+    // toolbar can turn between layouts while this drag is in progress, and its
+    // live box temporarily reports the transitioning layout's dimensions.
+    const dragStartSize = barSize();
+    const dragStartVertical = vertical();
+
+    const dragSizeFor = (upright: boolean) => upright === dragStartVertical
+      ? dragStartSize
+      : { width: dragStartSize.height, height: dragStartSize.width };
+
     const previousTransform = surface.style.transform;
     const previousWillChange = surface.style.willChange;
     const attachedMotion = detachedMotionPosition() ? null : motionSurfaceElement;
@@ -750,16 +756,17 @@ export function Toolbar(props: ToolbarProps) {
       lastPointer = { x: next.clientX, y: next.clientY };
 
       if (snapping()) {
-        const result = dragToolbarPosition({ pointer: lastPointer, grab, glued: dockEdge(), upright: vertical(), pushed, latched, sizeFor, viewport: viewport() });
+        const result = dragToolbarPosition({ pointer: lastPointer, grab, glued: dockEdge(), upright: vertical(), pushed, latched, sizeFor: dragSizeFor, viewport: viewport() });
         pushed = result.pushed;
         latched = result.latched;
         setDockEdge(result.side);
         turn(result.upright);
-        const measured = dragToolbarPosition({ pointer: lastPointer, grab, glued: result.side, upright: result.upright, pushed, latched, sizeFor, viewport: viewport() });
-        nextPosition = safePosition(measured.position);
-        const square = Math.min(barSize().width, barSize().height);
+        const measured = dragToolbarPosition({ pointer: lastPointer, grab, glued: result.side, upright: result.upright, pushed, latched, sizeFor: dragSizeFor, viewport: viewport() });
+        nextPosition = safePosition(measured.position, dragSizeFor(result.upright));
+        const dragSize = dragSizeFor(result.upright);
+        const square = Math.min(dragSize.width, dragSize.height);
         setLanding(result.side
-          ? { side: result.side, align: dockAlignFor(result.side, nextPosition, barSize(), viewport()) }
+          ? { side: result.side, align: dockAlignFor(result.side, nextPosition, dragSize, viewport()) }
           : nearestDropFor(lastPointer, result.upright, { width: square, height: square }, viewport()));
       } else nextPosition = constrainToolbarPosition(
         props.ownerWindow,
@@ -790,17 +797,25 @@ export function Toolbar(props: ToolbarProps) {
       // attached player measures the toolbar rect and must never see both.
       if (didDrag && commit) {
         if (snapping()) {
-          const square = Math.min(barSize().width, barSize().height);
+          const square = Math.min(dragStartSize.width, dragStartSize.height);
 
           const landing = dockEdge()
-            ? { side: dockEdge()!, align: dockAlignFor(dockEdge()!, nextPosition, barSize(), viewport()) }
+            ? { side: dockEdge()!, align: dockAlign }
             : nearestDropFor(lastPointer, vertical(), { width: square, height: square }, viewport());
 
           setDockEdge(landing.side);
-          dockAlign = landing.align;
-          setDockAlignment(dockAlign);
           turn(isVerticalToolbarSide(landing.side));
-          nextPosition = safePosition(alignedDockPosition(landing.side, dockAlign, barSize(), viewport()));
+          // The drag estimate keeps dock-zone previews stable, but release must
+          // use the real layout after the final orientation has been applied.
+          const releaseSize = barSize();
+          dockAlign = dockEdge()
+            ? dockAlignFor(landing.side, nextPosition, releaseSize, viewport())
+            : landing.align;
+          setDockAlignment(dockAlign);
+          nextPosition = safePosition(
+            alignedDockPosition(landing.side, dockAlign, releaseSize, viewport()),
+            releaseSize,
+          );
           glide();
         }
 
@@ -810,6 +825,8 @@ export function Toolbar(props: ToolbarProps) {
       }
 
       setMotionSuspended(false);
+
+      if (didDrag && commit && snapping()) scheduleDockSettle?.();
 
       if (previousUserSelect !== null) {
         root.style.userSelect = previousUserSelect;
@@ -1190,6 +1207,7 @@ export function Toolbar(props: ToolbarProps) {
   onSettled(() => {
     let persistTimer = 0;
     let settleFrame = 0;
+    let releaseSettleTimer = 0;
 
     const settle = () => {
       if (!snapping() || motionSuspended()) return;
@@ -1206,6 +1224,14 @@ export function Toolbar(props: ToolbarProps) {
       });
     };
 
+    scheduleDockSettle = () => {
+      props.ownerWindow.clearTimeout(releaseSettleTimer);
+      releaseSettleTimer = props.ownerWindow.setTimeout(() => {
+        releaseSettleTimer = 0;
+        scheduleSettle();
+      }, 180);
+    };
+
     // SAFETY: ownerWindow is the Window instance that owns this toolbar's document and browser APIs.
     const realm = props.ownerWindow as Window & typeof globalThis;
     const observer = realm.ResizeObserver ? new realm.ResizeObserver(scheduleSettle) : null;
@@ -1216,9 +1242,11 @@ export function Toolbar(props: ToolbarProps) {
 
     return () => {
       observer?.disconnect();
+      scheduleDockSettle = null;
       props.ownerWindow.removeEventListener("resize", scheduleSettle);
 
       if (settleFrame) props.ownerWindow.cancelAnimationFrame(settleFrame);
+      props.ownerWindow.clearTimeout(releaseSettleTimer);
       props.ownerWindow.clearTimeout(persistTimer);
       props.ownerWindow.clearTimeout(glideTimer);
       turnAnimation.cancel();
@@ -1554,6 +1582,7 @@ export function Toolbar(props: ToolbarProps) {
           <div data-mesurer-builtin="guides-menu" ref={(element) => { guideMenuElement = element; }} class="msr:group msr:relative msr:-ml-1 msr:flex msr:items-stretch" onMouseEnter={() => tooltip.onTooltipEnter("guide-menu")} onMouseLeave={tooltip.onTooltipLeave}>
             <button
               type="button"
+              data-mesurer-guide-menu-trigger="true"
               aria-label="Guide orientation menu"
               aria-haspopup="menu"
               aria-expanded={guideMenuOpen() ? "true" : "false"}
