@@ -47,6 +47,11 @@ const failureModes = {
   "outline-neighbor": [
     "hovering a neighboring target does not add hover chrome over the selected outline",
   ],
+  "multi-select-hover": [
+    "hovering an unselected Responsive target remains visible with one, two, or three selections",
+    "hover chrome is painted inside the hovered target without changing selection",
+    "hovering a selected target does not add duplicate hover chrome",
+  ],
   "close-clears": [
     "closing Responsive clears active, selected, and marquee selection chrome",
   ],
@@ -1332,8 +1337,8 @@ try {
     await page.screenshot({ path: join(output, "responsive-held-shift-pass-through.png") });
   }
 
-  if (!focus || focus === "outline" || focus === "outline-neighbor") {
-    await initializeScenario();
+  if (!focus || focus === "outline" || focus === "outline-neighbor" || focus === "multi-select-hover") {
+    await initializeScenario({ selectTarget: false });
     await page.setViewportSize({ width: 442, height: 1000 });
     await settle();
     await select("#inspection-target");
@@ -1369,6 +1374,169 @@ try {
     const hoverOnNeighbor = await measureOutline();
     artifact.runs.push({ name: "outline-hover-neighbor", metrics: hoverOnNeighbor });
     await page.screenshot({ path: join(output, "responsive-outline-hover-neighbor.png") });
+  }
+
+  if (!focus || focus === "multi-select-hover") {
+    await initializeScenario({ selectTarget: false });
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await settle();
+
+    const projectedRect = async (selector) => page.evaluate((targetSelector) => {
+      const preview = document.querySelector("[data-mesurer-island]")?.shadowRoot
+        ?.querySelector("iframe[data-mesurer-responsive-frame]");
+
+      const target = preview?.contentDocument?.querySelector(targetSelector);
+
+      if (!preview || !target) return null;
+
+      const frameRect = preview.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const scale = frameRect.width / preview.offsetWidth;
+
+      return {
+        left: frameRect.left + (targetRect.left + preview.clientLeft) * scale,
+        top: frameRect.top + (targetRect.top + preview.clientTop) * scale,
+        width: targetRect.width * scale,
+        height: targetRect.height * scale,
+      };
+    }, selector);
+
+    const hoverEvidence = [];
+    const hoverTarget = "[data-testid='breakpoint-label']";
+    const selectedTargets = ["#inspection-target", "#root-only-target", "[data-testid='edit-target']"];
+
+    for (let count = 0; count <= selectedTargets.length; count += 1) {
+      if (count > 0) await select(selectedTargets[count - 1], count > 1 ? ["Shift"] : []);
+
+      const beforeSelection = await selectionState();
+      assert.equal(beforeSelection.length, count,
+        `Responsive has exactly ${count} selected targets: ${JSON.stringify(beforeSelection)}`);
+
+      const target = await projectedRect(hoverTarget);
+      assert(target, `Unselected preview hover target has projected geometry with ${count} selections`);
+      const point = { x: target.left + target.width / 2, y: target.top + target.height / 2 };
+      await page.mouse.move(0, 0);
+      await settle();
+      const withoutHover = await page.screenshot({ scale: "device" });
+      await page.mouse.move(point.x, point.y);
+      await settle();
+      const hover = page.locator("[data-mesurer-hover-measurement='true']");
+
+      const rendered = await hover.count() ? await hover.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+
+        return {
+          rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+          display: style.display,
+          visibility: style.visibility,
+          opacity: style.opacity,
+          zIndex: style.zIndex,
+        };
+      }) : null;
+
+      const withHover = await page.screenshot({
+        path: join(output, `responsive-multi-select-hover-${count}-selected.png`),
+        scale: "device",
+      });
+
+      const paintedPixels = await page.evaluate(async ({ before, after, rect }) => {
+        const decode = async (bytes) => {
+          const image = new Image();
+          image.src = `data:image/png;base64,${bytes}`;
+          await image.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = image.naturalWidth;
+          canvas.height = image.naturalHeight;
+          const context = canvas.getContext("2d");
+          context.drawImage(image, 0, 0);
+
+          return { canvas, context };
+        };
+
+        const [a, b] = await Promise.all([decode(before), decode(after)]);
+        const left = Math.max(0, Math.floor(rect.left * devicePixelRatio));
+        const top = Math.max(0, Math.floor(rect.top * devicePixelRatio));
+        const right = Math.min(a.canvas.width, Math.ceil((rect.left + rect.width) * devicePixelRatio));
+        const bottom = Math.min(a.canvas.height, Math.ceil((rect.top + rect.height) * devicePixelRatio));
+        const width = right - left;
+        const height = bottom - top;
+        const beforePixels = a.context.getImageData(left, top, width, height).data;
+        const afterPixels = b.context.getImageData(left, top, width, height).data;
+
+        let changed = 0;
+
+        for (let i = 0; i < beforePixels.length; i += 4) {
+          if ([0, 1, 2].some((channel) => Math.abs(beforePixels[i + channel] - afterPixels[i + channel]) > 8)) changed += 1;
+        }
+
+        return changed;
+      }, {
+        before: Buffer.from(withoutHover).toString("base64"),
+        after: Buffer.from(withHover).toString("base64"),
+        rect: target,
+      });
+
+      const afterSelection = await selectionState();
+
+      hoverEvidence.push({
+        count,
+        target: hoverTarget,
+        projectedRect: target,
+        rendered,
+        paintedPixels,
+        selectionBefore: beforeSelection,
+        selectionAfter: afterSelection,
+      });
+      assert.deepEqual(afterSelection, beforeSelection, "Hovering does not change the Responsive selection");
+
+      if (count > 0) {
+        const selectedPoint = await projectedRect(selectedTargets[0]);
+        assert(selectedPoint, "Selected preview target has projected geometry");
+        await page.mouse.move(selectedPoint.left + selectedPoint.width / 2, selectedPoint.top + selectedPoint.height / 2);
+        await settle();
+        assert.equal(await page.locator("[data-mesurer-hover-measurement='true']").count(), 0,
+          "Hovering a selected target does not create duplicate hover chrome");
+        assert.deepEqual(await selectionState(), beforeSelection, "Hovering a selected target preserves selection");
+      }
+    }
+
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !document.querySelector("[data-mesurer-island]")?.shadowRoot
+      ?.querySelector("[data-mesurer-responsive-stage]"));
+    await settle();
+
+    const selectButton = page.locator("button[data-mesurer-builtin='select']").first();
+
+    if (await selectButton.getAttribute("aria-pressed") !== "true") await selectButton.click();
+    await settle();
+
+    await page.evaluate(() => window.__MESURER__.select(["#inspection-target", "#root-only-target"]));
+    await settle();
+    const rootSelection = await selectionState();
+    assert.equal(rootSelection.length, 2, "Root page retains its normal two-element multi-selection");
+    const rootHoverTarget = await page.locator("[data-testid='edit-target']").boundingBox();
+    assert(rootHoverTarget, "Root-page hover target is rendered");
+    await page.mouse.move(rootHoverTarget.x + rootHoverTarget.width / 2, rootHoverTarget.y + rootHoverTarget.height / 2);
+    await settle();
+    const rootHover = await page.locator("[data-mesurer-hover-measurement='true']").count();
+    artifact.runs.push({ name: "main-page-multi-select-hover", metrics: { selected: rootSelection, hoverCount: rootHover } });
+    await page.screenshot({ path: join(output, "main-page-multi-select-hover.png"), scale: "device" });
+
+    artifact.runs.push({ name: "multi-select-hover", metrics: hoverEvidence });
+
+    for (const evidence of hoverEvidence) {
+      const { count, rendered, projectedRect, paintedPixels } = evidence;
+      assert(rendered, `Hover chrome is rendered with ${count} Responsive selections`);
+      assert.equal(rendered.display, "block");
+      assert.equal(rendered.visibility, "visible");
+      assert(Number(rendered.opacity) > 0, `Hover chrome has non-zero opacity with ${count} Responsive selections`);
+      assert(Math.abs(rendered.rect.left - projectedRect.left) <= 1 && Math.abs(rendered.rect.top - projectedRect.top) <= 1
+        && Math.abs(rendered.rect.width - projectedRect.width) <= 1
+        && Math.abs(rendered.rect.height - projectedRect.height) <= 1,
+      `Hover chrome matches target geometry: ${JSON.stringify({ rendered, projectedRect })}`);
+      assert(paintedPixels > 0, `Hover chrome paints pixels inside the target at ${count} selections`);
+    }
   }
 
   if (!focus || focus === "close-clears") {

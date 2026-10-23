@@ -832,7 +832,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         <Show when={
           props.model.state.hoverRect
           && props.model.state.settings.hoverHighlightEnabled
-          && (props.editSelectionHover() || selectedMeasurements().length <= 1)
+          && (props.editSelectionHover() || selectedMeasurements().length <= 1 || selectionIsResponsive())
           && !hoverTargetsSelected()
         }>
           <Show when={hoverPortalTarget()} fallback={hoverSurface()}>
