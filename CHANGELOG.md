@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Keep hover outlines visible over unselected elements in Responsive multi-selections.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.5-beta.1 - 2026-10-22
