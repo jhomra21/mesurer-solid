@@ -32,6 +32,8 @@ export type InspectInfoCardProps = {
   singleSelection?: boolean;
   passThrough?: boolean;
   embedded?: boolean;
+  responsivePosition?: { left: number; top: number } | null;
+  onResponsivePositionChange?: (position: { left: number; top: number }) => void;
 };
 
 const rounded = (value: number) => Math.round(value);
@@ -46,6 +48,20 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
   const [evidenceRevision, setEvidenceRevision] = createSignal(0);
   const [copyFeedback, setCopyFeedback] = createSignal("");
   const [shiftHeld, setShiftHeld] = createSignal(false);
+  const [dragging, setDragging] = createSignal(false);
+  let headerElement: HTMLDivElement | undefined;
+
+  let headerDrag: {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    left: number;
+    top: number;
+    moved: boolean;
+  } | null = null;
+
+  let suppressNextHeaderClick = false;
+
   const sourceDocument = () => props.element.ownerDocument;
   const sourceWindow = () => sourceDocument().defaultView;
 
@@ -175,6 +191,19 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
     const currentRect = intersectRect(getRectFromDom(props.element), previewVisible);
 
     if (currentRect.width <= 0 || currentRect.height <= 0) return { display: "none" };
+    const dragBounds = stageArea?.bounds ?? previewVisible;
+
+    if (props.responsivePosition && dragBounds) {
+      const clamped = clampResponsivePosition(props.responsivePosition.left, props.responsivePosition.top);
+
+      return {
+        left: `${clamped.left}px`,
+        top: `${clamped.top}px`,
+        "max-width": `${Math.max(0, dragBounds.width - 16)}px`,
+        "max-height": `${Math.max(0, dragBounds.height - 16)}px`,
+        overflow: "auto",
+      };
+    }
 
     if (stageArea && previewVisible) {
       const centerX = previewVisible.left + previewVisible.width / 2;
@@ -262,6 +291,107 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
         overflow: "auto",
         ...baseStyle(),
       };
+
+  const clampResponsivePosition = (left: number, top: number) => {
+    const bounds = responsivePreviewStageArea(sourceDocument())?.bounds
+      ?? responsivePreviewVisibleRect(sourceDocument());
+
+    if (!bounds) return { left, top };
+    const width = Math.min(cardWidth(), Math.max(0, bounds.width - 16));
+    const height = Math.min(cardHeight(), Math.max(0, bounds.height - 16));
+
+    return {
+      left: Math.max(bounds.left + 8, Math.min(left, bounds.left + bounds.width - width - 8)),
+      top: Math.max(bounds.top + 8, Math.min(top, bounds.top + bounds.height - height - 8)),
+    };
+  };
+
+  createEffect(
+    () => [props.responsivePosition, evidenceRevision(), cardWidth(), cardHeight()] as const,
+    ([position]) => {
+      if (!position || !props.onResponsivePositionChange) return;
+      const clamped = clampResponsivePosition(position.left, position.top);
+
+      if (clamped.left !== position.left || clamped.top !== position.top) {
+        props.onResponsivePositionChange(clamped);
+      }
+    },
+  );
+
+  const onHeaderPointerDown = (event: PointerEvent) => {
+    if (!props.onResponsivePositionChange || event.button !== 0 || event.isPrimary === false) return;
+    suppressNextHeaderClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+    const captureTarget = event.target instanceof Element ? event.target : headerElement;
+
+    headerDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: cardElement()?.getBoundingClientRect().left ?? 0,
+      top: cardElement()?.getBoundingClientRect().top ?? 0,
+      moved: false,
+    };
+
+    try {
+      captureTarget?.setPointerCapture(event.pointerId);
+    } catch {
+      headerDrag = null;
+    }
+  };
+
+  const onHeaderPointerMove = (event: PointerEvent) => {
+    const drag = headerDrag;
+
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+
+    if (!drag.moved && Math.hypot(deltaX, deltaY) < 3) return;
+    drag.moved = true;
+    setDragging(true);
+    props.onResponsivePositionChange?.(clampResponsivePosition(drag.left + deltaX, drag.top + deltaY));
+  };
+
+  const onHeaderPointerEnd = (event: PointerEvent) => {
+    if (!headerDrag || headerDrag.pointerId !== event.pointerId) return;
+
+    if (headerDrag.moved) {
+      event.stopPropagation();
+
+      if (event.type === "pointerup") event.preventDefault();
+
+      suppressNextHeaderClick = true;
+    }
+
+    headerDrag = null;
+    setDragging(false);
+  };
+
+  const setHeaderElement = (element: HTMLDivElement) => {
+    headerElement = element;
+    element.addEventListener("pointerup", onHeaderPointerEnd, true);
+    element.addEventListener("pointercancel", onHeaderPointerEnd, true);
+
+    const suppressDraggedClick = (event: MouseEvent) => {
+      if (!suppressNextHeaderClick) return;
+
+      suppressNextHeaderClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    element.addEventListener("click", suppressDraggedClick, true);
+
+    onCleanup(() => {
+      element.removeEventListener("pointerup", onHeaderPointerEnd, true);
+      element.removeEventListener("pointercancel", onHeaderPointerEnd, true);
+      element.removeEventListener("click", suppressDraggedClick, true);
+    });
+  };
 
   createEffect(() => [cardElement(), props.ownerWindow] as const, ([node, ownerWindow]) => {
     // Expansion and source retargeting can change the card height; the ResizeObserver
@@ -451,16 +581,24 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
       data-mesurer-pass-through={props.passThrough ? "true" : undefined}
       data-mesurer-shift-pass-through={shiftHeld() && responsivePreviewVisibleRect(sourceDocument()) !== undefined && !props.passThrough ? "true" : undefined}
       data-mesurer-inspector-ui="true"
+      data-mesurer-responsive-dragging={dragging() ? "true" : undefined}
       data-theme={props.theme}
       class={`${props.embedded ? "msr:static msr:w-full msr:max-w-none msr:rounded-none msr:py-0" : `${props.documentMounted ? "msr:fixed" : "msr:absolute"} msr:z-[2147483644] msr:w-60 msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:py-2`} msr:flex msr:flex-col msr:overflow-visible msr:text-[10px]`}
-      style={cardStyle()}
+      style={{ ...cardStyle(), transition: dragging() ? "none" : undefined }}
       onPointerDown={(event) => { if (!props.passThrough) event.stopPropagation(); }}
       onPointerMove={(event) => { if (!props.passThrough) event.stopPropagation(); }}
       onPointerUp={(event) => { if (!props.passThrough) event.stopPropagation(); }}
       onClick={(event) => { if (!props.passThrough) event.stopPropagation(); }}
     >
       <style>{`[data-mesurer-inspect-info-card]:not([data-mesurer-pass-through="true"]):not([data-mesurer-shift-pass-through="true"]) { pointer-events: auto; } [data-mesurer-inspect-info-card][data-mesurer-pass-through="true"], [data-mesurer-inspect-info-card][data-mesurer-pass-through="true"] *, [data-mesurer-inspect-info-card][data-mesurer-shift-pass-through="true"], [data-mesurer-inspect-info-card][data-mesurer-shift-pass-through="true"] * { pointer-events: none !important; }`}</style>
-      <div class="msr:flex msr:items-center msr:justify-between msr:gap-2 msr:px-2">
+      <div
+        ref={setHeaderElement}
+        data-mesurer-inspect-header="true"
+        class={`msr:flex msr:items-center msr:justify-between msr:gap-2 msr:px-2 ${props.onResponsivePositionChange ? dragging() ? "msr:cursor-grabbing" : "msr:cursor-grab" : ""}`}
+        style={{ "touch-action": props.onResponsivePositionChange ? "none" : undefined }}
+        onPointerDown={onHeaderPointerDown}
+        onPointerMove={onHeaderPointerMove}
+      >
         {props.passThrough
           ? <span data-mesurer-inspect-selector="true" class="msr:min-w-0 msr:flex-1 msr:truncate msr:font-mono msr:font-medium">{selector()}</span>
           : <button

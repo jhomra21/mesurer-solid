@@ -53,6 +53,16 @@ const failureModes = {
   "card-expand": [
     "Responsive exposes the hidden CSS detail toggle and keeps expanded content in the visible stage",
   ],
+  "card-drag": [
+    "header pointerdown steals or clears the current selection",
+    "stage pointer handling starts a measurement while the card is dragged",
+    "pointer capture is lost while dragging over or away from the iframe",
+    "fractional DPR introduces CSS-pixel rounding drift",
+    "a far drag escapes the visible stage or viewport",
+    "selection rerender snaps the manual card position back to automatic placement",
+    "a sub-threshold header click is mistaken for a drag",
+    "closing and reopening Responsive incorrectly retains the manual placement",
+  ],
 };
 
 await mkdir(output, { recursive: true });
@@ -1259,6 +1269,130 @@ try {
     assert(expanded.scrollHeight > expanded.clientHeight,
       `Expanded CSS rows overflow the constrained card and can scroll: ${JSON.stringify(expanded)}`);
     assertContained(expanded.card, visibleBounds.visibleStage, "Expanded card stays inside the visible stage");
+  }
+
+  if (!focus || focus === "card-drag") {
+    await initializeScenario();
+    const card = page.locator("[data-mesurer-inspect-info-card]");
+    const header = card.locator("[data-mesurer-inspect-header]");
+
+    const outlineRect = () => page.locator("[data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true']")
+      .boundingBox();
+
+    const measurementCount = () => page.locator("[data-mesurer-measurement-chrome='true']").count();
+    const initial = await cardState();
+    const selectedBefore = await selectionState();
+    const boxBefore = await outlineRect();
+    const measurementsBefore = await measurementCount();
+    assert(initial && boxBefore, "Card drag starts with a rendered card and selected outline");
+    const headerBox = await header.boundingBox();
+    assert(headerBox, "Responsive card header is rendered");
+    assert.equal(await header.evaluate((element) => getComputedStyle(element).cursor), "grab",
+      "Responsive card header advertises its drag affordance");
+    await page.screenshot({ path: join(output, "responsive-card-drag-before.png"), scale: "device" });
+    const clipboardSentinel = "responsive-card-drag-must-not-copy";
+    await page.evaluate((value) => navigator.clipboard.writeText(value), clipboardSentinel);
+    await page.mouse.move(headerBox.x + 4, headerBox.y + headerBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(headerBox.x + 4 - 200, headerBox.y + headerBox.height / 2 + 150, { steps: 12 });
+    assert.equal(await header.evaluate((element) => getComputedStyle(element).cursor), "grabbing",
+      "Responsive card header shows grabbing during the drag");
+    await page.mouse.up();
+    await settle();
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), clipboardSentinel,
+      "Dragging the selector header does not copy its selector");
+    assert.equal(await card.getByRole("status").count(), 0,
+      "Dragging the selector header does not show copy feedback");
+    const dragged = await cardState();
+    const selectedAfter = await selectionState();
+    const boxAfter = await outlineRect();
+    const measurementsAfter = await measurementCount();
+    artifact.runs.push({ name: "card-drag-delta", metrics: {
+      before: initial, after: dragged, selectedBefore, selectedAfter, boxBefore, boxAfter,
+      measurementsBefore, measurementsAfter,
+    } });
+    assert(dragged && boxAfter, "Dragged card and selection outline remain rendered");
+    assert(Math.abs(dragged.card.left - (initial.card.left - 200)) <= 1
+      && Math.abs(dragged.card.top - (initial.card.top + 150)) <= 1,
+    `Header drag follows the exact CSS-pixel pointer delta: ${JSON.stringify({ before: initial.card, after: dragged.card })}`);
+    assert.deepEqual(selectedAfter, selectedBefore, "Dragging the card preserves the preview selection");
+    assert.deepEqual(boxAfter, boxBefore, "Dragging the card does not move the selection box");
+    assert.equal(measurementsAfter, measurementsBefore, "Dragging the card creates no measurement");
+    assert.equal(await card.getAttribute("data-mesurer-responsive-dragging"), null,
+      "Card returns to its non-dragging state after release");
+    await page.screenshot({ path: join(output, "responsive-card-drag-after.png"), scale: "device" });
+
+    await page.setViewportSize({ width: 442, height: 250 });
+    await settle();
+    const afterResize = await cardState();
+    assert(afterResize, "Dragged card remains rendered after the viewport resize");
+    assertContained(afterResize.card, afterResize.visibleStage, "Resizing re-clamps the dragged card to the visible stage");
+    artifact.runs.push({ name: "card-drag-resize-clamp", metrics: { before: dragged, after: afterResize } });
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await settle();
+
+    const beforeClamp = await cardState();
+    const clampHeader = await header.boundingBox();
+    assert(clampHeader, "Card header remains available for the clamp drag");
+    await page.mouse.move(clampHeader.x + 4, clampHeader.y + clampHeader.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(page.viewportSize().width + 1200, page.viewportSize().height + 900, { steps: 12 });
+    await page.mouse.up();
+    await settle();
+    const afterClamp = await cardState();
+    assert(beforeClamp && afterClamp, "Card remains rendered after the far drag");
+    assertContained(afterClamp.card, afterClamp.visibleStage, "Far-dragged card stays inside visible stage and viewport");
+    artifact.runs.push({ name: "card-drag-clamp", metrics: { before: beforeClamp, after: afterClamp } });
+
+    await select("#root-only-target");
+    const afterSelectionChange = await cardState();
+    artifact.runs.push({ name: "card-drag-selection-change", metrics: { dragged: afterClamp, after: afterSelectionChange } });
+    assert(afterSelectionChange, "Card remounts for the new Responsive selection");
+    assert(Math.abs(afterSelectionChange.card.left - afterClamp.card.left) <= 1
+      && Math.abs(afterSelectionChange.card.top - afterClamp.card.top) <= 1,
+    `Card keeps its dragged position when selection changes: ${JSON.stringify({ afterClamp: afterClamp.card, afterSelectionChange: afterSelectionChange.card })}`);
+
+    const beforeClick = await cardState();
+    const clickHeader = await header.boundingBox();
+    assert(clickHeader, "Header remains rendered for the click threshold check");
+    await page.mouse.click(clickHeader.x + 4, clickHeader.y + clickHeader.height / 2);
+    await settle();
+    const afterClick = await cardState();
+    artifact.runs.push({ name: "card-drag-header-click", metrics: { before: beforeClick, after: afterClick } });
+    assert(beforeClick && afterClick, "Card remains rendered after a non-drag click");
+    assert.deepEqual(afterClick.card, beforeClick.card, "A header click below the drag threshold does not move the card");
+    await header.locator("[data-mesurer-inspect-selector]").click();
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), "#root-only-target",
+      "A click on the header selector still copies its value");
+
+    const closeResponsive = async () => {
+      const close = page.locator("[data-mesurer-island]").evaluate((host) => {
+        const button = host.shadowRoot?.querySelector("button[aria-label='Close Responsive']");
+
+        if (!button) return false;
+        button.click();
+
+        return true;
+      });
+
+      if (!await close) await page.keyboard.press("Escape");
+      await page.waitForFunction(() => !document.querySelector("[data-mesurer-island]")?.shadowRoot
+        ?.querySelector("[data-mesurer-responsive-stage]"));
+    };
+
+    await closeResponsive();
+    await page.locator("[data-mesurer-builtin='responsive'] button").click();
+    await frame.contentFrame().locator("#inspection-target").waitFor();
+    await setTargets();
+    await settle();
+    await select("#inspection-target");
+    const reopened = await cardState();
+    artifact.runs.push({ name: "card-drag-reopen-placement", metrics: { automatic: initial, reopened } });
+    assert(reopened, "Responsive card returns after reopening and selecting a target");
+    assert(Math.abs(reopened.card.left - initial.card.left) <= 1
+      && Math.abs(reopened.card.top - initial.card.top) <= 1,
+    `Reopening Responsive restores automatic placement: ${JSON.stringify({ initial: initial.card, reopened: reopened.card })}`);
+    assert.deepEqual(errors, [], `Card-drag browser diagnostics are clean: ${errors.join("\n")}`);
   }
 
   assert.deepEqual(errors, [], `Browser diagnostics are clean: ${errors.join("\n")}`);
