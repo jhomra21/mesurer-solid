@@ -1,4 +1,4 @@
-import { Show, createSignal, onSettled } from "solid-js";
+import { Show, createEffect, createSignal, onCleanup, onSettled } from "solid-js";
 import { Portal } from "@solidjs/web";
 import type { InspectMeasurement, Measurement, Rect } from "../core/types";
 import type { EdgeVisibility } from "../core/edge-visibility";
@@ -8,6 +8,7 @@ import { installNestedScrollCompensation } from "../runtime/nested-scroll-compen
 import { registerSelectionChromeTarget } from "../runtime/native-scroll-registry";
 import { getRectFromDom } from "../core/dom";
 import { intersectRect, responsivePreviewVisibleRect } from "../runtime/responsive-preview-geometry";
+import { chromeEdgeThickness, snapChromeRect } from "../runtime/device-pixel-chrome";
 
 export type MeasurementBoxProps = {
   measurement: Measurement | InspectMeasurement | null;
@@ -29,9 +30,28 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   let chromeElement: HTMLDivElement | undefined;
   let labelElement: HTMLDivElement | undefined;
   const [selectionPortalTarget, setSelectionPortalTarget] = createSignal<HTMLElement | null>(null);
+  const [chromeDpr, setChromeDpr] = createSignal(1);
   const edges = () => props.edgeVisibility ?? allEdges;
   const isSelectionGroup = () => Boolean(props.measurement?.id.startsWith("group-"));
   const isSelectedMeasurement = () => Boolean(props.measurement && "paddingRect" in props.measurement);
+  createEffect(() => chromeDpr(), (dpr) => {
+    const ownerWindow = chromeElement?.ownerDocument.defaultView;
+
+    if (!ownerWindow) return;
+
+    if (dpr !== ownerWindow.devicePixelRatio) {
+      setChromeDpr(ownerWindow.devicePixelRatio || 1);
+
+      return;
+    }
+
+    const resolution = ownerWindow.matchMedia(`(resolution: ${dpr}dppx)`);
+    const update = () => setChromeDpr(ownerWindow.devicePixelRatio || 1);
+    resolution.addEventListener("change", update);
+    onCleanup(() => resolution.removeEventListener("change", update));
+  });
+
+  const edgeThickness = () => chromeEdgeThickness(chromeDpr());
 
   const labelRect = (measurement: Measurement | InspectMeasurement) =>
     "cssRect" in measurement && measurement.cssRect ? measurement.cssRect : measurement.rect;
@@ -88,10 +108,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     const left = rect.left + offsetX;
     const top = rect.top + offsetY;
     Object.assign(chromeElement.style, {
-      left: `${left}px`,
-      top: `${top}px`,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`,
+      ...snapChromeRect(rect, chromeDpr(), offsetX, offsetY),
       display: rect.width > 0 && rect.height > 0 ? "" : "none",
     });
 
@@ -109,6 +126,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     const ownerWindow = target?.ownerDocument.defaultView;
 
     if (!target || !ownerWindow) return;
+    setChromeDpr(chromeElement?.ownerDocument.defaultView?.devicePixelRatio || 1);
 
     // A selected page element can start inside Mesurer's isolated ShadowRoot,
     // while its source target still belongs to the document. Let Solid own the
@@ -207,10 +225,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   const surfaces = (measurement: () => Measurement | InspectMeasurement) => <>
     <Show when={!isSelectionGroup()}>
       <div ref={(element) => { chromeElement = element; }} data-mesurer-measurement-chrome="true" data-mesurer-selected-outline={isSelectedMeasurement() ? "true" : undefined} class="msr:pointer-events-none msr:absolute" style={{
-        left: `${measurement().rect.left + selectedPortalOffset().x}px`,
-        top: `${measurement().rect.top + selectedPortalOffset().y}px`,
-        width: `${measurement().rect.width}px`,
-        height: `${measurement().rect.height}px`,
+        ...snapChromeRect(measurement().rect, chromeDpr(), selectedPortalOffset().x, selectedPortalOffset().y),
         "z-index": isSelectedMeasurement() ? SELECTED_CHROME_Z_INDEX : undefined,
         "background-color": props.fillColor,
         transition: transition(),
@@ -219,10 +234,10 @@ export function MeasurementBox(props: MeasurementBoxProps) {
         animation: "none",
         "animation-name": "none",
       }}>
-        <Show when={edges().top}><div data-mesurer-selection-edge="top" class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ "background-color": props.outlineColor }} /></Show>
-        <Show when={edges().right}><div data-mesurer-selection-edge="right" class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
-        <Show when={edges().bottom}><div data-mesurer-selection-edge="bottom" class="msr:absolute msr:bottom-0 msr:left-0 msr:h-px msr:w-full" style={{ "background-color": props.outlineColor }} /></Show>
-        <Show when={edges().left}><div data-mesurer-selection-edge="left" class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
+        <Show when={edges().top}><svg data-mesurer-selection-edge="top" class="msr:absolute msr:left-0 msr:top-0 msr:w-full" style={{ height: `${edgeThickness()}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="0" y1="50%" x2="100%" y2="50%" stroke={props.outlineColor} stroke-width={edgeThickness()} /></svg></Show>
+        <Show when={edges().right}><svg data-mesurer-selection-edge="right" class="msr:absolute msr:right-0 msr:top-0 msr:h-full" style={{ width: `${edgeThickness()}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="50%" y1="0" x2="50%" y2="100%" stroke={props.outlineColor} stroke-width={edgeThickness()} /></svg></Show>
+        <Show when={edges().bottom}><svg data-mesurer-selection-edge="bottom" class="msr:absolute msr:bottom-0 msr:left-0 msr:w-full" style={{ height: `${edgeThickness()}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="0" y1="50%" x2="100%" y2="50%" stroke={props.outlineColor} stroke-width={edgeThickness()} /></svg></Show>
+        <Show when={edges().left}><svg data-mesurer-selection-edge="left" class="msr:absolute msr:left-0 msr:top-0 msr:h-full" style={{ width: `${edgeThickness()}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="50%" y1="0" x2="50%" y2="100%" stroke={props.outlineColor} stroke-width={edgeThickness()} /></svg></Show>
       </div>
     </Show>
     <Show when={props.showLabel !== false && labelIsVisible(measurement())}>

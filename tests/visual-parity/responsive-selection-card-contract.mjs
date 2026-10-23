@@ -21,6 +21,12 @@ const failureModes = {
     "a hover or duplicate selected measurement paints over selected chrome",
     "scale-one geometry differs from fractional Fit geometry",
     "stationary-pointer target resize leaves selected edges at their old geometry",
+    "a fractional offset in an ancestor or transformed containing block survives local snapping",
+    "document-mounted portals use viewport rather than document coordinates",
+    "browser zoom or a DPR change leaves stale snapping or edge thickness",
+    "paint snapping changes labels, measurement values, or Context geometry",
+    "clipped boxes lose the edge-visibility mask or hover differs from selection",
+    "a partially offscreen preview selection drifts from its clipped target geometry",
   ],
   card: [
     "narrow fallback chooses a fitting vertical side before clamping below",
@@ -53,10 +59,20 @@ const failureModes = {
     "every selected preview element keeps its own filled, four-edge selection box",
   ],
   "edges-frame": [
-    "the four selected edges remain on their fill bounds at every requested DPR",
+    "selected edges paint equally at exactly one device-pixel thickness without partial-coverage neighbors",
   ],
   "card-expand": [
     "Responsive exposes the hidden CSS detail toggle and keeps expanded content in the visible stage",
+  ],
+  "card-drag": [
+    "header pointerdown steals or clears the current selection",
+    "stage pointer handling starts a measurement while the card is dragged",
+    "pointer capture is lost while dragging over or away from the iframe",
+    "fractional DPR introduces CSS-pixel rounding drift",
+    "a far drag escapes the visible stage or viewport",
+    "selection rerender snaps the manual card position back to automatic placement",
+    "a sub-threshold header click is mistaken for a drag",
+    "closing and reopening Responsive incorrectly retains the manual placement",
   ],
 };
 
@@ -179,6 +195,29 @@ const select = async (selector, modifiers = []) => {
   await settle();
 };
 
+const hoverTarget = async (selector) => {
+  const point = await page.evaluate((targetSelector) => {
+    const preview = document.querySelector("[data-mesurer-island]")?.shadowRoot
+      ?.querySelector("iframe[data-mesurer-responsive-frame]");
+
+    const target = preview?.contentDocument?.querySelector(targetSelector);
+
+    if (!(preview instanceof HTMLIFrameElement) || !target) return null;
+    const frameRect = preview.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const scale = frameRect.width / preview.offsetWidth;
+
+    return {
+      x: frameRect.left + (targetRect.left + preview.clientLeft) * scale + targetRect.width * scale / 2,
+      y: frameRect.top + (targetRect.top + preview.clientTop) * scale + targetRect.height * scale / 2,
+    };
+  }, selector);
+
+  assert(point, `Preview hover target has projected geometry: ${selector}`);
+  await page.mouse.move(point.x, point.y);
+  await settle();
+};
+
 const initializeScenario = async ({ selectTarget = true, enableLayoutDetails = true } = {}) => {
   // Every focused scenario starts from a freshly mounted fixture with the same
   // source geometry, viewport, DPR context, Responsive zoom, and scroll state.
@@ -228,22 +267,33 @@ const selectionState = () => page.evaluate(async () => {
   }
 });
 
-const screenshotWithoutOutline = async (path) => {
-  const styles = await page.evaluate(() => {
+const screenshotWithoutOutline = async (path, includeRootSource = false) => {
+  const styles = await page.evaluate((includeRootSource) => {
     const overlay = document.querySelector("[data-mesurer-island]")?.shadowRoot ?? document;
 
+    const sourceTargets = includeRootSource
+      ? [...document.querySelectorAll("[data-mesurer-source-selection-paint='true']")]
+      : [];
+
+    const sourceStyles = sourceTargets.map((target) => ({
+      outline: target.style.getPropertyValue("outline"),
+      priority: target.style.getPropertyPriority("outline"),
+    }));
+
+    sourceTargets.forEach((target) => target.style.setProperty("outline", "none", "important"));
+
     const edges = [...new Set([
-      ...document.querySelectorAll("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true'] > *"),
-      ...overlay.querySelectorAll("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true'] > *"),
+      ...document.querySelectorAll("[data-mesurer-measurement-chrome='true'] > *, [data-mesurer-hover-measurement='true'] > *"),
+      ...overlay.querySelectorAll("[data-mesurer-measurement-chrome='true'] > *, [data-mesurer-hover-measurement='true'] > *"),
     ])];
 
-    return edges.map((edge) => {
+    return { edges: edges.map((edge) => {
       const visibility = edge.style.visibility;
       edge.style.visibility = "hidden";
 
       return visibility;
-    });
-  });
+    }), sourceStyles };
+  }, includeRootSource);
 
   try {
     return await page.screenshot(path ? { path, scale: "device" } : { scale: "device" });
@@ -252,11 +302,21 @@ const screenshotWithoutOutline = async (path) => {
       const overlay = document.querySelector("[data-mesurer-island]")?.shadowRoot ?? document;
 
       const edges = [...new Set([
-        ...document.querySelectorAll("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true'] > *"),
-        ...overlay.querySelectorAll("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true'] > *"),
+        ...document.querySelectorAll("[data-mesurer-measurement-chrome='true'] > *, [data-mesurer-hover-measurement='true'] > *"),
+        ...overlay.querySelectorAll("[data-mesurer-measurement-chrome='true'] > *, [data-mesurer-hover-measurement='true'] > *"),
       ])];
 
-      edges.forEach((edge, index) => { edge.style.visibility = previousStyles[index] ?? ""; });
+      edges.forEach((edge, index) => { edge.style.visibility = previousStyles.edges[index] ?? ""; });
+      const sourceTargets = [...document.querySelectorAll("[data-mesurer-source-selection-paint='true']")];
+
+      for (const [index, { outline, priority }] of previousStyles.sourceStyles.entries()) {
+        const target = sourceTargets[index];
+
+        if (!target) continue;
+
+        if (outline) target.style.setProperty("outline", outline, priority);
+        else target.style.removeProperty("outline");
+      }
     }, styles);
   }
 };
@@ -285,6 +345,20 @@ const measureOutline = () => page.evaluate(() => {
       computed: { width: style.width, height: style.height, border: style.borderWidth },
       inlineStyle: edge.getAttribute("style"),
       parentRect: edge.parentElement?.getBoundingClientRect().toJSON() ?? null,
+      chromeStyle: edge.parentElement?.getAttribute("style"),
+      positioningAncestor: edge.parentElement?.offsetParent instanceof HTMLElement
+        ? {
+          tagName: edge.parentElement.offsetParent.tagName,
+          rect: edge.parentElement.offsetParent.getBoundingClientRect().toJSON(),
+          offsetWidth: edge.parentElement.offsetParent.offsetWidth,
+          offsetHeight: edge.parentElement.offsetParent.offsetHeight,
+          clientLeft: edge.parentElement.offsetParent.clientLeft,
+          clientTop: edge.parentElement.offsetParent.clientTop,
+          scrollLeft: edge.parentElement.offsetParent.scrollLeft,
+          scrollTop: edge.parentElement.offsetParent.scrollTop,
+          style: edge.parentElement.offsetParent.getAttribute("style"),
+        }
+        : null,
     };
   }));
 
@@ -336,7 +410,7 @@ const measureOutline = () => page.evaluate(() => {
   };
 });
 
-const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate(async ({ withOutlineBase64, withoutOutlineBase64 }) => {
+const measurePaintedEdges = async (withOutline, withoutOutline, kind = "selected") => page.evaluate(async ({ withOutlineBase64, withoutOutlineBase64, kind }) => {
   const decode = async (base64) => {
     const image = new Image();
     image.src = `data:image/png;base64,${base64}`;
@@ -367,22 +441,39 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
 
   const overlay = document.querySelector("[data-mesurer-island]")?.shadowRoot;
 
-  const selections = [...document.querySelectorAll("[data-mesurer-selected-measurement='true']"),
-    ...(overlay?.querySelectorAll("[data-mesurer-selected-measurement='true']") ?? [])];
+  const selector = kind === "hover"
+    ? "[data-mesurer-hover-measurement='true']"
+    : "[data-mesurer-selected-measurement='true']";
+
+  const selections = [...document.querySelectorAll(selector),
+    ...(overlay?.querySelectorAll(selector) ?? [])];
 
   const outlines = [...new Set(selections)].flatMap((selection) => {
-    const outline = selection.querySelector("[data-mesurer-measurement-chrome='true']");
+    const outline = kind === "hover"
+      ? selection
+      : selection.querySelector("[data-mesurer-measurement-chrome='true']");
 
     return outline ? [outline] : [];
   });
 
-  if (!outlines.length) throw new Error("Selected outline is missing while sampling screenshot");
+  if (!outlines.length) throw new Error(`${kind} outline is missing while sampling screenshot`);
 
-  return outlines.flatMap((outline, selectionIndex) => [...outline.children].map((edge, index) => {
-    const rect = edge.getBoundingClientRect();
+  const edgeEntries = outlines.flatMap((outline, selectionIndex) => [...outline.children].map((edge, index) => ({
+      selectionIndex,
+      index,
+      edge: ["top", "right", "bottom", "left"][index],
+      rect: edge.getBoundingClientRect().toJSON(),
+      color: edge.querySelector("line")
+        ? getComputedStyle(edge.querySelector("line")).stroke
+        : edge.querySelector("rect")
+          ? getComputedStyle(edge.querySelector("rect")).fill
+          : getComputedStyle(edge).backgroundColor,
+    })));
+
+  return edgeEntries.map(({ selectionIndex, edge: edgeName, index, rect: bounds }) => {
+    const rect = new DOMRect(bounds.left, bounds.top, bounds.width, bounds.height);
     colorContext.clearRect(0, 0, 1, 1);
-    colorContext.fillStyle = edge.querySelector("rect")
-      ? getComputedStyle(edge.querySelector("rect")).fill : getComputedStyle(edge).backgroundColor;
+    colorContext.fillStyle = edgeEntries.find((entry) => entry.selectionIndex === selectionIndex && entry.index === index).color;
     colorContext.fillRect(0, 0, 1, 1);
     const [colorRed, colorGreen, colorBlue, colorAlphaByte] = colorContext.getImageData(0, 0, 1, 1).data;
     const colorAlpha = colorAlphaByte / 255;
@@ -436,9 +527,8 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
         : 0;
     };
 
-    // Compare each edge to a screenshot with the edge hidden. Count every
-    // device pixel with meaningful projected-color coverage so fractional
-    // antialiasing at either boundary is visible to the contract.
+    // Compare each edge to a screenshot with the edge hidden. A device-grid
+    // snapped edge must paint a solid run with no antialiased neighbors.
     // Midpoint classification with a one-percentage-point RGB-quantization
     // allowance: a nominal 50% sample must not flip because of 8-bit rounding.
     // Keep raw coverage and every scanline, never round integrated coverage.
@@ -466,9 +556,15 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
         Math.abs(a.reduce((sum, item) => sum + item.devicePixelDelta, 0) / a.length)
         - Math.abs(b.reduce((sum, item) => sum + item.devicePixelDelta, 0) / b.length))[0] ?? [];
 
+      const firstRunDelta = selectedRun[0]?.devicePixelDelta ?? 0;
+      const lastRunDelta = selectedRun.at(-1)?.devicePixelDelta ?? 0;
+
       return {
         alongFraction: fraction,
         paintedDevicePixels: selectedRun.length,
+        partialCoverageDevicePixels: samples.filter((item) => item.coverage >= 0.1 && item.coverage < 0.5
+          && (item.devicePixelDelta === firstRunDelta - 1 || item.devicePixelDelta === lastRunDelta + 1))
+          .map(({ devicePixelDelta, coverage: value }) => ({ devicePixelDelta, coverage: value })),
         paintedPhysicalPixels: samples.reduce((sum, item) => sum + item.coverage, 0),
         samples,
       };
@@ -481,7 +577,7 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
 
     return {
       selectionIndex,
-      edge: ["top", "right", "bottom", "left"][index],
+      edge: edgeName,
       paintedDevicePixels,
       paintedPhysicalPixels,
       sampleLines,
@@ -491,11 +587,25 @@ const measurePaintedEdges = async (withOutline, withoutOutline) => page.evaluate
       rasterScaleX,
       rasterScaleY,
     };
-  }));
+  });
 }, {
   withOutlineBase64: withOutline.toString("base64"),
   withoutOutlineBase64: withoutOutline.toString("base64"),
+  kind,
 });
+
+const assertPixelThickness = (edges, context, { checkPartial = true } = {}) => {
+  const expected = Math.max(1, Math.round(dpr));
+  assert(edges.length > 0, `${context} exposes painted outline edges`);
+  assert(edges.every(({ sampleLines }) => sampleLines.every((line) =>
+    line.paintedDevicePixels === expected && (!checkPartial || line.partialCoverageDevicePixels.length === 0))),
+  `${context} edges paint exactly ${expected} complete device pixel(s)${checkPartial ? " without partial-coverage neighbors" : ""}: ${JSON.stringify(edges.map(({ selectionIndex, edge, sampleLines }) => ({ selectionIndex, edge, counts: sampleLines.map(({ paintedDevicePixels }) => paintedDevicePixels), partial: sampleLines.map(({ partialCoverageDevicePixels }) => partialCoverageDevicePixels) })))}`);
+
+  for (const selectionIndex of new Set(edges.map(({ selectionIndex }) => selectionIndex))) {
+    const counts = edges.filter((edge) => edge.selectionIndex === selectionIndex).map((edge) => edge.paintedDevicePixels);
+    assert(counts.every((count) => count === counts[0]), `${context} outline ${selectionIndex} paints all edges equally: ${JSON.stringify(counts)}`);
+  }
+};
 
 const cardState = () => page.evaluate(() => {
   const island = document.querySelector("[data-mesurer-island]");
@@ -574,6 +684,117 @@ try {
     "Physical preview click selects the intended target before the viewport narrows");
   await page.setViewportSize({ width: 442, height: 1000 });
   await setTargets();
+  await settle();
+  await hoverTarget("#root-only-target");
+  await page.waitForFunction(() => Boolean(document.querySelector("[data-mesurer-island]")?.shadowRoot
+    ?.querySelector("[data-mesurer-hover-measurement='true']")));
+
+  const hoverGeometry = await page.evaluate(() => {
+    const host = document.querySelector("[data-mesurer-island]");
+    const preview = host.shadowRoot.querySelector("iframe[data-mesurer-responsive-frame]");
+    const target = preview.contentDocument.querySelector("#root-only-target");
+    const frameRect = preview.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const scale = frameRect.width / preview.offsetWidth;
+
+    const projected = {
+      left: frameRect.left + (targetRect.left + preview.clientLeft) * scale,
+      top: frameRect.top + (targetRect.top + preview.clientTop) * scale,
+      right: frameRect.left + (targetRect.right + preview.clientLeft) * scale,
+      bottom: frameRect.top + (targetRect.bottom + preview.clientTop) * scale,
+    };
+
+    const hover = host.shadowRoot.querySelector("[data-mesurer-hover-measurement='true']");
+
+    return { projected, chrome: hover?.getBoundingClientRect().toJSON() ?? null };
+  });
+
+  artifact.runs.push({ name: "fractional-responsive-hover-geometry", metrics: hoverGeometry });
+
+  assert(hoverGeometry.chrome, "Responsive hover chrome remains rendered");
+
+  assert(Math.abs(hoverGeometry.projected.left % 1) > 0.01 || Math.abs(hoverGeometry.projected.top % 1) > 0.01,
+    `Responsive hover fixture projects to a fractional CSS-pixel position: ${JSON.stringify(hoverGeometry)}`);
+
+  for (const edge of ["left", "top", "right", "bottom"]) {
+    assert(Math.abs(hoverGeometry.chrome[edge] - hoverGeometry.projected[edge]) <= 1,
+      `Responsive hover ${edge} remains within 1 CSS px of projected target: ${JSON.stringify(hoverGeometry)}`);
+  }
+
+  const hoverScreenshot = await page.screenshot({ path: join(output, "responsive-hover-before.png"), scale: "device" });
+
+  const hoverBackground = await screenshotWithoutOutline(join(output, "responsive-hover-background.png"));
+
+  const hoverPaint = await measurePaintedEdges(hoverScreenshot, hoverBackground, "hover");
+
+  artifact.runs.push({ name: "responsive-hover-pixel-edges", metrics: { paintedEdges: hoverPaint } });
+
+  assert.equal(hoverPaint.length, 4, `Responsive hover paints all four edges: ${JSON.stringify(hoverPaint.map(({ edge }) => edge))}`);
+
+  assertPixelThickness(hoverPaint, "Responsive hover outline");
+
+  await page.mouse.move(page.viewportSize().width - 1, page.viewportSize().height - 1);
+
+  await settle();
+
+  await frame.evaluate((node) => node.contentWindow.scrollTo({ top: 170, behavior: "instant" }));
+
+  await settle();
+
+  const partiallyOffscreen = await page.evaluate(() => {
+    const host = document.querySelector("[data-mesurer-island]");
+    const preview = host.shadowRoot.querySelector("iframe[data-mesurer-responsive-frame]");
+    const target = preview.contentDocument.querySelector("#inspection-target");
+    const targetRect = target.getBoundingClientRect();
+    const frameRect = preview.getBoundingClientRect();
+    const scale = frameRect.width / preview.offsetWidth;
+
+    const projected = {
+      left: frameRect.left + (targetRect.left + preview.clientLeft) * scale,
+      top: frameRect.top + (targetRect.top + preview.clientTop) * scale,
+      right: frameRect.left + (targetRect.right + preview.clientLeft) * scale,
+      bottom: frameRect.top + (targetRect.bottom + preview.clientTop) * scale,
+    };
+
+    const clipped = {
+      left: Math.max(projected.left, frameRect.left),
+      top: Math.max(projected.top, frameRect.top),
+      right: Math.min(projected.right, frameRect.right),
+      bottom: Math.min(projected.bottom, frameRect.bottom),
+    };
+
+    const outline = host.shadowRoot.querySelector("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true']");
+
+    return {
+      source: targetRect.toJSON(),
+      frame: frameRect.toJSON(),
+      clipped,
+      chrome: outline?.getBoundingClientRect().toJSON() ?? null,
+    };
+  });
+
+  artifact.runs.push({ name: "partially-offscreen-responsive-selection-geometry", metrics: partiallyOffscreen });
+
+  assert(partiallyOffscreen.source.top < 0, `Target is partially above the preview viewport: ${JSON.stringify(partiallyOffscreen)}`);
+
+  assert(partiallyOffscreen.chrome, "Partially offscreen selection keeps rendered chrome");
+
+  for (const edge of ["left", "top", "right", "bottom"]) {
+    assert(Math.abs(partiallyOffscreen.chrome[edge] - partiallyOffscreen.clipped[edge]) <= 1,
+      `Partially offscreen chrome ${edge} matches the clipped projected target within 1 CSS px: ${JSON.stringify(partiallyOffscreen)}`);
+  }
+
+  const offscreenScreenshot = await page.screenshot({ path: join(output, "responsive-partially-offscreen-before.png"), scale: "device" });
+
+  const offscreenBackground = await screenshotWithoutOutline(join(output, "responsive-partially-offscreen-background.png"));
+
+  const offscreenPaint = await measurePaintedEdges(offscreenScreenshot, offscreenBackground);
+
+  artifact.runs.push({ name: "partially-offscreen-responsive-selection-pixel-edges", metrics: { paintedEdges: offscreenPaint } });
+
+  assertPixelThickness(offscreenPaint, "Partially offscreen Responsive selection");
+
+  await frame.evaluate((node) => node.contentWindow.scrollTo({ top: 0, behavior: "instant" }));
   await settle();
   // Sweep fractional source geometry so the contract cannot pass because one
   // selected position happened to land on favorable device-pixel boundaries.
@@ -674,6 +895,20 @@ try {
   assert(fractionalOutline.scale < 1 && fractionalOutline.scale > 0.9,
     `Narrow Fit should use fractional scale, got ${fractionalOutline.scale}`);
   assert.equal(fractionalOutline.dpr, dpr, `Contract runs at requested device scale factor ${dpr}`);
+  const fractionalPixels = fractionalOutline.paintedEdges;
+  const expectedDevicePixels = Math.max(1, Math.round(dpr));
+
+  const fractionalCounts = fractionalPixels.map(({ edge, paintedDevicePixels, sampleLines }) => ({
+    edge,
+    paintedDevicePixels,
+    partialCoverage: sampleLines.flatMap((line) => line.partialCoverageDevicePixels),
+  }));
+
+  artifact.runs.push({ name: "fractional-edge-thickness-assertion", metrics: { expectedDevicePixels, edges: fractionalCounts } });
+  assert(fractionalCounts.every(({ paintedDevicePixels, partialCoverage }) =>
+    paintedDevicePixels === expectedDevicePixels && partialCoverage.length === 0),
+  `Each Fit edge paints exactly ${expectedDevicePixels} complete device pixel(s), with no partial-coverage neighbors: ${JSON.stringify(fractionalCounts)}`);
+  assertPixelThickness(fractionalPixels, "Responsive selected Fit outline");
 
   await page.setViewportSize({ width: 1280, height: 800 });
   await settle();
@@ -693,6 +928,46 @@ try {
   assert.equal(scaleOneOutline.allMeasurementChrome, 1, "Only one measurement outline may paint over the selection at 1×");
   assert.equal(scaleOneOutline.overlappingChrome, 0, "No second outline may overlap the selection at 1×");
   assert.equal(scaleOneOutline.hoverOutlines, 0, "Selected targets must not retain overlapping hover chrome at 1×");
+
+  await page.getByRole("button", { name: "Close Responsive" }).click();
+  await settle();
+  await page.locator("#root-only-target").evaluate((element) => {
+    element.style.cssText = "position:absolute;left:116px;top:1260px;width:116px;height:48px;margin:0;padding:0;border:0;border-radius:0;box-sizing:border-box";
+  });
+
+  await page.evaluate(() => window.scrollTo({ top: 900, behavior: "instant" }));
+
+  await settle();
+
+  await page.evaluate(() => window.__MESURER__.select("#root-only-target"));
+
+  await page.waitForFunction(() => document.querySelector("[data-mesurer-selected-measurement='true']"));
+
+  await settle();
+
+  const rootScrollGeometry = await page.locator("#root-only-target").evaluate((target) => {
+    const chrome = document.querySelector("[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true']");
+    const targetRect = target.getBoundingClientRect();
+    const chromeRect = chrome?.getBoundingClientRect();
+
+    return {
+      scrollY: window.scrollY,
+      target: targetRect.toJSON(),
+      chrome: chromeRect?.toJSON() ?? null,
+      selected: Boolean(chrome),
+    };
+  });
+
+  artifact.runs.push({ name: "scrolled-root-page-selection-geometry", metrics: rootScrollGeometry });
+
+  assert(rootScrollGeometry.scrollY > 0, `Root-page scenario has scrolled the document: ${JSON.stringify(rootScrollGeometry)}`);
+
+  assert(rootScrollGeometry.chrome, "Document-portaled selection chrome remains mounted on a scrolled page");
+
+  for (const edge of ["left", "top", "right", "bottom"]) {
+    assert(Math.abs(rootScrollGeometry.chrome[edge] - rootScrollGeometry.target[edge]) <= 1,
+      `Scrolled root-page chrome ${edge} remains within 1 CSS px of target: ${JSON.stringify(rootScrollGeometry)}`);
+  }
 
   }
 
@@ -1365,8 +1640,18 @@ try {
     assert(multi.every(({ edges }) => edges.length === 4), `Each box has four visible edges: ${JSON.stringify(multi)}`);
     assert.equal(multiPaint.length, 8, `Both selected boxes paint all four edges: ${JSON.stringify(multiPaint.map(({ selectionIndex, edge }) => ({ selectionIndex, edge })))}`);
 
-    assert(multiPaint.every(({ sampleLines }) => sampleLines.every((line) => line.paintedDevicePixels >= 1)),
-      `Every multi-selection edge is visible in the screenshot pixels: ${JSON.stringify(multiPaint.map(({ selectionIndex, edge, sampleLines }) => ({ selectionIndex, edge, counts: sampleLines.map(({ paintedDevicePixels }) => paintedDevicePixels) })))}`);
+    const expectedDevicePixels = Math.max(1, Math.round(dpr));
+    assert(multiPaint.every(({ sampleLines }) => sampleLines.every((line) =>
+      line.paintedDevicePixels === expectedDevicePixels && line.partialCoverageDevicePixels.length === 0)),
+    `Every multi-selection edge paints exactly ${expectedDevicePixels} whole device pixel(s) without partial-coverage neighbors: ${JSON.stringify(multiPaint.map(({ selectionIndex, edge, sampleLines }) => ({ selectionIndex, edge, counts: sampleLines.map(({ paintedDevicePixels }) => paintedDevicePixels), partial: sampleLines.map(({ partialCoverageDevicePixels }) => partialCoverageDevicePixels) })))}`);
+
+    for (const selectionIndex of [0, 1]) {
+      const counts = multiPaint.filter((edge) => edge.selectionIndex === selectionIndex)
+        .map((edge) => edge.paintedDevicePixels);
+
+      assert(counts.every((count) => count === counts[0]),
+        `Multi-selection ${selectionIndex} paints all four edges at equal thickness: ${JSON.stringify(counts)}`);
+    }
 
     for (const selection of multi) {
       const { left, top, right, bottom } = selection.rect;
@@ -1429,10 +1714,135 @@ try {
     assertContained(expanded.card, visibleBounds.visibleStage, "Expanded card stays inside the visible stage");
   }
 
+  if (!focus || focus === "card-drag") {
+    await initializeScenario();
+    const card = page.locator("[data-mesurer-inspect-info-card]");
+    const header = card.locator("[data-mesurer-inspect-header]");
+
+    const outlineRect = () => page.locator("[data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true']")
+      .boundingBox();
+
+    const measurementCount = () => page.locator("[data-mesurer-measurement-chrome='true']").count();
+    const initial = await cardState();
+    const selectedBefore = await selectionState();
+    const boxBefore = await outlineRect();
+    const measurementsBefore = await measurementCount();
+    assert(initial && boxBefore, "Card drag starts with a rendered card and selected outline");
+    const headerBox = await header.boundingBox();
+    assert(headerBox, "Responsive card header is rendered");
+    assert.equal(await header.evaluate((element) => getComputedStyle(element).cursor), "grab",
+      "Responsive card header advertises its drag affordance");
+    await page.screenshot({ path: join(output, "responsive-card-drag-before.png"), scale: "device" });
+    const clipboardSentinel = "responsive-card-drag-must-not-copy";
+    await page.evaluate((value) => navigator.clipboard.writeText(value), clipboardSentinel);
+    await page.mouse.move(headerBox.x + 4, headerBox.y + headerBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(headerBox.x + 4 - 200, headerBox.y + headerBox.height / 2 + 150, { steps: 12 });
+    assert.equal(await header.evaluate((element) => getComputedStyle(element).cursor), "grabbing",
+      "Responsive card header shows grabbing during the drag");
+    await page.mouse.up();
+    await settle();
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), clipboardSentinel,
+      "Dragging the selector header does not copy its selector");
+    assert.equal(await card.getByRole("status").count(), 0,
+      "Dragging the selector header does not show copy feedback");
+    const dragged = await cardState();
+    const selectedAfter = await selectionState();
+    const boxAfter = await outlineRect();
+    const measurementsAfter = await measurementCount();
+    artifact.runs.push({ name: "card-drag-delta", metrics: {
+      before: initial, after: dragged, selectedBefore, selectedAfter, boxBefore, boxAfter,
+      measurementsBefore, measurementsAfter,
+    } });
+    assert(dragged && boxAfter, "Dragged card and selection outline remain rendered");
+    assert(Math.abs(dragged.card.left - (initial.card.left - 200)) <= 1
+      && Math.abs(dragged.card.top - (initial.card.top + 150)) <= 1,
+    `Header drag follows the exact CSS-pixel pointer delta: ${JSON.stringify({ before: initial.card, after: dragged.card })}`);
+    assert.deepEqual(selectedAfter, selectedBefore, "Dragging the card preserves the preview selection");
+    assert.deepEqual(boxAfter, boxBefore, "Dragging the card does not move the selection box");
+    assert.equal(measurementsAfter, measurementsBefore, "Dragging the card creates no measurement");
+    assert.equal(await card.getAttribute("data-mesurer-responsive-dragging"), null,
+      "Card returns to its non-dragging state after release");
+    await page.screenshot({ path: join(output, "responsive-card-drag-after.png"), scale: "device" });
+
+    await page.setViewportSize({ width: 442, height: 250 });
+    await settle();
+    const afterResize = await cardState();
+    assert(afterResize, "Dragged card remains rendered after the viewport resize");
+    assertContained(afterResize.card, afterResize.visibleStage, "Resizing re-clamps the dragged card to the visible stage");
+    artifact.runs.push({ name: "card-drag-resize-clamp", metrics: { before: dragged, after: afterResize } });
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await settle();
+
+    const beforeClamp = await cardState();
+    const clampHeader = await header.boundingBox();
+    assert(clampHeader, "Card header remains available for the clamp drag");
+    await page.mouse.move(clampHeader.x + 4, clampHeader.y + clampHeader.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(page.viewportSize().width + 1200, page.viewportSize().height + 900, { steps: 12 });
+    await page.mouse.up();
+    await settle();
+    const afterClamp = await cardState();
+    assert(beforeClamp && afterClamp, "Card remains rendered after the far drag");
+    assertContained(afterClamp.card, afterClamp.visibleStage, "Far-dragged card stays inside visible stage and viewport");
+    artifact.runs.push({ name: "card-drag-clamp", metrics: { before: beforeClamp, after: afterClamp } });
+
+    await select("#root-only-target");
+    const afterSelectionChange = await cardState();
+    artifact.runs.push({ name: "card-drag-selection-change", metrics: { dragged: afterClamp, after: afterSelectionChange } });
+    assert(afterSelectionChange, "Card remounts for the new Responsive selection");
+    assert(Math.abs(afterSelectionChange.card.left - afterClamp.card.left) <= 1
+      && Math.abs(afterSelectionChange.card.top - afterClamp.card.top) <= 1,
+    `Card keeps its dragged position when selection changes: ${JSON.stringify({ afterClamp: afterClamp.card, afterSelectionChange: afterSelectionChange.card })}`);
+
+    const beforeClick = await cardState();
+    const clickHeader = await header.boundingBox();
+    assert(clickHeader, "Header remains rendered for the click threshold check");
+    await page.mouse.click(clickHeader.x + 4, clickHeader.y + clickHeader.height / 2);
+    await settle();
+    const afterClick = await cardState();
+    artifact.runs.push({ name: "card-drag-header-click", metrics: { before: beforeClick, after: afterClick } });
+    assert(beforeClick && afterClick, "Card remains rendered after a non-drag click");
+    assert.deepEqual(afterClick.card, beforeClick.card, "A header click below the drag threshold does not move the card");
+    await header.locator("[data-mesurer-inspect-selector]").click();
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), "#root-only-target",
+      "A click on the header selector still copies its value");
+
+    const closeResponsive = async () => {
+      const close = page.locator("[data-mesurer-island]").evaluate((host) => {
+        const button = host.shadowRoot?.querySelector("button[aria-label='Close Responsive']");
+
+        if (!button) return false;
+        button.click();
+
+        return true;
+      });
+
+      if (!await close) await page.keyboard.press("Escape");
+      await page.waitForFunction(() => !document.querySelector("[data-mesurer-island]")?.shadowRoot
+        ?.querySelector("[data-mesurer-responsive-stage]"));
+    };
+
+    await closeResponsive();
+    await page.locator("[data-mesurer-builtin='responsive'] button").click();
+    await frame.contentFrame().locator("#inspection-target").waitFor();
+    await setTargets();
+    await settle();
+    await select("#inspection-target");
+    const reopened = await cardState();
+    artifact.runs.push({ name: "card-drag-reopen-placement", metrics: { automatic: initial, reopened } });
+    assert(reopened, "Responsive card returns after reopening and selecting a target");
+    assert(Math.abs(reopened.card.left - initial.card.left) <= 1
+      && Math.abs(reopened.card.top - initial.card.top) <= 1,
+    `Reopening Responsive restores automatic placement: ${JSON.stringify({ initial: initial.card, reopened: reopened.card })}`);
+    assert.deepEqual(errors, [], `Card-drag browser diagnostics are clean: ${errors.join("\n")}`);
+  }
+
   assert.deepEqual(errors, [], `Browser diagnostics are clean: ${errors.join("\n")}`);
 
-  const pixelFailures = artifact.runs.filter((run) => run.metrics?.paintedEdges?.some((edge) =>
-    edge.sampleLines.some((line) => line.paintedDevicePixels < 1)));
+  const pixelFailures = artifact.runs.filter((run) => run.name === "fractional-edge-thickness-assertion"
+    && run.metrics.edges.some((edge) => edge.paintedDevicePixels !== run.metrics.expectedDevicePixels
+      || edge.partialCoverage.length > 0));
 
   artifact.pixelFailures = pixelFailures.map(({ name }) => name);
 
