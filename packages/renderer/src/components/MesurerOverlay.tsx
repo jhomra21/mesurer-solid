@@ -69,6 +69,11 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const [hoverChromeDpr, setHoverChromeDpr] = createSignal(1);
   const [motionSurfaceActive, setMotionSurfaceActive] = createSignal(false);
   const [contextSurfaceActive, setContextSurfaceActive] = createSignal(false);
+  const [responsiveCardPosition, setResponsiveCardPosition] = createSignal<{ left: number; top: number } | null>(null);
+
+  createEffect(() => props.responsiveOpen, (open) => {
+    if (!open) setResponsiveCardPosition(null);
+  });
 
   const spacingInteraction: SelectionSpacingInteraction = {
     expandedKey: expandedSpacingGroup,
@@ -849,6 +854,12 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
             ownerWindow={overlayElement!.ownerDocument.defaultView!}
             theme={props.model.state.settings.theme}
             documentMounted
+            responsivePosition={props.responsiveOpen && responsivePreviewVisibleRect(selected().element.ownerDocument) !== undefined
+              ? responsiveCardPosition()
+              : null}
+            onResponsivePositionChange={props.responsiveOpen && responsivePreviewVisibleRect(selected().element.ownerDocument) !== undefined
+              ? setResponsiveCardPosition
+              : undefined}
             layoutDetailsEnabled={props.model.state.settings.layoutDetailsEnabled}
             singleSelection={props.model.state.selectedMeasurements.length <= 1}
           />
