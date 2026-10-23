@@ -15,6 +15,10 @@ The current audit advances from upstream `7f3f0a49ca538fea3d4bdeb8dc0d830a516782
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
+### Selection outline paint
+
+Mesurer Solid snaps painted selection and hover outline bounds to the owning overlay window's device-pixel grid and gives each visible edge an equal, whole-device-pixel thickness (rounded DPR device pixels, for example 2 pixels at DPR 2). This is a deliberate divergence from upstream's plain 1 CSS px edges so scaled Responsive previews remain visually even at fractional DPR. Measurement and label geometry remains unsnapped. This behavior applies to Responsive overlay outlines, not the main-page source outline.
+
 
 ## Visual parity baselines
 

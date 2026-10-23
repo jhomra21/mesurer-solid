@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
 import { Portal } from "@solidjs/web";
 import { GUIDE_DRAG_HOLD_MS, GUIDE_HITBOX_SIZE, MEASURE_LABEL_OFFSET } from "../core/constants";
 import { getInspectMeasurement, getRectFromDom } from "../core/dom";
@@ -14,6 +14,7 @@ import { hasNativeScrollAnchoring } from "../runtime/native-scroll-registry";
 import { ensureMesurerStyles } from "../runtime/style-inject";
 import { MESURER_STYLES } from "../styles.generated";
 import { intersectRect, responsivePreviewVisibleRect } from "../runtime/responsive-preview-geometry";
+import { chromeEdgeThickness, snapChromeRect } from "../runtime/device-pixel-chrome";
 import { DistanceOverlayItem, type SelectionSpacingInteraction } from "./DistanceOverlayItem";
 import { MeasurementBox } from "./MeasurementBox";
 import { InspectInfoCard } from "./InspectInfoCard";
@@ -65,6 +66,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const [expandedSpacingGroup, setExpandedSpacingGroup] = createSignal<string | null>(null);
   const [pinnedSpacingGroup, setPinnedSpacingGroup] = createSignal<string | null>(null);
   const [selectionDocumentTarget, setSelectionDocumentTarget] = createSignal<HTMLElement | null>(null);
+  const [hoverChromeDpr, setHoverChromeDpr] = createSignal(1);
   const [motionSurfaceActive, setMotionSurfaceActive] = createSignal(false);
   const [contextSurfaceActive, setContextSurfaceActive] = createSignal(false);
   const [responsiveCardPosition, setResponsiveCardPosition] = createSignal<{ left: number; top: number } | null>(null);
@@ -108,6 +110,27 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   // but preserve the resulting opacity: 1 - (1 - alpha)^2.
   const selectedOutline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 96%, transparent)`;
   const selectedFill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 15.36%, transparent)`;
+  createEffect(() => hoverChromeDpr(), (dpr) => {
+    const ownerWindow = overlayElement?.ownerDocument.defaultView;
+
+    if (!ownerWindow) return;
+
+    if (dpr !== ownerWindow.devicePixelRatio) {
+      setHoverChromeDpr(ownerWindow.devicePixelRatio || 1);
+
+      return;
+    }
+
+    const resolution = ownerWindow.matchMedia(`(resolution: ${dpr}dppx)`);
+    const update = () => setHoverChromeDpr(ownerWindow.devicePixelRatio || 1);
+    resolution.addEventListener("change", update);
+    onCleanup(() => resolution.removeEventListener("change", update));
+  });
+  onSettled(() => {
+    const ownerWindow = overlayElement?.ownerDocument.defaultView;
+
+    if (ownerWindow) setHoverChromeDpr(ownerWindow.devicePixelRatio || 1);
+  });
   const selectedMeasurements = createMemo(() => props.model.state.selectedMeasurements);
   const [previewGeometryRevision, setPreviewGeometryRevision] = createSignal(0);
   onSettled(() => {
@@ -373,6 +396,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     // context, so preview hover chrome needs an explicit layer to paint above it.
     const zIndex = documentLayer || previewVisible ? "2147482700" : undefined;
     const offset = hoverPortalOffset();
+    const paintedRect = snapChromeRect(rect, hoverChromeDpr(), offset.x, offset.y);
+    const edgeThickness = chromeEdgeThickness(hoverChromeDpr());
 
     return <div
       ref={(element) => { hoverChromeElement = element; }}
@@ -383,19 +408,16 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         position: "absolute",
         "pointer-events": "none",
         "z-index": zIndex,
-        left: `${rect.left + offset.x}px`,
-        top: `${rect.top + offset.y}px`,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
+        ...paintedRect,
         "background-color": fill(),
         transition: "none",
         animation: "none",
       }}
     >
-      <Show when={hoverEdges()?.top}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ position: "absolute", left: "0", top: "0", height: "1px", width: "100%", "background-color": outline() }} /></Show>
-      <Show when={hoverEdges()?.right}><div class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ position: "absolute", right: "0", top: "0", height: "100%", width: "1px", "background-color": outline() }} /></Show>
-      <Show when={hoverEdges()?.bottom}><div class="msr:absolute msr:bottom-0 msr:left-0 msr:h-px msr:w-full" style={{ position: "absolute", bottom: "0", left: "0", height: "1px", width: "100%", "background-color": outline() }} /></Show>
-      <Show when={hoverEdges()?.left}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ position: "absolute", left: "0", top: "0", height: "100%", width: "1px", "background-color": outline() }} /></Show>
+      <Show when={hoverEdges()?.top}><svg data-mesurer-hover-edge="top" class="msr:absolute msr:left-0 msr:top-0 msr:w-full" style={{ position: "absolute", left: "0", top: "0", height: `${edgeThickness}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="0" y1="50%" x2="100%" y2="50%" stroke={outline()} stroke-width={edgeThickness} /></svg></Show>
+      <Show when={hoverEdges()?.right}><svg data-mesurer-hover-edge="right" class="msr:absolute msr:right-0 msr:top-0 msr:h-full" style={{ position: "absolute", right: "0", top: "0", width: `${edgeThickness}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="50%" y1="0" x2="50%" y2="100%" stroke={outline()} stroke-width={edgeThickness} /></svg></Show>
+      <Show when={hoverEdges()?.bottom}><svg data-mesurer-hover-edge="bottom" class="msr:absolute msr:bottom-0 msr:left-0 msr:w-full" style={{ position: "absolute", bottom: "0", left: "0", height: `${edgeThickness}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="0" y1="50%" x2="100%" y2="50%" stroke={outline()} stroke-width={edgeThickness} /></svg></Show>
+      <Show when={hoverEdges()?.left}><svg data-mesurer-hover-edge="left" class="msr:absolute msr:left-0 msr:top-0 msr:h-full" style={{ position: "absolute", left: "0", top: "0", width: `${edgeThickness}px`, overflow: "visible", "shape-rendering": "crispEdges" }}><line x1="50%" y1="0" x2="50%" y2="100%" stroke={outline()} stroke-width={edgeThickness} /></svg></Show>
     </div>;
   };
 
@@ -566,11 +588,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       const documentLayer = chrome.dataset.mesurerDocumentHoverLayer === "true";
       const offsetX = documentLayer ? ownerWindow.scrollX : 0;
       const offsetY = documentLayer ? ownerWindow.scrollY : 0;
+      const paintedRect = snapChromeRect(rect, hoverChromeDpr(), offsetX, offsetY);
       Object.assign(chrome.style, {
-        left: `${rect.left + offsetX}px`,
-        top: `${rect.top + offsetY}px`,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
+        ...paintedRect,
       });
     };
 

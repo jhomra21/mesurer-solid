@@ -17,6 +17,19 @@ globalThis.ResizeObserver ??= class implements ResizeObserver {
   disconnect() {}
 };
 
+// jsdom has no media query engine. Device-pixel and reduced-motion behavior is
+// covered by browser contracts; renderer tests only need a non-matching query.
+window.matchMedia ??= (query: string): MediaQueryList => ({
+  matches: false,
+  media: query,
+  onchange: null,
+  addEventListener() {},
+  removeEventListener() {},
+  addListener() {},
+  removeListener() {},
+  dispatchEvent: () => false,
+});
+
 const inheritedEditableState = (element: HTMLElement): boolean => {
   const state = explicitEditableState(element);
 

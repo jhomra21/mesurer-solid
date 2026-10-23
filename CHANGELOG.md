@@ -5,6 +5,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 ## Unreleased
 
 - In Responsive previews, drag the selected Inspect info card by its header to move it out of the way; its position persists across selection changes, stays clamped to the visible stage, and resets when Responsive closes.
+- Snap Responsive selection and hover outlines to the overlay window's device-pixel grid, keeping all visible edges an equal, whole-device-pixel thickness (rounded DPR device pixels).
 
 <!-- Add user-facing changes here before preparing a release. -->
 
