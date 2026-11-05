@@ -4,7 +4,7 @@ Framework-agnostic UI inspection, measurement, visual intent, and agent-readable
 
 Mesurer Solid ships its own isolated Solid 2 renderer. Host applications can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without providing Solid.
 
-**Current stable:** `mesurer-solid@0.2.4` on the `latest` dist-tag.
+**Current stable:** `mesurer-solid@0.2.5` on the `latest` dist-tag.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jhomra21/mesurer-solid/main/docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">
@@ -112,7 +112,7 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Keep saved annotations across same-tab reloads and conservatively rebind them to their original DOM targets; markers, cards, and ownership evidence stay attached through scrolling, repeated-note markers stay local, Add Note remains available while a note is open, and cards/composers occlude Select hover and selection chrome.
 - Extend the runtime with tools, settings, overlays, commands, hooks, state, and services.
 - Compact the toolbar to the current mode and active tools with their pressed state, while keeping the expand control visible; the Settings shortcut remains available when shortcuts are enabled.
-- Keep Free dragging by default, or choose **Settings > General > Dock > Snap to edges** for edge/corner docking and vertical side layouts. The optional **Auto-hide** switch appears in Snap mode. Edge, alignment, and orientation follow the toolbar's existing tab-session placement lifetime.
+- Keep Free dragging by default, or choose **Settings > General > Dock > Snap to edges** for edge/corner docking and vertical side layouts. Docked vertical toolbars use the same centered single-column arrangement, menu chevrons beneath their icons, horizontal dividers, and centered mode switch as the horizontal layout. The optional **Auto-hide** switch appears in Snap mode. Edge, alignment, and orientation follow the toolbar's existing tab-session placement lifetime.
 - Choose System, Light, or Dark appearance while keeping the same theme across isolated and document-backed Mesurer UI.
 
 Use `1` for Select and `2` for Edit. Select owns X-ray, Color Picker, Typography, Screenshot, Recording, and built-in Motion inspection, including across accessible same-origin iframes. Edit owns movement and direct text/style changes. Rulers, Guides, and Layout Guides remain usable in both modes; Context and Codex remain visible in both modes. The grouped toolbar changes modes in 150 ms. `Shift+A` still enters Edit as a compatibility shortcut.
