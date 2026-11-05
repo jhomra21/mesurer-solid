@@ -6,6 +6,19 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.2.5 - 2026-11-05
+
+- Replace tabbed Settings with the sectioned upstream panel (Guides, Inspect, Color picker, Rulers, General), 252px wide, ported from upstream `5c2fdae`. Every Solid setting keeps its persisted key and default and sits in its matching section, including plugin settings, presentation switches, Appearance, Shortcuts, dock/auto-hide, Persist, Inspect info card, and Selection spacing.
+- The Color picker format multi-select refuses to remove the last selected format, matching upstream `5c2fdae`; previously Solid fell back to `hex`.
+- Dark menus use the toolbar surface and a fine light edge line (upstream `300558e`).
+- Pressing inside a Responsive preview closes an open toolbar menu (upstream `c420f57`); removing a preview hides its markers immediately and keeps saved notes (upstream `2b84e88`).
+- In Responsive previews, drag the selected Inspect info card by its header to move it out of the way; its position persists across selection changes, stays clamped to the visible stage, and resets when Responsive closes.
+- Snap Responsive selection and hover outlines to the overlay window's device-pixel grid, keeping all visible edges an equal, whole-device-pixel thickness (rounded DPR device pixels).
+- Keep hover outlines visible over unselected elements in Responsive multi-selections.
+- In Responsive previews, closing the stage no longer leaves a selection box on the page, each element in a multi-selection shows its own outline, and selection outlines always frame the selected element (0.2.5-beta.0 could draw them shorter than the box).
+- Make left- and right-docked toolbars match the horizontal toolbar: a centered single column with menu chevrons under their icons, horizontal dividers, and a centered mode switch. Docked toolbars also stay centered and aligned after dragging between horizontal and vertical orientations.
+- In Responsive previews, Shift-click and Shift-marquee now reach elements under a selected element's Inspect card, including when Shift is held before the card appears. In narrow stages the card sits above or below the selection instead of covering it, selection outlines keep even edges at fractional zoom levels, and the selected element no longer shows a duplicate hover outline.
+
 ## 0.2.5-beta.3 - 2026-11-05
 
 - Replace tabbed Settings with the sectioned upstream panel (Guides, Inspect, Color picker, Rulers, General), 252px wide, ported from upstream `5c2fdae`. Every Solid setting keeps its persisted key and default and sits in its matching section, including plugin settings, presentation switches, Appearance, Shortcuts, dock/auto-hide, Persist, Inspect info card, and Selection spacing.
