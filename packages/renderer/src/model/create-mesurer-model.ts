@@ -12,7 +12,7 @@ export type {
   MesurerModelOptions,
   MesurerModelState,
   MesurerSettings,
-  SettingsTab,
+  SettingsFocus,
 } from "@jhomra21/mesurer-solid-core";
 
 export type MesurerModel = MesurerCoreModel<Element> & {

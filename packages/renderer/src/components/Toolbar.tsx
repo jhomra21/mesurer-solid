@@ -76,7 +76,7 @@ const TOOL_MENU_CHROME_HEIGHT = 8;
 
 const TOOL_MENU_GAP = 8;
 
-const SETTINGS_MENU_WIDTH = 272;
+const SETTINGS_MENU_WIDTH = 252;
 
 const VIEWPORT_PADDING = 8;
 
@@ -1633,7 +1633,7 @@ export function Toolbar(props: ToolbarProps) {
             <ToolbarButton id="settings" builtin="settings" active={settingsActive()} label="Settings" shortcut="⌘/Ctrl+," onClick={() => props.onBuiltinAction("settings")} {...buttonProps("settings")}><GearIcon size={20} /></ToolbarButton>
             <Show when={props.model.state.settingsOpen && !compact()}>
               <div
-                class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:max-h-[calc(100vh-16px)] msr:overflow-y-auto msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
+                class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:box-border msr:flex msr:w-[252px] msr:max-w-[calc(100vw-16px)] msr:max-h-[calc(100vh-16px)] msr:flex-col msr:overflow-hidden msr:rounded-lg msr:bg-white msr:p-0 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
                 style={{ left: `${settingsMenuLeft()}px`, right: "auto" }}
                 data-mesurer-inspector-ui="true"
                 role="dialog"
@@ -1659,7 +1659,7 @@ export function Toolbar(props: ToolbarProps) {
           data-mesurer-inspector-ui="true"
           role="dialog"
           aria-label="Settings"
-          class={`mesurer-menu-surface msr:pointer-events-auto msr:absolute msr:z-[110] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:max-h-[calc(100vh-16px)] msr:overflow-y-auto msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
+          class={`mesurer-menu-surface msr:pointer-events-auto msr:absolute msr:z-[110] msr:box-border msr:flex msr:w-[252px] msr:max-w-[calc(100vw-16px)] msr:max-h-[calc(100vh-16px)] msr:flex-col msr:overflow-hidden msr:rounded-lg msr:bg-white msr:p-0 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
           style={{ left: `${settingsMenuLeft()}px`, right: "auto" }}
           onPointerDown={(event) => event.stopPropagation()}
           onPointerUp={(event) => event.stopPropagation()}

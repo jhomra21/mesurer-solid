@@ -36,12 +36,6 @@ async function realClick(locator) {
 
 const button = (page, name) => page.getByRole("button", { name });
 
-const tab = (page, name) => page.getByRole("tab", { name });
-
-const sw = (page, name) => page.getByRole("switch", { name });
-
-const radio = (page, name) => page.getByRole("radio", { name });
-
 const selectToolButton = (page, implementation) => button(
   page,
   implementation === "solid" ? /^Select \(S\)$/ : /^Select/,
@@ -61,20 +55,6 @@ const canonicalTooltipText = (text, implementation) =>
 async function openSettings(page) {
   await realClick(button(page, /^Settings/));
   await page.getByRole("dialog", { name: "Settings" }).waitFor();
-  await sleep(page, 80);
-}
-
-async function openSettingsTab(page, name) {
-  await openSettings(page);
-  await realClick(tab(page, name));
-  // Compare the settled selected-tab surface rather than browser-specific
-  // pointer/focus rasterization left behind by a real mouse click.
-  await page.evaluate(() => {
-    const active = document.activeElement;
-
-    if (active instanceof HTMLElement) active.blur();
-  });
-  await page.mouse.move(900, 700);
   await sleep(page, 80);
 }
 
@@ -122,46 +102,11 @@ const normalizeHistoricalToolbarMode = async (page, implementation, caseName) =>
   });
 };
 
-// Normalization removes the dock row from the live DOM, and Settings stays
-// open across cases, so the row is required only until validated on a page.
-const pagesWithValidatedDock = new WeakSet();
-
-// Interaction parity compares the upstream-shared controls. Solid-only,
-// explicitly plugin-owned settings are exercised by browser-contracts instead.
+// Interaction parity compares the upstream-shared controls. Settings is the
+// sectioned panel now and is compared with current upstream separately.
 async function normalizeSharedParitySurface(page, implementation, caseName) {
   if (implementation !== "solid") return;
   let changed = false;
-
-  // v0.0.11 predates Appearance. Verify the current-only control before
-  // removing it from the historical interaction snapshot. The dedicated theme
-  // browser contract owns current system/light/dark behavior and token values.
-  const appearance = page.getByRole("combobox", { name: "Appearance" });
-
-  if ((await appearance.count()) > 0) {
-    const contract = await appearance.evaluate((select) => ({
-      value: select.value,
-      options: [...select.options].map((option) => ({
-        label: option.textContent?.trim() ?? "",
-        value: option.value,
-      })),
-    }));
-
-    const expected = {
-      value: "system",
-      options: [
-        { label: "System", value: "system" },
-        { label: "Light", value: "light" },
-        { label: "Dark", value: "dark" },
-      ],
-    };
-
-    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
-      throw new Error(`Unexpected current Appearance contract: ${JSON.stringify(contract)}`);
-    }
-
-    await appearance.evaluate((select) => select.parentElement?.remove());
-    changed = true;
-  }
 
   // Preserve the old source-parity gate as a v0.0.11 visual/interaction test.
   // Removing only the current theme selector makes Solid render through the
@@ -170,125 +115,8 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     '[data-mesurer-root="true"][data-theme], [data-mesurer-inspector-ui="true"][data-theme], [data-mesurer-isolated-document-layer="true"][data-theme]',
   );
 
-  let themeRemoved = false;
-
   if ((await themedNodes.count()) > 0) {
     await themedNodes.evaluateAll((nodes) => nodes.forEach((node) => node.removeAttribute("data-theme")));
-    themeRemoved = true;
-  }
-
-  const toolbarDock = page.getByRole("combobox", { name: "Toolbar dock" });
-
-  const generalSettingsVisible = await page.getByRole("dialog", { name: "Settings" })
-    .getByRole("tab", { name: "General", selected: true }).count() > 0;
-
-  if (generalSettingsVisible && !pagesWithValidatedDock.has(page) && (await toolbarDock.count()) !== 1) {
-    throw new Error(`Expected exactly one visible Toolbar dock control, found ${await toolbarDock.count()}.`);
-  }
-
-  if (await toolbarDock.count() > 0) {
-    if (await toolbarDock.count() !== 1) {
-      throw new Error("Expected exactly one Toolbar dock control in Settings.");
-    }
-
-    const contract = await toolbarDock.evaluate((select) => ({
-      tag: select.tagName.toLowerCase(),
-      value: select.value,
-      options: [...select.options].map((option) => ({
-        label: option.textContent?.trim() ?? "",
-        value: option.value,
-        selected: option.selected,
-        disabled: option.disabled,
-      })),
-    }));
-
-    const dock = contract.value;
-
-    if (
-      contract.tag !== "select"
-      || !["free", "snap"].includes(dock)
-      || JSON.stringify(contract.options) !== JSON.stringify([
-        { label: "Free", value: "free", selected: dock === "free", disabled: false },
-        { label: "Snap to edges", value: "snap", selected: dock === "snap", disabled: false },
-      ])
-    ) {
-      throw new Error(`Unexpected current Toolbar dock contract: ${JSON.stringify(contract)}`);
-    }
-
-    const autoHide = page.getByRole("switch", { name: "Auto-hide" });
-
-    const expectedAutoHideCount = dock === "snap" ? 1 : 0;
-
-    if (await autoHide.count() !== expectedAutoHideCount) {
-      throw new Error(`Expected ${expectedAutoHideCount} Auto-hide control(s) for ${dock} docking.`);
-    }
-
-    if (expectedAutoHideCount) {
-      const checked = await autoHide.getAttribute("aria-checked");
-
-      if (checked !== "true" && checked !== "false") {
-        throw new Error(`Unexpected Auto-hide switch state: ${checked}`);
-      }
-
-      await autoHide.evaluate((element) => element.remove());
-    }
-
-    await toolbarDock.evaluate((select) => select.parentElement?.remove());
-    pagesWithValidatedDock.add(page);
-    changed = true;
-  }
-
-  const presentationSettings = page.locator("[data-mesurer-presentation-settings='true']");
-
-  if ((await presentationSettings.count()) > 0) {
-    const contract = await presentationSettings.getByRole("switch").evaluateAll((nodes) =>
-      nodes.map((node) => ({
-        label: node.getAttribute("aria-label"),
-        checked: node.getAttribute("aria-checked"),
-      })),
-    );
-
-    const expected = [
-      { label: "Keep text changes", checked: "false" },
-      { label: "Keep Edit changes", checked: "false" },
-    ];
-
-    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
-      throw new Error(`Unexpected current presentation settings contract: ${JSON.stringify(contract)}`);
-    }
-
-    await presentationSettings.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
-    changed = true;
-  }
-
-  const inspectExtensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-current-only-extension]');
-
-  if ((await inspectExtensions.count()) > 0) {
-    const contract = await inspectExtensions.evaluateAll((nodes) => nodes.map((node) => ({
-      id: node.getAttribute("data-mesurer-current-only-extension"),
-      value: node.querySelector("select")?.value ?? node.getAttribute("aria-checked"),
-    })));
-
-    const expected = [
-      { id: "inspect-info-mode", value: "off" },
-      { id: "inspect-info-layout", value: "true" },
-    ];
-
-    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
-      throw new Error(`Unexpected current-only Inspect Settings controls: ${JSON.stringify(contract)}`);
-    }
-
-    await inspectExtensions.evaluateAll((nodes) => nodes.forEach((node) => (node.closest("label") ?? node).remove()));
-    changed = true;
-  }
-
-  const extensions = page.locator(
-    "[data-mesurer-distance='true'], [data-mesurer-plugin-settings='true']",
-  );
-
-  if ((await extensions.count()) > 0) {
-    await extensions.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
-    changed = true;
   }
 
   // The production browser and isolated-scroll contracts separately verify the
@@ -309,22 +137,9 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     }
   }
 
-  // The removed Solid-only rows sit above Persist, so removing them moves the
-  // switch out from under the pointer that just clicked it. Return the pointer
-  // to the switch, where it rests in the upstream capture.
-  if (caseName === "settings-general-persist-toggle" && changed) {
-    await sw(page, "Persist").hover();
-  }
-
-  const settingsVisible = await page.getByRole("dialog", { name: "Settings" }).isVisible();
-
-  if (changed || (themeRemoved && settingsVisible)) {
-    // Settings controls animate colors for 150ms. When this historical fixture
-    // removes the current theme selector, let only those visible controls reach
-    // their preserved v0.0.11 colors before capture. Avoid adding this delay to
-    // toolbar-only cases because it can cross the tooltip-open threshold.
-    await sleep(page, 240);
-  }
+  // Releasing the anchor changes paint ownership; let it settle before capture. Toolbar-only
+  // cases skip this delay because it can cross the tooltip-open threshold.
+  if (changed) await sleep(page, 240);
 }
 
 async function stateSnapshot(page, implementation) {
@@ -341,28 +156,6 @@ async function stateSnapshot(page, implementation) {
     ...item,
     label: canonicalToolbarLabel(item.label, implementation),
   }));
-
-  const selectedTab = await page.locator('[role="tab"][aria-selected="true"]').allTextContents();
-
-  const switches = await page.locator('[role="switch"]:visible').evaluateAll((nodes) =>
-    nodes.map((node) => ({ text: node.textContent?.trim() ?? "", checked: node.getAttribute("aria-checked") })),
-  );
-
-  const radios = await page.locator('[role="radio"]:visible').evaluateAll((nodes) =>
-    nodes.map((node) => ({ label: node.getAttribute("aria-label"), checked: node.getAttribute("aria-checked") })),
-  );
-
-  const settingsPressed = await page.locator('[role="dialog"][aria-label="Settings"] button[aria-pressed]:visible').evaluateAll((nodes) =>
-    nodes.map((node) => ({ text: node.textContent?.trim() ?? "", pressed: node.getAttribute("aria-pressed") })),
-  );
-
-  const sliders = await page.locator('[role="slider"]:visible').evaluateAll((nodes) =>
-    nodes.map((node) => ({ label: node.getAttribute("aria-label"), value: node.getAttribute("aria-valuenow") })),
-  );
-
-  const selects = await page.locator('[role="dialog"][aria-label="Settings"] select:visible').evaluateAll((nodes) =>
-    nodes.map((node) => ({ value: /** @type {HTMLSelectElement} */ (node).value })),
-  );
 
   const guideIconTransform = await button(page, /^Guides/).locator("svg").first().evaluate((node) => getComputedStyle(node).transform);
 
@@ -397,12 +190,6 @@ async function stateSnapshot(page, implementation) {
   return {
     toolbarButtons,
     settingsOpen: await page.getByRole("dialog", { name: "Settings" }).count() > 0,
-    selectedTab,
-    switches,
-    radios,
-    settingsPressed,
-    sliders,
-    selects,
     xrayActive: await page.locator("body").evaluate((body) => body.classList.contains("xray-mode") || body.classList.contains("mesurer-solid-xray")),
     rulersVisible: await page.locator('[data-mesurer-rulers="true"]').count() > 0,
     colorPickerVisible: await page.locator(".mesurer-color-picker").count() > 0,
@@ -435,7 +222,6 @@ const cases = [
   { name: "toolbar-orientation-menu-open", run: openOrientation },
   { name: "toolbar-orientation-horizontal", run: async (p) => { await openOrientation(p); await realClick(button(p, "Horizontal")); } },
   { name: "toolbar-orientation-vertical", run: async (p) => { await openOrientation(p); await realClick(button(p, "Horizontal")); await sleep(p, 50); await openOrientation(p); await realClick(button(p, "Vertical")); } },
-  { name: "toolbar-settings-open", allowVersionDiff: true, run: openSettings },
   { name: "toolbar-settings-close", run: async (p) => { await openSettings(p); await realClick(button(p, /^Settings/)); } },
 
   { name: "action-select-target", run: async (p, implementation) => {
@@ -502,40 +288,12 @@ const cases = [
   { name: "action-guide-create-horizontal", run: async (p) => { await openOrientation(p); await realClick(button(p, "Horizontal")); await sleep(p, 80); await p.mouse.click(620, 400); await sleep(p, 180); } },
   { name: "action-text-inspector-hover", run: async (p, implementation) => { await realClick(typographyButton(p, implementation)); await sleep(p, 80); await p.mouse.move(340, 290); await sleep(p, 220); } },
 
-  { name: "settings-tab-guides", run: async (p) => openSettingsTab(p, "Guides") },
-  { name: "settings-tab-select", run: async (p) => openSettingsTab(p, "Select") },
-  { name: "settings-tab-color", run: async (p) => openSettingsTab(p, "Color") },
-  { name: "settings-tab-rulers", run: async (p) => openSettingsTab(p, "Rulers") },
-  { name: "settings-tab-general", allowVersionDiff: true, run: async (p) => openSettingsTab(p, "General") },
-
-  { name: "settings-guide-pattern-solid", run: async (p) => { await openSettingsTab(p, "Guides"); await realClick(radio(p, "Solid guide pattern")); } },
-  { name: "settings-guide-pattern-dashed", run: async (p) => { await openSettingsTab(p, "Guides"); await realClick(radio(p, "Dashed guide pattern")); } },
-  { name: "settings-guide-pattern-dotted", run: async (p) => { await openSettingsTab(p, "Guides"); await realClick(radio(p, "Dotted guide pattern")); } },
-  { name: "settings-guides-snap-toggle", run: async (p) => { await openSettingsTab(p, "Guides"); await realClick(sw(p, "Snap")); } },
-  { name: "settings-guides-highlight-toggle", run: async (p) => { await openSettingsTab(p, "Guides"); await realClick(sw(p, "Highlight")); } },
-
-  { name: "settings-select-hover-toggle", run: async (p) => { await openSettingsTab(p, "Select"); await realClick(sw(p, "Hover")); } },
-  { name: "settings-select-element-snap-toggle", run: async (p) => { await openSettingsTab(p, "Select"); await realClick(sw(p, "Element snap")); } },
-  { name: "settings-select-stack-toggle", run: async (p) => { await openSettingsTab(p, "Select"); await realClick(sw(p, "Stack")); } },
-
-  { name: "settings-color-hex-toggle", run: async (p) => { await openSettingsTab(p, "Color"); await realClick(button(p, "hex")); } },
-  { name: "settings-color-rgb-toggle", run: async (p) => { await openSettingsTab(p, "Color"); await realClick(button(p, "rgb")); } },
-  { name: "settings-color-hsl-toggle", run: async (p) => { await openSettingsTab(p, "Color"); await realClick(button(p, "hsl")); } },
-  { name: "settings-color-oklch-toggle", run: async (p) => { await openSettingsTab(p, "Color"); await realClick(button(p, "oklch")); } },
-
-  { name: "settings-rulers-edge-reveal-toggle", run: async (p) => { await openSettingsTab(p, "Rulers"); await realClick(sw(p, "Edge reveal")); } },
-  { name: "settings-general-persist-toggle", allowVersionDiff: true, run: async (p) => { await openSettingsTab(p, "General"); await realClick(sw(p, "Persist")); } },
-  { name: "settings-general-use-defaults", allowVersionDiff: true, run: async (p) => { await openSettingsTab(p, "Select"); await realClick(sw(p, "Hover")); await realClick(tab(p, "General")); await realClick(button(p, "Reset settings to defaults")); } },
-  { name: "settings-general-clear-workspace", allowVersionDiff: true, run: async (p) => { await realClick(button(p, /^Guides/)); await sleep(p, 50); await p.mouse.click(620, 400); await sleep(p, 80); await openSettingsTab(p, "General"); await realClick(button(p, "Clear workspace")); await p.evaluate(() => { const active = document.activeElement;
-
- if (active instanceof HTMLElement) active.blur(); }); await p.mouse.move(900, 700); } },
-
   { name: "color-copy-first", run: async (p) => { await openColorPicker(p); await realClick(p.locator(".mesurer-color-picker button").nth(0)); await sleep(p, 80); } },
   { name: "color-copy-second", run: async (p) => { await openColorPicker(p); await realClick(p.locator(".mesurer-color-picker button").nth(1)); await sleep(p, 80); } },
   { name: "color-copy-third", run: async (p) => { await openColorPicker(p); await realClick(p.locator(".mesurer-color-picker button").nth(2)); await sleep(p, 80); } },
 ];
 
-const metadata = Object.fromEntries(cases.map((item) => [item.name, { allowVersionDiff: Boolean(item.allowVersionDiff) }]));
+const metadata = Object.fromEntries(cases.map((item) => [item.name, {}]));
 
 await fs.writeFile(path.join(outputDir, "cases.json"), JSON.stringify(metadata, null, 2));
 

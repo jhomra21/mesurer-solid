@@ -120,6 +120,15 @@
   --msr-spacing: 4px;
 }
 
+/* Settings switches follow the theme tokens instead of the pinned light-only hex borders above. */
+.mesurer-switch-track {
+  border-color: var(--msr-color-ink-200);
+}
+
+.mesurer-switch-track[data-checked="true"] {
+  border-color: var(--msr-accent);
+}
+
 /* Context deliberately renders page-attached annotation UI in the host document.
    Page-level button, SVG and form resets must not restyle those controls. Revert
    unlayered host rules to the generated Mesurer utility/base layers, while
@@ -554,12 +563,12 @@ body.mesurer-solid-xray .mesurer-ti-close {
   --msr-control-thumb: #f4f4f5;
   --msr-slider-track: rgba(245, 245, 245, 0.24);
   --msr-shadow-toolbar:
-    0 0 0.4px lch(100% 0 0 / 0.10),
+    0 0 0.4px lch(100% 0 0 / 0.4),
     0 3px 8px lch(0% 0 0 / 0.125),
     0 2px 5px lch(0% 0 0 / 0.125),
     0 1px 1px lch(0% 0 0 / 0.125);
   --msr-shadow-floating:
-    0 0 0.4px lch(100% 0 0 / 0.10),
+    0 0 0.4px lch(100% 0 0 / 0.4),
     0 3px 8px lch(0% 0 0 / 0.125),
     0 2px 5px lch(0% 0 0 / 0.125),
     0 1px 1px lch(0% 0 0 / 0.125);
@@ -599,12 +608,12 @@ body.mesurer-solid-xray .mesurer-ti-close {
     --msr-control-thumb: #f4f4f5;
     --msr-slider-track: rgba(245, 245, 245, 0.24);
     --msr-shadow-toolbar:
-      0 0 0.4px lch(100% 0 0 / 0.10),
+      0 0 0.4px lch(100% 0 0 / 0.4),
       0 3px 8px lch(0% 0 0 / 0.125),
       0 2px 5px lch(0% 0 0 / 0.125),
       0 1px 1px lch(0% 0 0 / 0.125);
     --msr-shadow-floating:
-      0 0 0.4px lch(100% 0 0 / 0.10),
+      0 0 0.4px lch(100% 0 0 / 0.4),
       0 3px 8px lch(0% 0 0 / 0.125),
       0 2px 5px lch(0% 0 0 / 0.125),
       0 1px 1px lch(0% 0 0 / 0.125);
@@ -677,6 +686,23 @@ body.mesurer-solid-xray .mesurer-ti-close {
   box-shadow: var(--msr-shadow-floating) !important;
 }
 
+/* In dark mode a menu is the toolbar's own colour, so the two read as one piece. */
+:where(
+  [data-mesurer-root="true"][data-theme="dark"],
+  [data-mesurer-inspector-ui="true"][data-theme="dark"]
+) .mesurer-menu-surface {
+  background-color: var(--msr-surface) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :where(
+    [data-mesurer-root="true"][data-theme="system"],
+    [data-mesurer-inspector-ui="true"][data-theme="system"]
+  ) .mesurer-menu-surface {
+    background-color: var(--msr-surface) !important;
+  }
+}
+
 :where(
   [data-mesurer-root="true"][data-theme],
   [data-mesurer-inspector-ui="true"][data-theme]
@@ -691,8 +717,31 @@ body.mesurer-solid-xray .mesurer-ti-close {
 :where(
   [data-mesurer-root="true"][data-theme],
   [data-mesurer-inspector-ui="true"][data-theme]
-) .mesurer-switch-track > span {
+) :is(.mesurer-switch-track > span, .mesurer-control-thumb) {
   background-color: var(--msr-control-thumb) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme="dark"],
+  [data-mesurer-inspector-ui="true"][data-theme="dark"]
+) :is(.mesurer-switch-track[data-checked="false"], .mesurer-control-shell) {
+  background-color: var(--msr-color-ink-100) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :where(
+    [data-mesurer-root="true"][data-theme="system"],
+    [data-mesurer-inspector-ui="true"][data-theme="system"]
+  ) :is(.mesurer-switch-track[data-checked="false"], .mesurer-control-shell) {
+    background-color: var(--msr-color-ink-100) !important;
+  }
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) .mesurer-switch-track[data-checked="false"] > span {
+  background-color: var(--msr-color-ink-200) !important;
 }
 
 :where(

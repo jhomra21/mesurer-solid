@@ -94,9 +94,7 @@ try {
   await settingsButton.click();
   const dialog = island.getByRole("dialog", { name: "Settings" });
   await dialog.waitFor({ state: "visible" });
-  const general = dialog.getByRole("tab", { name: "General" });
-
-  if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
+  await dialog.getByRole("region", { name: "General settings" }).waitFor({ state: "visible" });
   const plugins = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
 
   if ((await plugins.getAttribute("aria-expanded")) !== "true") await plugins.click();

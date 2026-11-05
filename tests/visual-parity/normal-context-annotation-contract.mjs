@@ -248,9 +248,9 @@ try {
   await page.goto(url, { waitUntil: "networkidle" });
 
   let settings = await openSettings();
-  let general = settings.getByRole("tab", { name: "General", exact: true });
+  let general = settings.getByRole("region", { name: "General settings" });
 
-  if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
+  await general.waitFor({ state: "attached" });
   let disclosure = settings.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
 
   if ((await disclosure.getAttribute("aria-expanded")) !== "true") await disclosure.click();
@@ -264,9 +264,9 @@ try {
   await page.reload({ waitUntil: "networkidle" });
   await page.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "visible" });
   settings = await openSettings();
-  general = settings.getByRole("tab", { name: "General", exact: true });
+  general = settings.getByRole("region", { name: "General settings" });
 
-  if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
+  await general.waitFor({ state: "attached" });
   disclosure = settings.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
 
   if ((await disclosure.getAttribute("aria-expanded")) !== "true") await disclosure.click();

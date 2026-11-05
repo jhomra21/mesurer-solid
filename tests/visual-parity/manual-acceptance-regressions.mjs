@@ -247,9 +247,9 @@ try {
   assert(settingsBox.y >= 8 - 0.5, `Settings clipped on top viewport edge: ${JSON.stringify(settingsBox)}`);
   assert(settingsBox.y + settingsBox.height <= 700 - 8 + 0.5, `Settings clipped on bottom viewport edge: ${JSON.stringify(settingsBox)}`);
 
-  const general = dialog.getByRole("tab", { name: "General", exact: true });
+  const general = dialog.getByRole("region", { name: "General settings" });
 
-  if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
+  await general.waitFor({ state: "attached" });
   const pluginsDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
   await pluginsDisclosure.waitFor({ state: "visible" });
 
@@ -381,9 +381,9 @@ try {
 
   await settingsPage.keyboard.press("Control+,");
   await dialog.waitFor({ state: "visible" });
-  const generalAgain = dialog.getByRole("tab", { name: "General", exact: true });
+  const generalAgain = dialog.getByRole("region", { name: "General settings" });
 
-  if ((await generalAgain.getAttribute("aria-selected")) !== "true") await generalAgain.click();
+  await generalAgain.waitFor({ state: "attached" });
   const disclosureAgain = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
 
   if ((await disclosureAgain.getAttribute("aria-expanded")) !== "true") await disclosureAgain.click();

@@ -22,20 +22,18 @@ const arrangeButton = () => page.locator("button[data-mesurer-tool-id='arrange']
 
 const settingsDialog = () => page.getByRole("dialog", { name: "Settings" });
 
-const openSettingsTab = async (name) => {
+const openSettingsSection = async (regionName) => {
   await settingsButton().waitFor({ state: "visible" });
 
   if (!(await settingsDialog().isVisible())) await settingsButton().click();
   const dialog = settingsDialog();
   await dialog.waitFor({ state: "visible" });
-  const tab = dialog.getByRole("tab", { name });
-
-  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+  await dialog.getByRole("region", { name: regionName }).waitFor({ state: "attached" });
 
   return dialog;
 };
 
-const openGeneralSettings = () => openSettingsTab("General");
+const openGeneralSettings = () => openSettingsSection("General settings");
 
 const pressed = async (button) => (await button.getAttribute("aria-pressed")) === "true";
 
@@ -91,8 +89,8 @@ try {
   if (hostInputValue !== "s") throw new Error(`Host Shadow DOM input lost normal typing: ${JSON.stringify(hostInputValue)}`);
 
   // Mesurer-owned editors also keep normal typing, while Escape remains lifecycle handling.
-  let dialog = await openSettingsTab("Guides");
-  const guideHexInput = dialog.getByRole("textbox", { name: "Color hex value" });
+  let dialog = await openSettingsSection("Guide settings");
+  const guideHexInput = dialog.getByRole("region", { name: "Guide settings" }).getByRole("textbox", { name: "Color hex value" });
   await guideHexInput.waitFor({ state: "visible" });
   await guideHexInput.focus();
   await page.keyboard.type("s");

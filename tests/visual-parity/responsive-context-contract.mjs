@@ -131,8 +131,39 @@ try {
   await page.evaluate(() => window.__MESURER__.select("#inspection-target"));
   const root = await save("Root note");
   assert.equal(root.anchor.targets[0].viewport, undefined);
+
+  const pageLayout = () => page.evaluate(() => {
+    const target = document.querySelector("#inspection-target").getBoundingClientRect();
+
+    return {
+      target: { x: target.x, y: target.y, width: target.width, height: target.height },
+      scroll: { width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight },
+    };
+  });
+
+  const layoutBeforeOpen = await pageLayout();
   await open();
+  assert.deepEqual(await pageLayout(), layoutBeforeOpen, "Opening a preview does not shift the host page layout");
   assert.equal(await markers.count(), 0, "Root markers are hidden in Responsive");
+
+  const settingsDialog = page.getByRole("dialog", { name: "Settings", exact: true });
+  await click(page.getByRole("button", { name: /^Settings/ }).first());
+  await settingsDialog.waitFor({ state: "visible" });
+  await page.screenshot({ path: join(output, "menu-open-before-preview-press.png") });
+
+  const previewPoint = await frames.first().evaluate((frame) => {
+    const rect = frame.getBoundingClientRect();
+
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  });
+
+  await page.mouse.move(previewPoint.x, previewPoint.y);
+  await page.mouse.down();
+  await settingsDialog.waitFor({ state: "hidden", timeout: 1000 });
+  assert.equal(await settingsDialog.count(), 0, "The toolbar menu closes on press, while the pointer is still down inside the preview");
+  await page.screenshot({ path: join(output, "menu-closed-while-preview-pressed.png") });
+  await page.mouse.up();
+  assert.equal(await settingsDialog.count(), 0, "Releasing the preview press does not reopen the menu");
   await page.evaluate(async () => {
     const host = await window.__responsiveMount.ready;
     const plugin = host.plugin("mesurer.context");
@@ -285,8 +316,41 @@ try {
     window.__removedContextShadowRoot = frame.contentDocument.querySelector("#context-shadow-host")?.shadowRoot;
     window.__removedContextObservers = frame.contentWindow.__contextContractObservers;
   });
-  await page.locator("[data-preview]").first().getByLabel("Remove preview").click();
+  const savedBeforeRemove = (await annotations()).map(({ id, note }) => ({ id, note }));
+  assert.equal(await markers.count(), 2);
+
+  const removal = await page.evaluate(async () => {
+    const deep = (root, selector, found = []) => {
+      found.push(...root.querySelectorAll(selector));
+
+      for (const element of root.querySelectorAll("*")) if (element.shadowRoot) deep(element.shadowRoot, selector, found);
+
+      return found;
+    };
+
+    const visibleMarkers = () => deep(document, "[data-mesurer-annotation-marker='true']").filter((marker) => {
+      const rect = marker.getBoundingClientRect();
+      const style = getComputedStyle(marker);
+
+      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+    }).length;
+
+    const button = deep(document, "[data-preview]")[0].querySelector("[aria-label='Remove preview']");
+    const before = visibleMarkers();
+    button.click();
+
+    // Drain only microtasks: no timer, animation frame, or paint may run before this read.
+    for (let index = 0; index < 8; index += 1) await Promise.resolve();
+
+    const sameTask = visibleMarkers();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    return { before, sameTask, nextFrame: visibleMarkers() };
+  });
+
+  assert.deepEqual(removal, { before: 2, sameTask: 1, nextFrame: 1 }, "Markers bound to a closed preview are gone in the same task as the close, not a frame later");
   await settle();
+  assert.deepEqual((await annotations()).map(({ id, note }) => ({ id, note })), savedBeforeRemove, "Closing a preview keeps every saved annotation id and note unchanged");
   assert.deepEqual(await page.evaluate(() => {
     const doc = window.__removedContextDocument;
 

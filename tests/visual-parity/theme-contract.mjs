@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { chromium } from "playwright";
 
 const url = process.env.THEME_URL ?? "http://127.0.0.1:4174/plugin-settings.html";
@@ -35,9 +37,7 @@ const openGeneralSettings = async () => {
   if (!await dialog.isVisible()) await button.click();
   await dialog.waitFor({ state: "visible" });
 
-  const general = dialog.getByRole("tab", { name: "General" });
-
-  if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
+  await dialog.getByRole("region", { name: "General settings" }).waitFor({ state: "visible" });
 
   return dialog;
 };
@@ -70,6 +70,26 @@ const expectToolbarColor = async (expected, label) => {
   assert.equal(actual, expected, label);
 };
 
+const output = process.env.THEME_OUT ?? "theme-artifacts";
+
+await mkdir(output, { recursive: true });
+
+const menuEvidence = {};
+
+// Dark menus take the toolbar's own surface and carry the fine light edge line; light menus keep the dark line.
+const expectMenuSurface = async (menu, name, expectedSurface, expectedEdge) => {
+  const evidence = await menu.evaluate((element) => {
+    const style = getComputedStyle(element);
+
+    return { background: style.backgroundColor, boxShadow: style.boxShadow };
+  });
+
+  assert.equal(evidence.background, expectedSurface, `${name} menu surface matches the toolbar`);
+  assert(evidence.boxShadow.startsWith(expectedEdge), `${name} menu edge line: ${evidence.boxShadow}`);
+  menuEvidence[name] = evidence;
+  await page.screenshot({ path: join(output, `menu-${name}.png`) });
+};
+
 try {
   await page.goto(`${url}?reset=1`, { waitUntil: "domcontentloaded" });
   await waitForHarness();
@@ -94,6 +114,7 @@ try {
   if ((await editPlugin.getAttribute("aria-checked")) !== "true") await editPlugin.click();
   await page.locator("button[data-mesurer-toolbar-mode='edit']:not(:disabled)").waitFor({ state: "visible" });
   assert.equal(await textColor(dialog), "rgb(245, 245, 245)", "dark Settings text");
+  await expectMenuSurface(dialog, "dark", "rgb(50, 50, 50)", "lch(100 0 0 / 0.4)");
   assert.deepEqual(await themeTokens(), {
     accent: "#0c8ce9",
     surface: "#323232",
@@ -170,6 +191,7 @@ try {
   await appearanceAgain.selectOption("light");
   await expectTheme("light");
   await expectToolbarColor("rgb(255, 255, 255)", "light toolbar surface");
+  await expectMenuSurface(dialog, "light", "rgb(255, 255, 255)", "rgba(0, 0, 0, 0.22)");
   assert.deepEqual(await themeTokens(), {
     accent: "#0d99ff",
     surface: "#fff",
@@ -182,6 +204,7 @@ try {
   await page.emulateMedia({ colorScheme: "dark" });
   await expectTheme("system");
   await expectToolbarColor("rgb(50, 50, 50)", "system dark toolbar surface");
+  await expectMenuSurface(dialog, "system-dark", "rgb(50, 50, 50)", "lch(100 0 0 / 0.4)");
   await page.emulateMedia({ colorScheme: "light" });
   await expectToolbarColor("rgb(255, 255, 255)", "system light toolbar surface");
 
@@ -205,6 +228,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
+  await writeFile(join(output, "result.json"), JSON.stringify({ passed: true, menus: menuEvidence }, null, 2));
   console.log("Theme contract: PASS", {
     system: true,
     light: true,

@@ -132,7 +132,7 @@ try {
   const settingsPanel = page.getByRole("dialog", { name: "Settings" });
   await click(settingsButton);
   await settingsPanel.waitFor({ state: "visible" });
-  await settingsPanel.getByRole("tab", { name: "Select" }).click();
+  await settingsPanel.getByRole("region", { name: "Inspect settings" }).waitFor({ state: "visible" });
 
   const initialSettings = {
     infoCardMode: await settingsPanel.getByLabel("Info card mode").inputValue(),
@@ -379,7 +379,7 @@ try {
   // Settings are changed through the real UI and checked after a page reload.
   await settingsButton.click();
   await settingsPanel.waitFor({ state: "visible" });
-  await settingsPanel.getByRole("tab", { name: "Select" }).click();
+  await settingsPanel.getByRole("region", { name: "Inspect settings" }).waitFor({ state: "visible" });
   await settingsPanel.getByLabel("Info card mode").selectOption("hover");
 
   if (initialSettings.layoutDetailsEnabled === "true") {
@@ -392,7 +392,7 @@ try {
   await page.evaluate(() => window.__MESURER__.ready());
   await page.locator("[data-mesurer-builtin='settings'] button").click();
   await settingsPanel.waitFor({ state: "visible" });
-  await settingsPanel.getByRole("tab", { name: "Select" }).click();
+  await settingsPanel.getByRole("region", { name: "Inspect settings" }).waitFor({ state: "visible" });
   assert.equal(await settingsPanel.getByLabel("Info card mode").inputValue(), "hover");
   assert.equal(await settingsPanel.getByRole("switch", { name: "Layout details" }).getAttribute("aria-checked"), "false");
   await page.keyboard.press("Escape");
@@ -455,7 +455,7 @@ try {
 
   await settingsButton.click();
   await settingsPanel.waitFor({ state: "visible" });
-  await settingsPanel.getByRole("tab", { name: "Select" }).click();
+  await settingsPanel.getByRole("region", { name: "Inspect settings" }).waitFor({ state: "visible" });
   await settingsPanel.getByLabel("Info card mode").selectOption(initialSettings.infoCardMode);
   const currentLayoutSetting = await settingsPanel.getByRole("switch", { name: "Layout details" }).getAttribute("aria-checked");
 
@@ -470,7 +470,7 @@ try {
   await page.evaluate(() => window.__MESURER__.ready());
   await settingsButton.click();
   await settingsPanel.waitFor({ state: "visible" });
-  await settingsPanel.getByRole("tab", { name: "Select" }).click();
+  await settingsPanel.getByRole("region", { name: "Inspect settings" }).waitFor({ state: "visible" });
   assert.equal(await settingsPanel.getByLabel("Info card mode").inputValue(), initialSettings.infoCardMode,
     "Restoring the pre-test Inspect mode survives a reload");
   assert.equal(await settingsPanel.getByRole("switch", { name: "Layout details" }).getAttribute("aria-checked"),

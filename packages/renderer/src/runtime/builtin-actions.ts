@@ -63,13 +63,6 @@ const activateMode = (model: MesurerModel, mode: ToolMode) => {
   model.toggleToolMode(mode);
 };
 
-const settingsTab = (model: MesurerModel) =>
-  model.current.colorPickerActive ? "color-picker" as const
-    : model.current.rulersVisible ? "rulers" as const
-      : model.current.toolMode === "guides" ? "guides" as const
-        : model.current.toolMode === "select" || model.current.toolMode === "text-inspector" ? "select" as const
-          : "general" as const;
-
 const commitColorSample = (
   model: MesurerModel,
   ownerWindow: Window,
@@ -406,11 +399,7 @@ export function createMesurerBuiltinController(options: {
 
           return;
         case "settings": {
-          const open = !model.current.settingsOpen;
-          model.setTransient({
-            settingsOpen: open,
-            settingsTab: open ? settingsTab(model) : model.current.settingsTab,
-          });
+          model.setTransient({ settingsOpen: !model.current.settingsOpen });
 
           return;
         }

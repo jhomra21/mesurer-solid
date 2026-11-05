@@ -56,7 +56,7 @@ export type DistanceOverlay<ElementRef = unknown> = {
 
 export type ToolMode = "none" | "select" | "guides" | "text-inspector" | "xray" | "rulers";
 
-export type SettingsTab = "general" | "select" | "guides" | "rulers" | "color-picker";
+export type SettingsFocus = "guides" | "inspect" | "color" | "rulers";
 
 export type GuidePattern = "solid" | "dashed" | "dotted";
 
@@ -140,7 +140,7 @@ export type MesurerModelState<ElementRef = unknown> = {
   altPressed: boolean;
   toolbarActive: boolean;
   settingsOpen: boolean;
-  settingsTab: SettingsTab;
+  settingsFocus: SettingsFocus | null;
   colorPickerActive: boolean;
   colorPickerSample: ColorSample | null;
   colorPickerUnsupported: boolean;

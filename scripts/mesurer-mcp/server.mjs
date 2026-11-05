@@ -500,21 +500,6 @@ const setMesurerPlugin = async (args = {}) => {
 
     if (!(dialog instanceof HTMLElement)) throw new Error("Mesurer Settings did not open.");
 
-    const activeTab = [...dialog.querySelectorAll("[role='tab']")]
-      .find((element) => element.getAttribute("aria-selected") === "true");
-
-    const generalTab = [...dialog.querySelectorAll("[role='tab']")]
-      .find((element) => element.textContent?.trim() === "General");
-
-    if (!(generalTab instanceof HTMLButtonElement)) {
-      throw new Error("Mesurer General settings tab is unavailable.");
-    }
-
-    if (generalTab.getAttribute("aria-selected") !== "true") {
-      generalTab.click();
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
-
     const disclosure = dialog.querySelector("[data-mesurer-plugin-settings-disclosure='plugins']");
 
     if (!(disclosure instanceof HTMLButtonElement)) {
@@ -577,11 +562,6 @@ const setMesurerPlugin = async (args = {}) => {
 
     if (!pluginsWereExpanded && disclosure.getAttribute("aria-expanded") === "true") {
       disclosure.click();
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
-
-    if (activeTab instanceof HTMLButtonElement && activeTab !== generalTab) {
-      activeTab.click();
       await new Promise((resolve) => requestAnimationFrame(resolve));
     }
 

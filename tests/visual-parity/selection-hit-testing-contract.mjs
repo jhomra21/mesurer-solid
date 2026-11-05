@@ -127,7 +127,7 @@ try {
   // Interactive Inspect-card occlusion has its own physical browser contract.
   await page.locator("[data-mesurer-builtin='settings'] button").click();
   const settings = page.getByRole("dialog", { name: "Settings" });
-  await settings.getByRole("tab", { name: "Select" }).click();
+  await settings.getByRole("region", { name: "Inspect settings" }).waitFor({ state: "visible" });
   await settings.getByLabel("Info card mode").selectOption("off");
   await page.keyboard.press("Escape");
 

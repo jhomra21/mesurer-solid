@@ -511,9 +511,8 @@ try {
   await settingsButton.click();
   const settingsDialog = page.getByRole("dialog", { name: "Settings" });
   await settingsDialog.waitFor({ state: "visible" });
-  const generalTab = settingsDialog.getByRole("tab", { name: "General", exact: true });
-
-  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
+  const generalSection = settingsDialog.getByRole("region", { name: "General settings" });
+  await generalSection.waitFor({ state: "attached" });
   const keepTextChanges = settingsDialog.getByRole("switch", { name: "Keep text changes", exact: true });
   await keepTextChanges.waitFor({ state: "visible" });
   assert.equal(await keepTextChanges.getAttribute("aria-checked"), "false", "Keep text changes should default off");
@@ -531,8 +530,7 @@ try {
   // restores the original presentation without deleting intent.
   await settingsButton.click();
   await settingsDialog.waitFor({ state: "visible" });
-
-  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
+  await generalSection.waitFor({ state: "attached" });
   await keepTextChanges.click();
   await page.waitForFunction(() => document.querySelector("[data-mesurer-presentation-setting='keep-text-changes']")?.getAttribute("aria-checked") === "false");
   await waitForTypography(before, "Keep text changes disabled");

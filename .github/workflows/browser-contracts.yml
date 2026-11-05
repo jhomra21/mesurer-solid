@@ -100,6 +100,7 @@ on:
       - "tests/visual-parity/extension-active-tabs-contract.mjs"
       - "tests/visual-parity/responsive-extension-assets-contract.mjs"
       - "tests/visual-parity/shortcuts-setting-contract.mjs"
+      - "tests/visual-parity/settings-interactions-contract.mjs"
       - "tests/visual-parity/text-editing-contract.mjs"
       - "tests/visual-parity/theme-contract.mjs"
       - "tests/visual-parity/typography-editing-layout-contract.mjs"
@@ -232,6 +233,11 @@ jobs:
         env:
           SHORTCUTS_SETTING_URL: http://127.0.0.1:4174/
         run: bun tests/visual-parity/shortcuts-setting-contract.mjs
+
+      - name: Exercise sectioned Settings interactions
+        env:
+          SETTINGS_INTERACTIONS_URL: http://127.0.0.1:4174/
+        run: bun tests/visual-parity/settings-interactions-contract.mjs
 
       - name: Exercise system, light, and dark themes
         env:

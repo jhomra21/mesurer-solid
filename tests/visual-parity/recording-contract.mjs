@@ -45,11 +45,7 @@ try {
   await settingsButtonForFrameRate.click();
   await settingsDialogForFrameRate.waitFor({ state: "visible" });
 
-  const generalTabForFrameRate = settingsDialogForFrameRate.getByRole("tab", { name: "General" });
-
-  if ((await generalTabForFrameRate.getAttribute("aria-selected")) !== "true") {
-    await generalTabForFrameRate.click();
-  }
+  await settingsDialogForFrameRate.getByRole("region", { name: "General settings" }).waitFor({ state: "attached" });
 
   const pluginsDisclosure = settingsDialogForFrameRate.locator(
     "[data-mesurer-plugin-settings-disclosure='plugins']",
@@ -388,9 +384,8 @@ try {
     );
   }
 
-  const generalTab = settingsDialog.getByRole("tab", { name: "General" });
-
-  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
+  const generalSection = settingsDialog.getByRole("region", { name: "General settings" });
+  await generalSection.waitFor({ state: "attached" });
 
   const appearance = settingsDialog.getByRole("combobox", { name: "Appearance" });
   const previousTheme = await appearance.inputValue();

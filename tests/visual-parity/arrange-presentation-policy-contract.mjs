@@ -77,9 +77,8 @@ try {
   await settingsButton.click();
   const dialog = page.getByRole("dialog", { name: "Settings" });
   await dialog.waitFor({ state: "visible" });
-  const generalTab = dialog.getByRole("tab", { name: "General", exact: true });
-
-  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
+  const generalSection = dialog.getByRole("region", { name: "General settings" });
+  await generalSection.waitFor({ state: "attached" });
 
   const keepEdit = dialog.getByRole("switch", { name: "Keep Edit changes", exact: true });
   await keepEdit.waitFor({ state: "visible" });

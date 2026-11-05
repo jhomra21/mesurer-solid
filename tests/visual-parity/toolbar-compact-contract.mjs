@@ -222,9 +222,8 @@ try {
   const settingsDialog = page.getByRole("dialog", { name: "Settings" });
 
   await settingsDialog.waitFor({ state: "visible" });
-  const generalTab = settingsDialog.getByRole("tab", { name: "General", exact: true });
-
-  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
+  const generalSection = settingsDialog.getByRole("region", { name: "General settings" });
+  await generalSection.waitFor({ state: "attached" });
 
   const pluginsDisclosure = settingsDialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
 

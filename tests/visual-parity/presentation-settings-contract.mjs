@@ -24,9 +24,7 @@ const openGeneral = async () => {
 
   if (!(await settingsDialog().isVisible())) await settingsButton().click();
   await settingsDialog().waitFor({ state: "visible" });
-  const general = settingsDialog().getByRole("tab", { name: "General", exact: true });
-
-  if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
+  await settingsDialog().getByRole("region", { name: "General settings" }).waitFor({ state: "visible" });
   const section = settingsDialog().locator("section[aria-label='General settings']");
   await section.waitFor({ state: "visible" });
 

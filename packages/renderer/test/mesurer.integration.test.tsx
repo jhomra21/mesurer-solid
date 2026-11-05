@@ -84,11 +84,10 @@ describe("Mesurer host integration", () => {
     await settle();
     const settings = document.querySelector<HTMLElement>('[role="dialog"][aria-label="Settings"]');
     expect(settings).toBeTruthy();
-    expect(settings!.className).toContain("msr:w-[272px]");
-    const tabs = [...settings!.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["Guides", "Select", "Color", "Rulers", "General"]);
-    expect(tabs.find((tab) => tab.textContent === "Rulers")?.getAttribute("aria-selected")).toBe("true");
-    expect(settings!.querySelector('[aria-label="Ruler settings"]')).toBeTruthy();
+    expect(settings!.className).toContain("msr:w-[252px]");
+    expect(settings!.querySelector('[role="tab"]')).toBeNull();
+    const sections = [...settings!.querySelectorAll<HTMLElement>("[data-mesurer-settings-section]")];
+    expect(sections.map((section) => section.getAttribute("aria-label"))).toEqual(["Guide settings", "Inspect settings", "Color settings", "Ruler settings", "General settings"]);
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await settle();
