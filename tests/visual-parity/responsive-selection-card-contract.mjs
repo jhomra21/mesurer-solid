@@ -230,7 +230,7 @@ const initializeScenario = async ({ selectTarget = true, enableLayoutDetails = t
   await page.locator("[data-mesurer-builtin='settings'] button").click();
   const settings = page.getByRole("dialog", { name: "Settings" });
   await settings.waitFor({ state: "visible" });
-  await settings.getByRole("tab", { name: "Select" }).click();
+  await settings.getByRole("region", { name: "Inspect settings" }).waitFor({ state: "visible" });
   const layoutDetails = settings.getByRole("switch", { name: "Layout details" });
 
   if (await layoutDetails.getAttribute("aria-checked") !== String(enableLayoutDetails)) await layoutDetails.click();

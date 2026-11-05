@@ -56,7 +56,7 @@ The historical React parity suite protects the accepted shared renderer presenta
 
 A ported upstream component that can visibly drift needs a focused current-source browser comparison against the audited upstream commit. Isolate the component from intentional Mesurer Solid product differences around it. Compare rendered pixels and the component's geometry, computed styles, controls, options, and icon primitives. Do not normalize a real design difference out of the report.
 
-Layout Guides currently applies this rule to its initial, list, editor, aligned-editor, and grid states.
+Layout Guides currently applies this rule to its initial, list, editor, aligned-editor, and grid states. Settings applies it to the whole sectioned panel in Light and Dark against upstream `5c2fdae`: copy `current-settings-react.{tsx,html}` into the upstream site's `e2e/fixtures/`, `current-settings-solid.{tsx,html}` into `examples/basic`, run `current-settings-capture.mjs` from the upstream site with `CURRENT_PARITY_REACT_URL`, `CURRENT_PARITY_SOLID_URL`, and `CURRENT_PARITY_OUT`, then `python tests/visual-parity/compare-current-settings.py <out>`. The `current-settings` job in `.github/workflows/visual-parity.yml` does exactly this. Solid-only rows are marked `data-mesurer-current-only-extension`; upstream-only rows are listed in the capture.
 
 ## Fresh checkout and Codex test isolation
 

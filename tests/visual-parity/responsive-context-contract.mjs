@@ -131,8 +131,37 @@ try {
   await page.evaluate(() => window.__MESURER__.select("#inspection-target"));
   const root = await save("Root note");
   assert.equal(root.anchor.targets[0].viewport, undefined);
+
+  const pageLayout = () => page.evaluate(() => {
+    const target = document.querySelector("#inspection-target").getBoundingClientRect();
+
+    return {
+      target: { x: target.x, y: target.y, width: target.width, height: target.height },
+      scroll: { width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight },
+    };
+  });
+
+  const layoutBeforeOpen = await pageLayout();
   await open();
+  assert.deepEqual(await pageLayout(), layoutBeforeOpen, "Opening a preview does not shift the host page layout");
   assert.equal(await markers.count(), 0, "Root markers are hidden in Responsive");
+
+  const settingsDialog = page.getByRole("dialog", { name: "Settings", exact: true });
+  await click(page.getByRole("button", { name: /^Settings/ }).first());
+  await settingsDialog.waitFor({ state: "visible" });
+  await page.screenshot({ path: join(output, "menu-open-before-preview-press.png") });
+
+  const previewPoint = await frames.first().evaluate((frame) => {
+    const rect = frame.getBoundingClientRect();
+
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  });
+
+  await page.mouse.move(previewPoint.x, previewPoint.y);
+  await page.mouse.down();
+  await page.mouse.up();
+  await settingsDialog.waitFor({ state: "hidden", timeout: 1000 });
+  await page.screenshot({ path: join(output, "menu-closed-after-preview-press.png") });
   await page.evaluate(async () => {
     const host = await window.__responsiveMount.ready;
     const plugin = host.plugin("mesurer.context");
@@ -285,7 +314,10 @@ try {
     window.__removedContextShadowRoot = frame.contentDocument.querySelector("#context-shadow-host")?.shadowRoot;
     window.__removedContextObservers = frame.contentWindow.__contextContractObservers;
   });
+  const savedBeforeRemove = (await annotations()).length;
   await page.locator("[data-preview]").first().getByLabel("Remove preview").click();
+  assert.equal(await markers.count(), 1, "Markers bound to a closed preview disappear immediately, before any settle");
+  assert.equal((await annotations()).length, savedBeforeRemove, "Closing a preview keeps its saved notes");
   await settle();
   assert.deepEqual(await page.evaluate(() => {
     const doc = window.__removedContextDocument;

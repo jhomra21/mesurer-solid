@@ -9,9 +9,6 @@ from PIL import Image, ImageChops, ImageDraw, ImageEnhance
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("interaction-artifacts")
 threshold = 8
 cases = json.loads((out / "cases.json").read_text())
-current_general_switches = {
-    "Shortcuts": "true",
-}
 current_selection_chrome_z_index = "2147482800"
 
 
@@ -40,7 +37,7 @@ def normalize_historical_toolbar_state(state):
     # The historical interaction suite predates the compact control and the
     # current upstream Guide orientation tooltip component. The current toolbar
     # contract owns the evolved toolbar; keep this suite focused on shared tool
-    # states and their resulting page/Settings behavior.
+    # states and their resulting page behavior.
     buttons = state.get("toolbarButtons")
     if isinstance(buttons, list):
         buttons = [
@@ -84,75 +81,12 @@ def normalize_historical_toolbar_state(state):
     return state
 
 
-def normalize_current_general_state(react_state, solid_state):
-    """Normalize the verified current-only Shortcuts switch.
-
-    The interaction capture already verifies and removes the Solid-only
-    presentation settings before stateSnapshot() runs. At this layer the only
-    remaining General-panel addition is Shortcuts.
-    """
-    react_switches = react_state.get("switches")
-    solid_switches = solid_state.get("switches")
-    if not isinstance(react_switches, list) or not isinstance(solid_switches, list):
-        return False
-    names = set(current_general_switches)
-    if any(item.get("text") in names for item in react_switches):
-        return False
-    additions = [item for item in solid_switches if item.get("text") in names]
-    if len(additions) != len(names) or {item.get("text") for item in additions} != names:
-        return False
-    for item in additions:
-        if item.get("checked") != current_general_switches[item.get("text")]:
-            return False
-    without_additions = [item for item in solid_switches if item.get("text") not in names]
-    if without_additions != react_switches:
-        return False
-
-    solid_state["switches"] = without_additions
-    return True
-
-
 def is_historical_toolbar_pixel(name: str, x: int, y: int) -> bool:
     if 0 <= x < 340 and 0 <= y < 64:
         return True
     if name.startswith("toolbar-orientation-") and 0 <= x < 280 and 64 <= y < 150:
         return True
     return False
-
-
-def current_general_pixel(name: str, x: int, y: int, enabled: bool, height: int):
-    if not enabled:
-        return y, False
-    # normalizeSharedParitySurface() has already verified and removed the two
-    # Solid-only presentation rows. The only remaining General-panel addition is
-    # current upstream's 24px Shortcuts row plus its 4px gap after Persist.
-    # Translate only panel content below Persist; the side-shadow strips overlay
-    # stationary page content and remain at their original viewport Y.
-    if not (
-        name in {
-            "toolbar-settings-open",
-            "settings-tab-general",
-            "settings-general-persist-toggle",
-            "settings-general-use-defaults",
-            "settings-general-clear-workspace",
-        }
-        and 0 <= x < 304
-        and y >= 105
-    ):
-        return y, False
-    shift = 28
-    panel_left = 16
-    panel_right = 288
-    persist_bottom = 129
-    historical_shadow_bottom = 244
-    current_shadow_bottom = historical_shadow_bottom + shift
-    if panel_left <= x < panel_right and y < persist_bottom:
-        return y, False
-    if panel_left <= x < panel_right and y < historical_shadow_bottom and y + shift < height:
-        return y + shift, False
-    if y >= historical_shadow_bottom and y < current_shadow_bottom:
-        return y, True
-    return y, False
 
 
 def verified_selection_label_region(name, react_label, solid_label):
@@ -201,7 +135,7 @@ def verified_selection_label_region(name, react_label, solid_label):
 
 report = {"threshold_per_channel": threshold, "cases": {}}
 failures = []
-for name, meta in cases.items():
+for name in cases:
     react_state = normalize_historical_toolbar_state(json.loads((out / f"react-{name}.json").read_text()))
     solid_state = normalize_historical_toolbar_state(json.loads((out / f"solid-{name}.json").read_text()))
     react_selection_label = react_state.pop("selectionLabel", None)
@@ -211,7 +145,6 @@ for name, meta in cases.items():
         react_selection_label,
         solid_selection_label,
     )
-    normalized_general = normalize_current_general_state(react_state, solid_state)
     state_diffs = deep_diff(react_state, solid_state)
 
     react = Image.open(out / f"react-{name}.png").convert("RGBA")
@@ -224,19 +157,10 @@ for name, meta in cases.items():
     rp, sp = react.load(), solid.load()
     exact = thresholded = max_delta = 0
     ignored_toolbar_exact = ignored_toolbar_thresholded = 0
-    ignored_shortcuts_exact = ignored_shortcuts_thresholded = 0
     ignored_selection_label_exact = ignored_selection_label_thresholded = 0
     for y in range(height):
         for x in range(width):
-            solid_y, ignore_general = current_general_pixel(name, x, y, normalized_general, height)
-            raw_delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
-            if ignore_general:
-                if raw_delta:
-                    ignored_shortcuts_exact += 1
-                    if raw_delta > threshold:
-                        ignored_shortcuts_thresholded += 1
-                continue
-            delta = max(abs(rp[x, y][i] - sp[x, solid_y][i]) for i in range(4))
+            delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
             if not delta:
                 continue
             if is_historical_toolbar_pixel(name, x, y):
@@ -271,17 +195,11 @@ for name, meta in cases.items():
     draw.text((width * 2 + gap * 2 + 8, 8), "Amplified diff", fill="black")
     canvas.save(out / f"comparison-{name}.png")
 
-    allow_version = bool(meta.get("allowVersionDiff"))
-    # A real tab switch remounts the Select panel. Chromium can rasterize the
-    # two bottom rounded-corner samples of the native color swatch differently
-    # between the React and Solid lifecycles even when geometry, colors, and
-    # normalized interaction state are identical. Keep this exception scoped
-    # to those two pixels; every other non-version interaction remains zero.
     # Native source paint replaces a lag-prone document-portal border while
     # preserving its tint. Chromium differs by eight antialiased glyph-edge
     # pixels for the historical Select-target snapshot; all interaction state,
     # geometry, and verified selection-label checks remain exact.
-    pixel_budget = 8 if name == "action-select-target" else 2 if name == "settings-tab-select" else 250 if allow_version else 0
+    pixel_budget = 8 if name == "action-select-target" else 0
     if name == "action-select-target" and selection_label_region is None:
         failures.append(f"{name}: selected measurement label contract did not match")
     if state_diffs:
@@ -297,12 +215,8 @@ for name, meta in cases.items():
         "threshold_diff_ratio": thresholded / (width * height),
         "ignored_historical_toolbar_exact_pixels": ignored_toolbar_exact,
         "ignored_historical_toolbar_threshold_pixels": ignored_toolbar_thresholded,
-        "ignored_current_shortcuts_exact_pixels": ignored_shortcuts_exact,
-        "ignored_current_shortcuts_threshold_pixels": ignored_shortcuts_thresholded,
         "ignored_selection_label_exact_pixels": ignored_selection_label_exact,
         "ignored_selection_label_threshold_pixels": ignored_selection_label_thresholded,
-        "normalized_current_general_settings": normalized_general,
-        "normalized_current_shortcuts_setting": normalized_general,
         "verified_selection_label_contract": selection_label_region is not None,
         "max_channel_delta": max_delta,
         "state_difference_count": len(state_diffs),
@@ -320,4 +234,4 @@ print(json.dumps(report, indent=2))
 
 if failures:
     raise SystemExit("React → Solid historical interaction parity failed:\n- " + "\n- ".join(failures))
-print("React → Solid historical interaction parity outside current toolbar/General additions: PASS")
+print("React → Solid historical interaction parity outside current toolbar chrome: PASS")

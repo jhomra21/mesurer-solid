@@ -188,7 +188,7 @@ const dockAt = async (page, toolbar, edge, mode) => {
   await settings.click();
   const settingsDialog = page.getByRole("dialog", { name: "Settings", exact: true });
   await settingsDialog.waitFor({ state: "visible" });
-  await settingsDialog.getByRole("tab", { name: "General" }).click();
+  await settingsDialog.getByRole("region", { name: "General settings" }).waitFor({ state: "visible" });
   const dock = page.getByRole("combobox", { name: "Toolbar dock" });
   await dock.waitFor({ state: "visible" });
   await dock.selectOption("snap");
@@ -276,7 +276,7 @@ try {
         const settingsDialog = page.getByRole("dialog", { name: "Settings", exact: true });
 
         await settingsDialog.waitFor({ state: "visible" });
-        await settingsDialog.getByRole("tab", { name: "General" }).click();
+        await settingsDialog.getByRole("region", { name: "General settings" }).waitFor({ state: "visible" });
         const pluginsDisclosure = settingsDialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
 
         if (await pluginsDisclosure.getAttribute("aria-expanded") !== "true") {

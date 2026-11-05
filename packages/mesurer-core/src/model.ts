@@ -11,6 +11,7 @@ import {
   type MesurerStoredSettings,
   type MesurerStoredWorkspace,
   type Rect,
+  type SettingsFocus,
   type ToolMode,
 } from "./domain";
 import { createObservableStore } from "./store";
@@ -107,7 +108,7 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
     altPressed: false,
     toolbarActive: true,
     settingsOpen: false,
-    settingsTab: "general",
+    settingsFocus: null,
     colorPickerActive: false,
     colorPickerSample: null,
     colorPickerUnsupported: false,
@@ -307,29 +308,29 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
     mutate((draft) => { draft.guideOrientation = orientation; });
   };
 
-  const initialSettingsTab = (value: MesurerModelState<ElementRef>) =>
+  const settingsFocusFor = (value: MesurerModelState<ElementRef>): SettingsFocus | null =>
     value.colorPickerActive
-      ? "color-picker" as const
+      ? "color"
       : value.rulersVisible
-        ? "rulers" as const
+        ? "rulers"
         : value.toolMode === "guides"
-          ? "guides" as const
+          ? "guides"
           : value.toolMode === "select" || value.toolMode === "text-inspector"
-            ? "select" as const
-            : "general" as const;
+            ? "inspect"
+            : null;
 
   type TransientState = Pick<MesurerModelState<ElementRef>,
     "altPressed" | "start" | "end" | "isDragging" | "selectionOriginRect" |
     "hoverRect" | "hoverElement" | "hoverPointer" | "draggingGuideId" | "guidePreview" |
-    "toolbarActive" | "settingsOpen" | "settingsTab" | "colorPickerActive" |
+    "toolbarActive" | "settingsOpen" | "colorPickerActive" |
     "colorPickerSample" | "colorPickerUnsupported"
   >;
 
   const setTransient = (patch: Partial<TransientState>) => mutate((draft) => {
-    const openingSettings = patch.settingsOpen === true && !draft.settingsOpen && patch.settingsTab === undefined;
+    const openingSettings = patch.settingsOpen === true && !draft.settingsOpen;
     Object.assign(draft, patch);
 
-    if (openingSettings) draft.settingsTab = initialSettingsTab(draft);
+    if (openingSettings) draft.settingsFocus = settingsFocusFor(draft);
   });
 
   const setSelectedMeasurements = (values: InspectMeasurement<ElementRef>[], primary?: InspectMeasurement<ElementRef> | null) =>

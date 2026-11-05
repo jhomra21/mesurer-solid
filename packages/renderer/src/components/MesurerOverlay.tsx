@@ -432,7 +432,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     if (props.model.state.guides.length > 0) return props.model.state.guides;
 
-    if (!props.model.state.settingsOpen || props.model.state.settingsTab !== "guides") return props.model.state.guides;
+    if (!props.model.state.settingsOpen || props.model.state.settingsFocus !== "guides") return props.model.state.guides;
     const ownerWindow = overlayElement?.ownerDocument.defaultView;
 
     if (!ownerWindow) return props.model.state.guides;

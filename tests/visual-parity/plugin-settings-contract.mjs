@@ -95,9 +95,7 @@ const openSettings = async () => {
   if (!(await island().getByRole("dialog", { name: "Settings" }).isVisible())) await settingsButton.click();
   const dialog = island().getByRole("dialog", { name: "Settings" });
   await dialog.waitFor({ state: "visible" });
-  const generalTab = dialog.getByRole("tab", { name: "General" });
-
-  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
+  await dialog.getByRole("region", { name: "General settings" }).waitFor({ state: "visible" });
   const pluginsDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
 
   if ((await pluginsDisclosure.getAttribute("aria-expanded")) !== "true") await pluginsDisclosure.click();
@@ -210,6 +208,7 @@ const expectDisclosureHitArea = async (dialog, id, label) => {
   const section = dialog.locator(`[data-mesurer-plugin-settings-section='${id}']`);
   const disclosure = dialog.locator(`[data-mesurer-plugin-settings-disclosure='${id}']`);
   const toggle = dialog.locator(`[data-mesurer-plugin-toggle='${id}']`);
+  await disclosure.scrollIntoViewIfNeeded();
 
   const [sectionBox, disclosureBox, toggleBox] = await Promise.all([
     section.boundingBox(),

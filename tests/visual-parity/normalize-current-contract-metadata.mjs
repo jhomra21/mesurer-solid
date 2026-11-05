@@ -4,18 +4,6 @@ import path from "node:path";
 
 const outputDir = path.resolve(process.argv[2] ?? "parity-artifacts");
 
-const settingsStates = [
-  "settings-color",
-  "settings-general",
-  "settings-guides",
-  "settings-rulers",
-  "settings-select",
-];
-
-const historicalSettingsClass = "mesurer-menu-surface msr:absolute msr:-right-1 msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 msr:top-full msr:mt-2";
-
-const currentViewportSafeSettingsClass = "mesurer-menu-surface msr:absolute msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:max-h-[calc(100vh-16px)] msr:overflow-y-auto msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 msr:top-full msr:mt-2";
-
 const currentSelectionChromeZIndex = "2147482800";
 
 const readJson = async (name) => JSON.parse(await fs.readFile(path.join(outputDir, name), "utf8"));
@@ -23,53 +11,9 @@ const readJson = async (name) => JSON.parse(await fs.readFile(path.join(outputDi
 const writeJson = async (name, value) => fs.writeFile(path.join(outputDir, name), `${JSON.stringify(value, null, 2)}\n`);
 
 const manifest = {
-  settingsViewportSafety: [],
   typographyOcclusionLayer: null,
   selectionOcclusionLayer: null,
 };
-
-for (const state of settingsStates) {
-  const reactName = `react-${state}.json`;
-  const solidName = `solid-${state}.json`;
-  const react = await readJson(reactName);
-  const solid = await readJson(solidName);
-  const reactClass = react.settings?.className;
-  const solidClass = solid.settings?.className;
-  const reactExtensions = react.settingsContract?.currentOnlyExtensions ?? [];
-  const solidExtensions = solid.settingsContract?.currentOnlyExtensions ?? [];
-
-  assert.equal(
-    reactClass,
-    historicalSettingsClass,
-    `${state}: historical Settings class changed; do not normalize an unreviewed React delta`,
-  );
-  assert.equal(
-    solidClass,
-    currentViewportSafeSettingsClass,
-    `${state}: current viewport-safe Settings class changed; do not normalize an unreviewed Solid delta`,
-  );
-  assert.deepEqual(reactExtensions, [], `${state}: the pinned historical React Settings must not contain Inspect extension rows`);
-  assert.deepEqual(
-    solidExtensions,
-    state === "settings-select" ? [
-      { id: "inspect-info-mode", name: "Info card mode", role: "label", value: "off" },
-      { id: "inspect-info-layout", name: "Layout details", role: "switch", value: "true" },
-    ] : [],
-    `${state}: only the reviewed Inspect extension controls may be removed from historical Settings capture`,
-  );
-
-  manifest.settingsViewportSafety.push({
-    state,
-    react: reactClass,
-    solid: solidClass,
-    currentOnlyExtensions: solidExtensions,
-  });
-  solid.settings.className = reactClass;
-  delete solid.settingsContract.currentOnlyExtensions;
-  delete react.settingsContract.currentOnlyExtensions;
-  await writeJson(solidName, solid);
-  await writeJson(reactName, react);
-}
 
 {
   const reactName = "react-text-inspector.json";
@@ -120,4 +64,4 @@ for (const state of settingsStates) {
 
 await writeJson("current-contract-normalization.json", manifest);
 
-console.log("Verified current-only Inspect Settings controls plus the exact Settings viewport-safety, Typography occlusion, and selection occlusion metadata deltas. Only reviewed extension rows are omitted from historical captures.");
+console.log("Verified the exact Typography occlusion and selection occlusion metadata deltas against the historical captures.");

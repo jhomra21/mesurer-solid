@@ -3,7 +3,6 @@ from __future__ import annotations
 import copy
 import json
 import math
-import re
 import sys
 from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance
@@ -13,14 +12,13 @@ threshold = 8
 states = sorted(p.name.removeprefix("react-").removesuffix(".png") for p in out.glob("react-*.png"))
 react_version = json.loads(Path("upstream/packages/mesurer/package.json").read_text())["version"]
 solid_version = json.loads(Path("packages/renderer/package.json").read_text())["version"]
-contract_keys = ("toolbarIconContract", "settingsContract")
+contract_keys = ("toolbarIconContract",)
 # Upstream currently runs in the site's light DOM while the Solid renderer is
 # deliberately isolated in a shadow root. Browser/default min-size computation
 # can therefore differ between `0px` and `auto` without being a Mesurer design
 # declaration or affecting rendered geometry. The contract still compares the
 # actual x/y/width/height and every visual style token below.
 non_design_contract_suffixes = (".style.minWidth", ".style.minHeight")
-version_token = re.compile(r"Version[0-9A-Za-z.+-]+")
 selection_owner_metric_paths = {
     "selectedMeasurement.rect.right",
     "selectedMeasurement.rect.width",
@@ -28,15 +26,10 @@ selection_owner_metric_paths = {
     "selectedMeasurement.style.height",
     "selectedMeasurement.style.width",
 }
-presentation_preference_defaults = {
-    "Keep text changes": "false",
-    "Keep Edit changes": "false",
-}
-
 # This visual suite is intentionally pinned to the pre-compact v0.0.11 toolbar.
 # Mesurer Solid now adopts the newer toolbar chrome/compact treatment under a
 # dedicated current-browser contract. Keep this historical gate authoritative
-# for page results and Settings, but do not make the old toolbar shell veto the
+# for page results, but do not make the old toolbar shell veto the
 # explicitly adopted newer shell. The masked region contains only toolbar chrome
 # plus its measured drop-shadow fringe in these fixtures; page targets begin
 # much farther down the viewport.
@@ -81,110 +74,6 @@ def round_numbers(value):
     return value
 
 
-def toolbar_dock_delta(state, react_metrics, solid_metrics):
-    """Validate and describe the Solid-only General dock controls."""
-    if state != "settings-general":
-        return None
-    react_controls = react_metrics.get("settingsContract", {}).get("controls", [])
-    solid_controls = solid_metrics.get("settingsContract", {}).get("controls", [])
-    names = {"Toolbar dock", "Auto-hide"}
-    if any(control.get("name") in names for control in react_controls):
-        return None
-    docks = [control for control in solid_controls if control.get("name") == "Toolbar dock"]
-    auto_hide = [control for control in solid_controls if control.get("name") == "Auto-hide"]
-    if len(docks) != 1:
-        return None
-    dock = docks[0]
-    dock_value = dock.get("value")
-    snap_selected = dock_value == "snap"
-    expected_auto_hide_count = 1 if snap_selected else 0
-    if len(auto_hide) != expected_auto_hide_count:
-        return None
-    if (
-        dock.get("tag") != "select"
-        or dock.get("role") != "select"
-        or dock_value not in {"free", "snap"}
-        or dock.get("options") != [
-            {"label": "Free", "value": "free", "selected": dock_value == "free", "disabled": False},
-            {"label": "Snap to edges", "value": "snap", "selected": snap_selected, "disabled": False},
-        ]
-    ):
-        return None
-    dock_rect = dock.get("rect", {})
-    if not all(isinstance(dock_rect.get(key), (int, float)) for key in ("x", "y", "width", "height")):
-        return None
-    if abs(dock_rect["y"] - 109) > 0.25 or abs(dock_rect["height"] - 24) > 0.25:
-        return None
-    if abs(dock_rect["x"] - 119) > 0.25 or abs(dock_rect["width"] - 156) > 0.25:
-        return None
-    if snap_selected:
-        auto = auto_hide[0]
-        auto_rect = auto.get("rect", {})
-        if (
-            auto.get("role") != "switch"
-            or auto.get("ariaChecked") not in {"true", "false"}
-            or abs(auto_rect.get("x", 0) - 29) > 0.25
-            or abs(auto_rect.get("y", 0) - (dock_rect["y"] + 32)) > 0.25
-            or abs(auto_rect.get("width", 0) - 246) > 0.25
-            or abs(auto_rect.get("height", 0) - 24) > 0.25
-        ):
-            return None
-    # The control is inside a 32px label row; its 4px top inset plus the
-    # following 4px grid gap make the exact content-flow footprint 36px.
-    footprint = dock_rect["height"] + 12 + (28 if snap_selected else 0)
-    react_rect = react_metrics.get("settings", {}).get("rect", {})
-    solid_rect = solid_metrics.get("settings", {}).get("rect", {})
-    if abs((solid_rect.get("height", 0) - react_rect.get("height", 0)) - (footprint + 84)) > 0.25:
-        return None
-    return {
-        "name": "Toolbar dock",
-        "y": dock_rect["y"] - 4,
-        "footprint": footprint,
-        "snap_selected": snap_selected,
-        "panel_left": solid_rect.get("left", solid_rect.get("x", 0)),
-        "panel_right": solid_rect.get("right", solid_rect.get("x", 0) + solid_rect.get("width", 0)),
-        "react_bottom": react_rect.get("bottom", react_rect.get("y", 0) + react_rect.get("height", 0)),
-        "solid_bottom": solid_rect.get("bottom", solid_rect.get("y", 0) + solid_rect.get("height", 0)),
-    }
-
-
-def normalize_toolbar_dock_metrics(solid_metrics, feature):
-    if feature is None:
-        return solid_metrics
-    normalized = copy.deepcopy(solid_metrics)
-    shift = feature["footprint"]
-    settings = normalized.get("settings", {})
-    settings["text"] = str(settings.get("text", "")).replace("DockFreeSnap to edges", "", 1)
-    if feature["snap_selected"]:
-        settings["text"] = settings["text"].replace("Auto-hide", "", 1)
-    settings_rect = settings.get("rect", {})
-    for key in ("height", "bottom"):
-        if key in settings_rect:
-            settings_rect[key] -= shift
-    style = settings.get("style", {})
-    height = style.get("height")
-    if isinstance(height, str) and height.endswith("px"):
-        style["height"] = f"{float(height[:-2]) - shift:g}px"
-
-    contract = normalized.get("settingsContract", {})
-    contract_rect = contract.get("rect", {})
-    for key in ("height", "bottom"):
-        if key in contract_rect:
-            contract_rect[key] -= shift
-    controls = []
-    for control in contract.get("controls", []):
-        if control.get("name") in {"Toolbar dock", "Auto-hide"}:
-            continue
-        control = copy.deepcopy(control)
-        control["index"] = len(controls)
-        rect = control.get("rect", {})
-        if rect.get("y", 0) > feature["y"]:
-            rect["y"] -= shift
-        controls.append(control)
-    contract["controls"] = controls
-    return normalized
-
-
 def metric_differences(react, solid, path="", numeric_tolerance=0.25):
     diffs = []
     if type(react) is not type(solid):
@@ -209,18 +98,10 @@ def metric_differences(react, solid, path="", numeric_tolerance=0.25):
     return diffs
 
 
-def normalize_version_text(value):
-    return version_token.sub("Version<version>", str(value))
-
-
 def normalize_typography_label_text(value):
     # The visible Solid product label intentionally diverges while the internal
     # compatibility id and all icon/layout/style contracts remain unchanged.
     return str(value).replace("Typography A", "Text inspector A")
-
-
-def normalize_allowed_settings_text(value):
-    return normalize_version_text(normalize_typography_label_text(value))
 
 
 def is_intentional_typography_label_difference(difference):
@@ -266,189 +147,6 @@ def normalize_interactive_typography_layer_metrics(solid_metrics, feature):
     style = normalized.get("textInspector", {}).get("style", {})
     for key, react_value in feature.items():
         style[key] = react_value
-    return normalized
-
-
-def presentation_preferences_delta(state, react_metrics, solid_metrics):
-    """Verify the two Solid-only presentation switches before normalizing them."""
-    if state != "settings-general":
-        return None
-    react_settings = react_metrics.get("settings", {})
-    solid_settings = solid_metrics.get("settings", {})
-    react_controls = react_metrics.get("settingsContract", {}).get("controls", [])
-    solid_controls = solid_metrics.get("settingsContract", {}).get("controls", [])
-    names = set(presentation_preference_defaults)
-    if any(control.get("name") in names for control in react_controls):
-        return None
-
-    preferences = [control for control in solid_controls if control.get("name") in names]
-    if len(preferences) != len(names) or {control.get("name") for control in preferences} != names:
-        return None
-    for control in preferences:
-        if control.get("role") != "switch":
-            return None
-        if control.get("ariaChecked") != presentation_preference_defaults[control.get("name")]:
-            return None
-
-    persist = next((control for control in solid_controls if control.get("name") == "Persist"), None)
-    react_persist = next((control for control in react_controls if control.get("name") == "Persist"), None)
-    if persist is None or react_persist is None:
-        return None
-    persist_rect = persist.get("rect", {})
-    react_persist_rect = react_persist.get("rect", {})
-    ordered = sorted(preferences, key=lambda control: control.get("rect", {}).get("y", -1))
-    first_rect = ordered[0].get("rect", {})
-    second_rect = ordered[1].get("rect", {})
-    row_height = first_rect.get("height")
-    if not isinstance(row_height, (int, float)) or row_height <= 0:
-        return None
-    row_stride = row_height + 4
-    if second_rect.get("height") != row_height:
-        return None
-    if abs(second_rect.get("y", 0) - first_rect.get("y", 0) - row_stride) > 0.01:
-        return None
-    if abs(persist_rect.get("y", 0) - second_rect.get("y", 0) - row_stride) > 0.01:
-        return None
-    for rect in (first_rect, second_rect):
-        if rect.get("x") != persist_rect.get("x") or rect.get("width") != persist_rect.get("width"):
-            return None
-    shift = row_stride * len(preferences)
-    react_persist_y = react_persist_rect.get("y")
-    if not isinstance(react_persist_y, (int, float)):
-        return None
-    if abs(first_rect.get("y", 0) - react_persist_y) > 0.01:
-        return None
-    if abs(persist_rect.get("y", 0) - react_persist_y - shift) > 0.01:
-        return None
-
-    react_rect = react_settings.get("rect", {})
-    solid_rect = solid_settings.get("rect", {})
-    panel_growth = solid_rect.get("height", 0) - react_rect.get("height", 0)
-    if panel_growth < shift:
-        return None
-    return {
-        "shift": shift,
-        "preference_y": first_rect.get("y", 0),
-        "react_start_y": react_persist_y,
-        "panel_left": solid_rect.get("left", solid_rect.get("x", 0)),
-        "panel_right": solid_rect.get("right", solid_rect.get("x", 0) + solid_rect.get("width", 0)),
-        "react_bottom": react_rect.get("bottom", react_rect.get("y", 0) + react_rect.get("height", 0)),
-        "solid_bottom": solid_rect.get("bottom", solid_rect.get("y", 0) + solid_rect.get("height", 0)),
-    }
-
-
-def normalize_presentation_preferences_metrics(solid_metrics, feature):
-    if feature is None:
-        return solid_metrics
-    normalized = copy.deepcopy(solid_metrics)
-    shift = feature["shift"]
-    settings = normalized.get("settings", {})
-    text = str(settings.get("text", ""))
-    for label in presentation_preference_defaults:
-        text = text.replace(label, "", 1)
-    settings["text"] = text
-    settings_rect = settings.get("rect", {})
-    if "height" in settings_rect:
-        settings_rect["height"] -= shift
-    if "bottom" in settings_rect:
-        settings_rect["bottom"] -= shift
-    style = settings.get("style", {})
-    height = style.get("height")
-    if isinstance(height, str) and height.endswith("px"):
-        style["height"] = f"{float(height[:-2]) - shift:g}px"
-
-    settings_contract = normalized.get("settingsContract", {})
-    contract_rect = settings_contract.get("rect", {})
-    if "height" in contract_rect:
-        contract_rect["height"] -= shift
-    if "bottom" in contract_rect:
-        contract_rect["bottom"] -= shift
-    controls = []
-    for control in settings_contract.get("controls", []):
-        if control.get("name") in presentation_preference_defaults:
-            continue
-        control = copy.deepcopy(control)
-        control["index"] = len(controls)
-        if control.get("rect", {}).get("y", 0) > feature["preference_y"]:
-            control["rect"]["y"] -= shift
-        controls.append(control)
-    settings_contract["controls"] = controls
-    return normalized
-
-
-def historical_shortcuts_delta(state, react_metrics, solid_metrics):
-    """Describe only the adopted current-upstream Shortcuts row missing from v0.0.11."""
-    if state != "settings-general":
-        return None
-    react_settings = react_metrics.get("settings", {})
-    solid_settings = solid_metrics.get("settings", {})
-    react_contract = react_metrics.get("settingsContract", {})
-    solid_contract = solid_metrics.get("settingsContract", {})
-    react_controls = react_contract.get("controls", [])
-    solid_controls = solid_contract.get("controls", [])
-    if any(control.get("name") == "Shortcuts" for control in react_controls):
-        return None
-    shortcuts = [control for control in solid_controls if control.get("name") == "Shortcuts"]
-    if len(shortcuts) != 1:
-        return None
-    shortcuts = shortcuts[0]
-    persist = next((control for control in solid_controls if control.get("name") == "Persist"), None)
-    if persist is None or shortcuts.get("role") != "switch" or shortcuts.get("ariaChecked") != "true":
-        return None
-    shortcut_rect = shortcuts.get("rect", {})
-    persist_rect = persist.get("rect", {})
-    shift = shortcut_rect.get("y", 0) - persist_rect.get("y", 0)
-    if shift <= 0 or shortcut_rect.get("height") != persist_rect.get("height"):
-        return None
-    if abs(shift - (shortcut_rect.get("height", 0) + 4)) > 0.01:
-        return None
-    if shortcut_rect.get("x") != persist_rect.get("x") or shortcut_rect.get("width") != persist_rect.get("width"):
-        return None
-    react_rect = react_settings.get("rect", {})
-    solid_rect = solid_settings.get("rect", {})
-    if abs((solid_rect.get("height", 0) - react_rect.get("height", 0)) - shift) > 0.01:
-        return None
-    return {
-        "shift": shift,
-        "panel_left": solid_rect.get("left", solid_rect.get("x", 0)),
-        "panel_right": solid_rect.get("right", solid_rect.get("x", 0) + solid_rect.get("width", 0)),
-        "react_bottom": react_rect.get("bottom", react_rect.get("y", 0) + react_rect.get("height", 0)),
-        "solid_bottom": solid_rect.get("bottom", solid_rect.get("y", 0) + solid_rect.get("height", 0)),
-        "persist_bottom": persist_rect.get("y", 0) + persist_rect.get("height", 0),
-        "shortcut_y": shortcut_rect.get("y", 0),
-    }
-
-
-def normalize_historical_shortcuts_metrics(solid_metrics, feature):
-    if feature is None:
-        return solid_metrics
-    normalized = copy.deepcopy(solid_metrics)
-    shift = feature["shift"]
-    settings = normalized.get("settings", {})
-    settings["text"] = str(settings.get("text", "")).replace("Shortcuts", "", 1)
-    settings_rect = settings.get("rect", {})
-    if "height" in settings_rect:
-        settings_rect["height"] -= shift
-    if "bottom" in settings_rect:
-        settings_rect["bottom"] -= shift
-    style = settings.get("style", {})
-    height = style.get("height")
-    if isinstance(height, str) and height.endswith("px"):
-        style["height"] = f"{float(height[:-2]) - shift:g}px"
-
-    settings_contract = normalized.get("settingsContract", {})
-    if "rect" in settings_contract and "height" in settings_contract["rect"]:
-        settings_contract["rect"]["height"] -= shift
-    controls = []
-    for control in settings_contract.get("controls", []):
-        if control.get("name") == "Shortcuts":
-            continue
-        control = copy.deepcopy(control)
-        control["index"] = len(controls)
-        if control.get("rect", {}).get("y", 0) > feature["shortcut_y"]:
-            control["rect"]["y"] -= shift
-        controls.append(control)
-    settings_contract["controls"] = controls
     return normalized
 
 
@@ -498,14 +196,8 @@ for state in states:
 
     react_metrics = round_numbers(json.loads((out / f"react-{state}.json").read_text()))
     solid_metrics = round_numbers(json.loads((out / f"solid-{state}.json").read_text()))
-    dock_feature = toolbar_dock_delta(state, react_metrics, solid_metrics)
-    solid_metrics = normalize_toolbar_dock_metrics(solid_metrics, dock_feature)
     typography_layer_feature = interactive_typography_layer_delta(state, react_metrics, solid_metrics)
     solid_metrics = normalize_interactive_typography_layer_metrics(solid_metrics, typography_layer_feature)
-    presentation_feature = presentation_preferences_delta(state, react_metrics, solid_metrics)
-    solid_metrics = normalize_presentation_preferences_metrics(solid_metrics, presentation_feature)
-    shortcuts_feature = historical_shortcuts_delta(state, react_metrics, solid_metrics)
-    solid_metrics = normalize_historical_shortcuts_metrics(solid_metrics, shortcuts_feature)
     label_region = selection_label_region(state, react_metrics, solid_metrics)
 
     width, height = react.size
@@ -515,50 +207,12 @@ for state in states:
     thresholded = 0
     ignored_toolbar_exact = 0
     ignored_toolbar_thresholded = 0
-    ignored_shortcuts_exact = 0
-    ignored_shortcuts_thresholded = 0
     ignored_selection_label_exact = 0
     ignored_selection_label_thresholded = 0
     max_delta = 0
     for y in range(height):
         for x in range(width):
-            solid_y = y
-            ignore_current_general_pixel = False
-            general_feature = dock_feature or presentation_feature or shortcuts_feature
-            if general_feature is not None:
-                panel_left = max(0, int(general_feature["panel_left"]))
-                panel_right = min(width, int(general_feature["panel_right"]))
-                shadow_left = max(0, panel_left - 16)
-                shadow_right = min(width, panel_right + 16)
-                react_bottom = general_feature["react_bottom"]
-                solid_bottom = general_feature["solid_bottom"]
-                react_shadow_bottom = int(react_bottom + 12)
-                solid_shadow_bottom = int(solid_bottom + 12)
-                # Only panel contents move down when current-only rows are
-                # inserted. The page and vertical shadow strips beside the
-                # panel remain stationary and must never be remapped.
-                if panel_left <= x < panel_right and y < react_shadow_bottom:
-                    if dock_feature is not None and y >= dock_feature["y"]:
-                        solid_y += int(dock_feature["footprint"])
-                    if presentation_feature is not None and y >= presentation_feature["react_start_y"]:
-                        solid_y += int(presentation_feature["shift"])
-                    if shortcuts_feature is not None and y >= shortcuts_feature["persist_bottom"]:
-                        solid_y += int(shortcuts_feature["shift"])
-                elif shadow_left <= x < shadow_right and react_shadow_bottom <= y < solid_shadow_bottom:
-                    # This tail exists only because the verified current rows
-                    # make the panel taller. Ignore it only after those rows
-                    # have passed their exact semantic/geometry checks above.
-                    ignore_current_general_pixel = True
-
-            raw_delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
-            if ignore_current_general_pixel:
-                if raw_delta:
-                    ignored_shortcuts_exact += 1
-                    if raw_delta > threshold:
-                        ignored_shortcuts_thresholded += 1
-                continue
-
-            delta = max(abs(rp[x, y][i] - sp[x, solid_y][i]) for i in range(4))
+            delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
             if not delta:
                 continue
             if is_historical_toolbar_pixel(state, x, y):
@@ -630,13 +284,9 @@ for state in states:
         "threshold_diff_ratio": thresholded / (width * height),
         "ignored_historical_toolbar_exact_pixels": ignored_toolbar_exact,
         "ignored_historical_toolbar_threshold_pixels": ignored_toolbar_thresholded,
-        "ignored_current_shortcuts_exact_pixels": ignored_shortcuts_exact,
-        "ignored_current_shortcuts_threshold_pixels": ignored_shortcuts_thresholded,
         "ignored_selection_label_exact_pixels": ignored_selection_label_exact,
         "ignored_selection_label_threshold_pixels": ignored_selection_label_thresholded,
         "normalized_current_typography_interaction_layer": typography_layer_feature is not None,
-        "normalized_presentation_preferences": presentation_feature is not None,
-        "normalized_current_shortcuts_setting": shortcuts_feature is not None,
         "normalized_selection_label_rasterization": label_region is not None,
         "max_channel_delta": max_delta,
         "metric_difference_count": len(metric_diffs),
@@ -665,46 +315,29 @@ for state in states:
 print(json.dumps(report, indent=2))
 
 # The pinned React implementation remains the contract for the shared historical
-# page/result/Settings surface. Toolbar chrome, the current-upstream Shortcuts
-# row, the two Solid presentation-policy switches, and the verified interactive
-# Typography ownership layer are validated by dedicated current Chromium
-# contracts instead of being vetoed by the older v0.0.11 fixture.
+# page/result surface. Toolbar chrome and the verified interactive Typography
+# ownership layer are validated by dedicated current Chromium contracts instead
+# of being vetoed by the older v0.0.11 fixture. Settings is the sectioned panel
+# now and is compared with current upstream by current-settings-capture.mjs.
 failures = []
-expected_general_metric_paths = {"settings.text"}
 for state, result in report["states"].items():
     if result["contract_difference_count"] != 0:
         paths = [item["path"] for item in result["contract_differences"][:10]]
         failures.append(f"{state}: {result['contract_difference_count']} explicit UI contract differences: {paths}")
 
-    metric_paths = {item["path"] for item in result["metric_differences"]}
-    if state == "settings-general":
-        if result["threshold_diff_pixels"] > 400:
-            failures.append(
-                f"{state}: {result['threshold_diff_pixels']} perceptible pixels exceed the 400-pixel version-text budget"
-            )
-        if not metric_paths.issubset(expected_general_metric_paths):
-            failures.append(
-                f"{state}: unexpected computed metric differences: {sorted(metric_paths - expected_general_metric_paths)}"
-            )
-        for item in result["metric_differences"]:
-            if normalize_allowed_settings_text(item["react"]) != normalize_allowed_settings_text(item["solid"]):
-                failures.append(
-                    f"{state}: allowed text difference is not solely the version token plus the Typography product-label rename"
-                )
-    else:
-        # Source-native selection paint moves with the selected element on the
-        # compositor instead of via a separate CSS-anchored portal. Its tint
-        # is visually equivalent to the legacy translucent overlay; Chromium
-        # produces <= 8 thresholded antialias pixels on text glyph edges.
-        # Keep this budget tightly scoped to the selection screenshot. Every
-        # other state still requires zero perceptible differences.
-        selection_native_paint_budget = 8 if state == "selection" else 0
-        if result["threshold_diff_pixels"] > selection_native_paint_budget:
-            failures.append(f"{state}: {result['threshold_diff_pixels']} perceptible pixels differ outside intentional toolbar chrome")
-        if result["metric_difference_count"] != 0:
-            failures.append(f"{state}: {result['metric_difference_count']} computed layout/style metrics differ outside intentional toolbar chrome")
+    # Source-native selection paint moves with the selected element on the
+    # compositor instead of via a separate CSS-anchored portal. Its tint
+    # is visually equivalent to the legacy translucent overlay; Chromium
+    # produces <= 8 thresholded antialias pixels on text glyph edges.
+    # Keep this budget tightly scoped to the selection screenshot. Every
+    # other state still requires zero perceptible differences.
+    selection_native_paint_budget = 8 if state == "selection" else 0
+    if result["threshold_diff_pixels"] > selection_native_paint_budget:
+        failures.append(f"{state}: {result['threshold_diff_pixels']} perceptible pixels differ outside intentional toolbar chrome")
+    if result["metric_difference_count"] != 0:
+        failures.append(f"{state}: {result['metric_difference_count']} computed layout/style metrics differ outside intentional toolbar chrome")
 
 if failures:
     raise SystemExit("React → Solid visual/UI contract parity gate failed:\n- " + "\n- ".join(failures))
 
-print("React → Solid historical page/result/Settings parity gate: PASS")
+print("React → Solid historical page/result parity gate: PASS")

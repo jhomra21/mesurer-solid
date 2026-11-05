@@ -1228,8 +1228,7 @@ try {
   assert(referenceOutline.width > 0, "X-ray outline should have visible width");
 
   await settingsButton.click();
-  const generalTab = page.getByRole("tab", { name: "General", exact: true });
-  await generalTab.click();
+  await page.getByRole("region", { name: "General settings" }).waitFor({ state: "attached" });
   const pluginsDisclosure = page.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
   await pluginsDisclosure.click();
   const arrangeSettings = page.locator("[data-mesurer-plugin-settings-section='mesurer.arrange']");

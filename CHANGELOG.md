@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Replace tabbed Settings with the sectioned upstream panel (Guides, Inspect, Color picker, Rulers, General), 252px wide, ported from upstream `5c2fdae`. Every Solid setting keeps its persisted key and default and sits in its matching section, including plugin settings, presentation switches, Appearance, Shortcuts, dock/auto-hide, Persist, Inspect info card, and Selection spacing.
+- Dark menus use the toolbar surface and a fine light edge line (upstream `300558e`).
+- Pressing inside a Responsive preview closes an open toolbar menu (upstream `c420f57`); removing a preview hides its markers immediately and keeps saved notes (upstream `2b84e88`).
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.5-beta.2 - 2026-10-23

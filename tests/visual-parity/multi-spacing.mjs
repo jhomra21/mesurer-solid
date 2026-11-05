@@ -82,7 +82,7 @@ const openSettings = async () => {
   await page.evaluate(async () => {
     await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
   });
-  await page.getByRole("tab", { name: "Select" }).click();
+  await page.getByRole("region", { name: "Inspect settings" }).waitFor({ state: "visible" });
 };
 
 const closeSettings = async () => {
@@ -390,7 +390,7 @@ try {
   // Custom orthogonal styling remains configurable while diagonal pattern stays dotted by definition.
   await openSettings();
   await spacingSettings.getByRole("switch", { name: "Diagonals" }).click();
-  await spacingSettings.getByRole("radio", { name: "Solid spacing pattern" }).click();
+  await spacingSettings.getByRole("radio", { name: "Solid selection spacing pattern" }).click();
   const weight = spacingSettings.getByRole("slider", { name: "Weight" });
   await weight.focus();
   await weight.press("ArrowRight");
@@ -433,7 +433,7 @@ try {
   assert.equal(customStyleEvidence.storedStyle?.width, 3, "Selection spacing weight should persist");
 
   await openSettings();
-  await page.getByRole("tab", { name: "General" }).click();
+  await page.getByRole("region", { name: "General settings" }).waitFor({ state: "visible" });
   await page.getByRole("button", { name: "Reset settings to defaults" }).click();
   await closeSettings();
   await page.waitForFunction(() =>

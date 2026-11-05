@@ -32,40 +32,32 @@ describe("createMesurerModel", () => {
     model.dispose();
   });
 
-  it("chooses the upstream settings tab when settings open without an explicit tab", () => {
+  it("focuses the Settings section that matches the active tool when Settings open", () => {
     const model = createMesurerModel();
 
     model.setToolMode("select");
     model.setTransient({ settingsOpen: true });
-    expect(model.current.settingsTab).toBe("select");
+    expect(model.current.settingsFocus).toBe("inspect");
 
     model.setTransient({ settingsOpen: false });
     model.setToolMode("guides");
     model.setTransient({ settingsOpen: true });
-    expect(model.current.settingsTab).toBe("guides");
+    expect(model.current.settingsFocus).toBe("guides");
 
     model.setTransient({ settingsOpen: false });
     model.setToolMode("none");
     model.setRulersVisible(true);
     model.setTransient({ settingsOpen: true });
-    expect(model.current.settingsTab).toBe("rulers");
+    expect(model.current.settingsFocus).toBe("rulers");
 
     model.setTransient({ settingsOpen: false, colorPickerActive: true });
     model.setTransient({ settingsOpen: true });
-    expect(model.current.settingsTab).toBe("color-picker");
+    expect(model.current.settingsFocus).toBe("color");
 
     model.setTransient({ settingsOpen: false, colorPickerActive: false });
     model.setRulersVisible(false);
     model.setTransient({ settingsOpen: true });
-    expect(model.current.settingsTab).toBe("general");
-    model.dispose();
-  });
-
-  it("preserves an explicit settings tab when opening settings", () => {
-    const model = createMesurerModel();
-    model.setToolMode("guides");
-    model.setTransient({ settingsOpen: true, settingsTab: "general" });
-    expect(model.current.settingsTab).toBe("general");
+    expect(model.current.settingsFocus).toBeNull();
     model.dispose();
   });
 
