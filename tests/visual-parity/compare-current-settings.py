@@ -8,7 +8,38 @@ from PIL import Image, ImageChops, ImageDraw, ImageEnhance
 
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("current-settings-parity")
 threshold = 8
-states = sorted(path.name.removeprefix("react-").removesuffix(".png") for path in out.glob("react-*.png"))
+EXPECTED_STATES = ["dark", "light"]
+EXPECTED_SECTIONS = ["guides", "inspect", "color", "rulers", "general"]
+
+
+def fail_input(message):
+    raise SystemExit(f"Current React Settings parity input invalid: {message}")
+
+
+def require_inventory(label, contract):
+    sections = contract.get("sections") if isinstance(contract, dict) else None
+
+    if not isinstance(sections, list):
+        fail_input(f"{label}: missing sections list")
+
+    ids = [section.get("id") for section in sections]
+
+    if ids != EXPECTED_SECTIONS:
+        fail_input(f"{label}: sections {ids} != {EXPECTED_SECTIONS}")
+
+    for section in sections:
+        if not section.get("controls"):
+            fail_input(f"{label}: section {section['id']} has an empty control inventory")
+
+
+for implementation in ("react", "solid"):
+    for extension in ("png", "json"):
+        found = sorted(path.name.removeprefix(f"{implementation}-").removesuffix(f".{extension}") for path in out.glob(f"{implementation}-*.{extension}"))
+
+        if found != EXPECTED_STATES:
+            fail_input(f"{implementation} .{extension} states {found} != {EXPECTED_STATES}")
+
+states = EXPECTED_STATES
 
 
 def rounded(value):
@@ -66,6 +97,9 @@ for state in states:
     solid = Image.open(out / f"solid-{state}.png").convert("RGBA")
     react_contract = json.loads((out / f"react-{state}.json").read_text())
     solid_contract = json.loads((out / f"solid-{state}.json").read_text())
+
+    require_inventory(f"react-{state}", react_contract)
+    require_inventory(f"solid-{state}", solid_contract)
 
     # Placement of the dialog differs by design (upstream fixed surface vs Solid toolbar dialog); the panel is compared in its own box.
     contract_diffs = differences(react_contract, solid_contract)

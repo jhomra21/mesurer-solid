@@ -59,7 +59,7 @@ function SettingsSwitch(props: {
         class={`msr:grid msr:h-8 msr:w-full msr:appearance-none ${SETTINGS_COLUMNS} msr:items-center msr:gap-0 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45`}
         onClick={() => props.onChange(!props.checked)}
       >
-        <span class="msr:whitespace-nowrap">{props.label}</span>
+        <span>{props.label}</span>
         <span aria-hidden="true" style={{ "justify-self": "end" }} data-checked={props.checked ? "true" : "false"} class={switchTrackClass(props.checked)}>
           <SwitchThumb checked={props.checked} />
         </span>
@@ -212,7 +212,15 @@ function SliderControl(props: {
   const [draft, setDraft] = createSignal("");
   let sliderElement: HTMLDivElement | undefined;
   const percentage = () => ((props.value - props.min) / (props.max - props.min)) * 100;
-  const setClamped = (value: number) => props.onChange(Number(Math.min(props.max, Math.max(props.min, value)).toFixed(4)));
+  const clamp = (value: number) => Number(Math.min(props.max, Math.max(props.min, value)).toFixed(4));
+  const setClamped = (value: number) => props.onChange(clamp(value));
+
+  const updateValue = (value: number) => {
+    const next = clamp(value);
+
+    setDraft(formatValue(next));
+    props.onChange(next);
+  };
 
   const updateFromPointer = (event: PointerEvent, element: HTMLDivElement) => {
     event.stopPropagation();
@@ -315,7 +323,7 @@ function SliderControl(props: {
               if (event.key === "ArrowUp" || event.key === "ArrowDown") {
                 event.stopPropagation();
                 event.preventDefault();
-                setClamped(props.value + (event.key === "ArrowUp" ? 1 : -1) * props.step);
+                updateValue(props.value + (event.key === "ArrowUp" ? 1 : -1) * props.step);
               } else if (event.key === "Enter") {
                 event.stopPropagation();
                 event.preventDefault();

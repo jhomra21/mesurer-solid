@@ -159,9 +159,11 @@ try {
 
   await page.mouse.move(previewPoint.x, previewPoint.y);
   await page.mouse.down();
-  await page.mouse.up();
   await settingsDialog.waitFor({ state: "hidden", timeout: 1000 });
-  await page.screenshot({ path: join(output, "menu-closed-after-preview-press.png") });
+  assert.equal(await settingsDialog.count(), 0, "The toolbar menu closes on press, while the pointer is still down inside the preview");
+  await page.screenshot({ path: join(output, "menu-closed-while-preview-pressed.png") });
+  await page.mouse.up();
+  assert.equal(await settingsDialog.count(), 0, "Releasing the preview press does not reopen the menu");
   await page.evaluate(async () => {
     const host = await window.__responsiveMount.ready;
     const plugin = host.plugin("mesurer.context");
@@ -314,11 +316,41 @@ try {
     window.__removedContextShadowRoot = frame.contentDocument.querySelector("#context-shadow-host")?.shadowRoot;
     window.__removedContextObservers = frame.contentWindow.__contextContractObservers;
   });
-  const savedBeforeRemove = (await annotations()).length;
-  await page.locator("[data-preview]").first().getByLabel("Remove preview").click();
-  assert.equal(await markers.count(), 1, "Markers bound to a closed preview disappear immediately, before any settle");
-  assert.equal((await annotations()).length, savedBeforeRemove, "Closing a preview keeps its saved notes");
+  const savedBeforeRemove = (await annotations()).map(({ id, note }) => ({ id, note }));
+  assert.equal(await markers.count(), 2);
+
+  const removal = await page.evaluate(async () => {
+    const deep = (root, selector, found = []) => {
+      found.push(...root.querySelectorAll(selector));
+
+      for (const element of root.querySelectorAll("*")) if (element.shadowRoot) deep(element.shadowRoot, selector, found);
+
+      return found;
+    };
+
+    const visibleMarkers = () => deep(document, "[data-mesurer-annotation-marker='true']").filter((marker) => {
+      const rect = marker.getBoundingClientRect();
+      const style = getComputedStyle(marker);
+
+      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+    }).length;
+
+    const button = deep(document, "[data-preview]")[0].querySelector("[aria-label='Remove preview']");
+    const before = visibleMarkers();
+    button.click();
+
+    // Drain only microtasks: no timer, animation frame, or paint may run before this read.
+    for (let index = 0; index < 8; index += 1) await Promise.resolve();
+
+    const sameTask = visibleMarkers();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    return { before, sameTask, nextFrame: visibleMarkers() };
+  });
+
+  assert.deepEqual(removal, { before: 2, sameTask: 1, nextFrame: 1 }, "Markers bound to a closed preview are gone in the same task as the close, not a frame later");
   await settle();
+  assert.deepEqual((await annotations()).map(({ id, note }) => ({ id, note })), savedBeforeRemove, "Closing a preview keeps every saved annotation id and note unchanged");
   assert.deepEqual(await page.evaluate(() => {
     const doc = window.__removedContextDocument;
 
