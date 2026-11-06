@@ -1,0 +1,59 @@
+name: Install Playwright Linux dependencies
+description: >-
+  Install Chromium system packages with a per-attempt timeout and retries, so a
+  hung apt step fails fast instead of stalling the job until it is cancelled.
+
+inputs:
+  working-directory:
+    description: Directory to run the Playwright command from.
+    required: false
+    default: "."
+  runner:
+    description: Command runner for Playwright, either bunx or pnpm.
+    required: false
+    default: bunx
+
+runs:
+  using: composite
+  steps:
+    - name: Install Playwright Linux dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PLAYWRIGHT_RUNNER: ${{ inputs.runner }}
+      run: |
+        set -uo pipefail
+
+        case "$PLAYWRIGHT_RUNNER" in
+          bunx) cmd=(bunx playwright install-deps chromium) ;;
+          pnpm) cmd=(pnpm exec playwright install-deps chromium) ;;
+          *)
+            echo "::error::Unsupported runner '$PLAYWRIGHT_RUNNER'; expected bunx or pnpm."
+            exit 1
+            ;;
+        esac
+
+        # Known apt slowdown on these images; skip silently when absent.
+        if [ -e /var/lib/man-db/auto-update ]; then
+          sudo rm -f /var/lib/man-db/auto-update
+        fi
+
+        max_attempts=3
+        attempt=1
+        while [ "$attempt" -le "$max_attempts" ]; do
+          echo "Playwright install-deps attempt $attempt of $max_attempts: ${cmd[*]}"
+          timeout 240 "${cmd[@]}"
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            echo "Playwright install-deps succeeded on attempt $attempt."
+            exit 0
+          fi
+          echo "::warning::Playwright install-deps attempt $attempt of $max_attempts failed with exit code $status."
+          if [ "$attempt" -lt "$max_attempts" ]; then
+            sleep 10
+          fi
+          attempt=$((attempt + 1))
+        done
+
+        echo "::error::Playwright install-deps failed on all $max_attempts attempts."
+        exit 1
