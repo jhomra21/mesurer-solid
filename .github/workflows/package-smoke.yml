@@ -487,7 +487,9 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright_version.outputs.version }}-chromium-only-shell
 
       - name: Install Linux browser dependencies
-        run: bunx playwright install-deps chromium
+        uses: ./.github/actions/playwright-deps
+        with:
+          runner: bunx
 
       - name: Install headless Chromium shell
         run: bunx playwright install --only-shell chromium

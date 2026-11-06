@@ -177,7 +177,9 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright_version.outputs.version }}-chromium
 
       - name: Install Linux browser dependencies
-        run: bunx playwright install-deps chromium
+        uses: ./.github/actions/playwright-deps
+        with:
+          runner: bunx
 
       - name: Install Chromium
         run: bunx playwright install chromium
@@ -648,7 +650,9 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright_version.outputs.version }}-chromium
 
       - name: Install Linux browser dependencies
-        run: bunx playwright install-deps chromium
+        uses: ./.github/actions/playwright-deps
+        with:
+          runner: bunx
 
       - name: Install Chromium
         run: bunx playwright install chromium
