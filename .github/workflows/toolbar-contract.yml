@@ -11,9 +11,13 @@ on:
       - "tests/visual-parity/toolbar-compact-contract.mjs"
       - "tests/visual-parity/toolbar-docking-contract.mjs"
       - "tests/visual-parity/toolbar-placement-contract.mjs"
+      - "tests/visual-parity/toolbar-ready-layout-contract.mjs"
       - "examples/basic/toolbar-placement-contract.html"
       - "examples/basic/src/toolbar-placement-contract.ts"
+      - "examples/basic/keyboard-ownership.html"
+      - "examples/basic/src/keyboard-ownership.ts"
       - "packages/renderer/src/Mesurer.tsx"
+      - "packages/renderer/src/ComposableMesurer.tsx"
       - "packages/mesurer/src/index.tsx"
       - "tests/visual-parity/toolbar-vertical-parity-contract.mjs"
       - "packages/renderer/src/runtime/toolbar-*.ts"
@@ -134,6 +138,21 @@ jobs:
         with:
           name: toolbar-placement
           path: toolbar-placement-artifacts
+          retention-days: 14
+
+      - name: Keep the toolbar layout fixed after ready
+        env:
+          TOOLBAR_READY_ORIGIN: http://127.0.0.1:4174
+          TOOLBAR_READY_OUT: toolbar-ready-layout-artifacts
+        run: bun tests/visual-parity/toolbar-ready-layout-contract.mjs
+
+      - name: Upload ready-layout evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: toolbar-ready-layout
+          path: toolbar-ready-layout-artifacts
+          if-no-files-found: warn
           retention-days: 14
 
   vertical-toolbar:

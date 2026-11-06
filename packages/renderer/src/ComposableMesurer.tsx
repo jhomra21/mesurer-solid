@@ -1049,6 +1049,7 @@ export default function ComposableMesurer(props: MesurerProps) {
         <Mesurer
           {...props}
           pluginTools={customTools()}
+          toolbarReady={ready()}
           onPluginTool={(tool) => {
             runToolWithResponsiveClose(tool);
           }}

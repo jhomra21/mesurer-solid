@@ -124,7 +124,7 @@ Use the high-level Context and saved-intent methods for normal UI work. The lowe
 
 | Method | Use it for |
 | --- | --- |
-| `ready()` | Wait for Mesurer to finish loading. |
+| `ready()` | Wait for Mesurer to finish loading: plugins registered, the toolbar rendered with its complete tool set, and layout stable. |
 | `describe()` | Read loaded plugins and their tools, settings, overlays, state, commands, hooks, and services. |
 | `inspect(selector, index?)` | Inspect one matching rendered element. |
 | `inspectAll(selector, limit?)` | Inspect several matches without changing selection. |
