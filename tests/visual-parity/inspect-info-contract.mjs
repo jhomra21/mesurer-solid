@@ -336,11 +336,52 @@ try {
     "Expand opens the full row list");
   const expandedRows = await countCssRows();
   assert(expandedRows > collapsedRows, "Expansion exposes rows beyond the first six");
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await clickInspectControl(card.getByRole("button", { name: "Show less CSS details" }));
   await card.getByRole("button", { name: /Show \d+ more CSS details/ }).waitFor({ state: "visible" });
   assert.equal(await countCssRows(), 6, "Collapse restores exactly six CSS rows");
   await clickInspectControl(card.getByRole("button", { name: /Show \d+ more CSS details/ }));
+  await card.getByRole("button", { name: "Show less CSS details" }).waitFor({ state: "visible" });
+
+  // Failure mode: the card changes size one frame before it is re-placed, so an
+  // observer between those moments (a pointer hit test, a CDP box read) sees the
+  // control at a position it no longer has.
+  const toggleBoxes = await page.evaluate(() => new Promise((resolve) => {
+    const cardElement = document.querySelector("[data-mesurer-inspect-info-card]");
+    const toggle = () => [...cardElement.querySelectorAll("button")].find((button) => /Show .*CSS|Show \d+ more|Show less/.test(`${button.getAttribute("aria-label")}`));
+
+    const read = () => {
+      const box = cardElement.getBoundingClientRect();
+      const control = toggle().getBoundingClientRect();
+
+      return [box.top, box.height, control.top].map(Math.round);
+    };
+
+    const results = [];
+    let remaining = 4;
+
+    const step = () => {
+      toggle().click();
+
+      // The next task is the earliest a hit test or CDP read can run after the click.
+      setTimeout(() => {
+        const nextTask = read();
+
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          results.push({ nextTask, settled: read() });
+
+          if (--remaining) setTimeout(step, 100);
+          else resolve(results);
+        }));
+      }, 0);
+    };
+
+    step();
+  }));
+
+  for (const { nextTask, settled } of toggleBoxes) {
+    assert.deepEqual(nextTask, settled, `Expanding or collapsing re-places the card in the same update: ${JSON.stringify(toggleBoxes)}`);
+  }
+
   await card.getByRole("button", { name: "Show less CSS details" }).waitFor({ state: "visible" });
   await hoverInspectedTarget(root);
   await clickInspectedTarget(root);

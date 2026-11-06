@@ -465,6 +465,33 @@ try {
   await page.waitForTimeout(350);
   await player.waitFor({ state: "hidden", timeout: 3000 });
 
+  // Failure modes: Motion observation of a previous selection outlives it, so
+  // writes Edit made to a static element stay flagged as "JavaScript animation"
+  // after Escape and reselect and the Inspect card never returns.
+  const staticTarget = page.locator("[data-testid='static-target']");
+  const staticInspectCard = page.locator("[data-mesurer-inspect-info-card]:visible");
+  await selectTarget("[data-testid='static-target']");
+  await staticInspectCard.first().waitFor({ state: "visible", timeout: 3000 });
+  await page.locator("button[data-mesurer-toolbar-mode='edit']").click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+  await staticTarget.evaluate((element) => {
+    element.style.translate = "6px 4px";
+    element.firstChild.textContent = "Static target (edited)";
+  });
+  await page.waitForTimeout(400);
+  await page.locator("button[data-mesurer-toolbar-mode='select']").click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='select']").waitFor({ state: "visible" });
+  await page.waitForTimeout(500);
+  assert.equal(await player.count(), 0, "Edit writes to a static element are not Motion");
+  await staticInspectCard.first().waitFor({ state: "visible", timeout: 3000 });
+  await page.keyboard.press("Escape");
+  await settle();
+  await selectTarget("[data-testid='static-target']");
+  await page.waitForTimeout(500);
+  assert.equal(await player.count(), 0, "Reselecting an edited static element does not inherit stale Motion state");
+  await staticInspectCard.first().waitFor({ state: "visible", timeout: 3000 });
+  await page.screenshot({ path: join(output, "static-reselect-inspect-card.png") });
+
   const report = {
     css: {
       paused,

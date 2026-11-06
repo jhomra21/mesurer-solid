@@ -402,24 +402,24 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
     };
   });
 
+  const measureCard = (node: HTMLElement) => {
+    const rect = node.getBoundingClientRect();
+    setCardWidth(rect.width);
+    setCardHeight(rect.height);
+  };
+
   createEffect(() => [cardElement(), props.ownerWindow] as const, ([node, ownerWindow]) => {
     // Expansion and source retargeting can change the card height; the ResizeObserver
     // below keeps placement geometry current without polling during pointer movement.
     if (!node) return;
 
-    const measure = () => {
-      const rect = node.getBoundingClientRect();
-      setCardWidth(rect.width);
-      setCardHeight(rect.height);
-    };
-
     // SAFETY: ownerWindow is the browser realm that owns this card's DOM node.
     const Observer = (ownerWindow as Window & typeof globalThis).ResizeObserver;
 
     if (!Observer) return;
-    const observer = new Observer(measure);
+    const observer = new Observer(() => measureCard(node));
     observer.observe(node);
-    measure();
+    measureCard(node);
 
     return () => observer.disconnect();
   });
@@ -583,6 +583,24 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
       ...info.rows.map(({ label, value }) => ({ label, value })),
     ];
   });
+
+  // ResizeObserver delivers after layout, a frame behind the DOM change. Content
+  // this card renders itself is re-measured in the same flush, so the card is
+  // never observable at its new size but its old position (a hit test there
+  // lands on a row instead of the control that just moved).
+  createEffect(
+    () => [
+      cardElement(),
+      expanded(),
+      visible().visible.length,
+      typographyRows().length,
+      copyFeedback(),
+      props.measurement,
+    ] as const,
+    ([node]) => {
+      if (node) measureCard(node);
+    },
+  );
 
   return (
     <div
