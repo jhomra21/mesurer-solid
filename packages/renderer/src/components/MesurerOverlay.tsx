@@ -428,6 +428,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     return `color-mix(in oklch, ${props.model.state.settings.guideColor} ${amount}%, transparent)`;
   };
 
+  const previewStrokeOffset = () => GUIDE_HITBOX_SIZE / 2 - Math.floor((props.model.state.settings.guideStyle.width - 1) / 2);
+
   const renderedGuides = createMemo((): Guide[] => {
     if (props.responsiveOpen) return [];
 
@@ -891,8 +893,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
           ? { left: `${props.model.state.guidePreview!.position - GUIDE_HITBOX_SIZE / 2}px`, top: "0", width: `${GUIDE_HITBOX_SIZE}px`, height: "100%" }
           : { top: `${props.model.state.guidePreview!.position - GUIDE_HITBOX_SIZE / 2}px`, left: "0", height: `${GUIDE_HITBOX_SIZE}px`, width: "100%" }}>
           <div class="msr:absolute" style={props.model.state.guidePreview!.orientation === "vertical"
-            ? { left: `${GUIDE_HITBOX_SIZE / 2 - 1}px`, top: "0", width: "2px", height: "100%", "background-color": guideColor("preview") }
-            : { top: `${GUIDE_HITBOX_SIZE / 2 - 1}px`, left: "0", height: "2px", width: "100%", "background-color": guideColor("preview") }} />
+            ? { left: `${previewStrokeOffset()}px`, top: "0", width: `${props.model.state.settings.guideStyle.width}px`, height: "100%", "background-color": guideColor("preview") }
+            : { top: `${previewStrokeOffset()}px`, left: "0", height: `${props.model.state.settings.guideStyle.width}px`, width: "100%", "background-color": guideColor("preview") }} />
         </div>
       </Show>
 

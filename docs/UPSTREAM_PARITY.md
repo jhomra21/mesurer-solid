@@ -32,6 +32,8 @@ Current React Settings is compared separately from the historical suite. Mesurer
 
 The historical React `605d202` compare lane predates the Inspect info card and the sectioned Settings panel. Its Solid capture seeds only that lane's persisted card mode to `off`, preserving the selected measurement label and avoiding a Solid-only card in the old selection screenshot. Its tabbed Settings states and interactions (`settings-*`) were removed from `capture.mjs`, `interactions.mjs`, and both comparers because the panel they described no longer exists in Solid or in current React; they are replaced by the current-source Settings lane above. The `toolbar-settings-close` interaction and every page/result state stay. This does not change the production default: Click remains on, with layout details enabled.
 
+The historical `guide` state and the `action-guide-create-*` interactions compare against v0.0.11, which paints a selected guide 2px wide (`position - 1` and `position`). Mesurer Solid adopts `d46b908` (configured weight, `HITBOX/2 - floor((weight - 1) / 2)` offset, rounded position), so `guide_stroke.py` excludes that one extra pixel line only after verifying that React's two stroke lines are identical and Solid's line at the guide position (taken from the captured hit box) matches React exactly. Any other guide difference still fails. The current geometry is proven by `guide-drag-contract.mjs`.
+
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
 
 ### 2026-11-05 pinned-current follow-up

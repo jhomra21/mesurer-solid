@@ -198,6 +198,11 @@ async function stateSnapshot(page, implementation) {
     selectedMeasurements: await page.locator('[data-mesurer-selected-measurement="true"]').count(),
     selectionLabel,
     guides: await page.locator('[data-mesurer-guide="true"]').count(),
+    guideHitboxes: await page.locator('[data-mesurer-guide="true"]').evaluateAll((nodes) => nodes.map((node) => {
+      const { left, top, width, height } = node.getBoundingClientRect();
+
+      return { left, top, width, height };
+    })),
     copiedTooltip: await page.getByRole("tooltip", { name: "Copied!" }).count() > 0,
     visibleTooltips,
     guideIconTransform,
