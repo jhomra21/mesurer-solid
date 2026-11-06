@@ -1,7 +1,7 @@
 name: Install Playwright Linux dependencies
 description: >-
-  Install Chromium system packages with a per-attempt timeout and retries, so a
-  hung apt step fails fast instead of stalling the job until it is cancelled.
+  Install Chromium system packages from a cached apt archive when possible, with a
+  per-attempt timeout and retries, so a slow runner mirror cannot stall the job.
 
 inputs:
   working-directory:
@@ -16,6 +16,25 @@ inputs:
 runs:
   using: composite
   steps:
+    # The runner mirror is sometimes too slow to fetch the Chromium packages (several large
+    # fonts) inside a 5-minute job. Keep downloaded .debs in a cached directory so later runs
+    # install without the mirror; the key follows the runner image so stale packages roll over.
+    - name: Resolve apt archive cache key
+      id: apt-cache-key
+      shell: bash
+      run: |
+        . /etc/os-release
+        echo "key=playwright-apt-${ID}-${VERSION_ID}-${ImageVersion:-unknown}-${RUNNER_ARCH}" >> "$GITHUB_OUTPUT"
+        echo "prefix=playwright-apt-${ID}-${VERSION_ID}-" >> "$GITHUB_OUTPUT"
+        mkdir -p "$HOME/.cache/playwright-apt/partial"
+
+    - name: Restore apt archive cache
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: ~/.cache/playwright-apt
+        key: ${{ steps.apt-cache-key.outputs.key }}
+        restore-keys: ${{ steps.apt-cache-key.outputs.prefix }}
+
     - name: Install Playwright Linux dependencies
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -45,6 +64,12 @@ runs:
         printf 'Acquire::http::Timeout "20";\nAcquire::https::Timeout "20";\nAcquire::Retries "3";\n' \
           | sudo tee /etc/apt/apt.conf.d/99playwright-deps-timeouts >/dev/null
 
+        # Download into the cached directory and keep the packages, so a retry resumes and the
+        # post-job cache save has them for the next run.
+        printf 'Dir::Cache::Archives "%s/";\nAPT::Keep-Downloaded-Packages "true";\nBinary::apt::APT::Keep-Downloaded-Packages "true";\n' "$HOME/.cache/playwright-apt" \
+          | sudo tee /etc/apt/apt.conf.d/99playwright-deps-cache >/dev/null
+        echo "Cached apt archives: $(find "$HOME/.cache/playwright-apt" -maxdepth 1 -name '*.deb' | wc -l)"
+
         # Fresh runners can start unattended-upgrades, which holds the dpkg lock that install-deps waits on.
         sudo systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
 
@@ -56,6 +81,8 @@ runs:
           status=$?
           if [ "$status" -eq 0 ]; then
             echo "Playwright install-deps succeeded on attempt $attempt."
+            sudo rm -rf "$HOME/.cache/playwright-apt/partial"/* "$HOME/.cache/playwright-apt/lock"
+            sudo chown -R "$(id -u):$(id -g)" "$HOME/.cache/playwright-apt"
             exit 0
           fi
           echo "::warning::Playwright install-deps attempt $attempt of $max_attempts failed with exit code $status."
