@@ -10,6 +10,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 - Guides draw and measure at their rounded position and keep their configured weight when selected or hovered, so the painted line matches the measurement (upstream `d46b908`).
 - Turning Mesurer off with `M` ends an open Screenshot region selection instead of leaving its overlay on the page (upstream `ca2b4cd`).
 - Document that the browser Color Picker needs Chromium on Windows or macOS and is hidden where `EyeDropper` is missing.
+- Keep Mesurer usable on pages that fight for the keyboard: after you use Mesurer, shortcuts (S, 1, 2, Delete, Escape) work even when the page keeps a prompt focused, typing in the Context note composer, direct text editing, Settings, and Notes search survives page key listeners that cancel or stop every key, and host bubble-phase document listeners no longer see keys typed in Mesurer fields. Mesurer only overrides host key cancellation for keys travelling to Mesurer, releases the keyboard when focus moves to a host control (click, Tab, or host code), no longer force-blurs a focused host field when you press Mesurer, and stops intercepting `focus()` and `preventDefault()` once disposed even if another library wrapped them.
+- Host checkboxes, radios, and other non-text inputs no longer disable shortcuts, a focused host closed-shadow control keeps its own typing, and Typography no longer pins host text under Mesurer UI when mounted with `shadowMode: "closed"`.
 
 ## 0.2.5 - 2026-11-05
 

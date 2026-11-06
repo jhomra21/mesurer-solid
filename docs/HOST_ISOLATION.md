@@ -68,6 +68,19 @@ When a document-backed inspector must occlude page selection evidence, the relat
 
 During screenshot capture, Mesurer control chrome is hidden and then restored through the shared capture-presentation boundary. Native host capture, Chromium extension capture, and browser display capture all use that path. If a selected native or extension capture path fails, Screenshot reports the error instead of switching to another permission model.
 
+## Keyboard ownership
+
+Keyboard ownership is per window (`packages/renderer/src/core/keyboard-ownership.ts`). Mesurer claims the keyboard when the user presses Mesurer UI, focus moves into it, or Mesurer programmatically focuses its own field (including the page-hosted direct text editor). It releases the keyboard when the user presses the page or focus moves to any element outside Mesurer, whether by click, Tab, or host code. The claim exists so shortcuts keep working when a host editor keeps or regains focus after a Mesurer press; it never forces a host element to blur.
+
+- Shortcuts are no longer disabled by a host editor that keeps focus after the user pressed Mesurer. Once focus moves into a host editor, shortcuts are off again.
+- Page `HTMLElement.focus()` calls are ignored only while Mesurer holds focus, while Mesurer is taking it (a press on Mesurer UI, a blur whose target is Mesurer, or Mesurer's own synchronous `focus()` call), so a prompt that refocuses itself on blur cannot take focus from Mesurer fields. At any other time host `focus()` works, including right after the user tabbed out of Mesurer. The patched method stays installed while Mesurer is mounted and is restored on unmount only if nobody wrapped it since; a wrapper another library put on top keeps delegating to the original method once Mesurer is disposed.
+- `preventDefault`, `stopPropagation`, and `stopImmediatePropagation` calls on keyboard, input, composition, and clipboard events are ignored when the event is travelling to Mesurer (its path contains a Mesurer node, or the page body is focused while Mesurer holds the keyboard) and the call comes from a window or document listener that runs before Mesurer's first capture listener on that same node. Mesurer cannot run earlier than a listener registered before mount, so it makes the cancellation inert instead. Events aimed at a host element are never touched, so a host can cancel keys in its own fields. Limits: a listener registered after Mesurer mounted, a bubble-phase listener, a listener on an element between the document and Mesurer, a host that cached the native methods, or one that writes `cancelBubble`/`returnValue` is out of reach.
+- Keys typed into a Mesurer text field stop at the outermost Mesurer node (the island host or a document-backed inspector mount), so host bubble-phase document and body listeners never see them. Capture-phase window and document listeners still observe the key, because they run before the event can reach Mesurer. Escape is exempt because Mesurer's lifecycle handler listens on window.
+
+A host control the user focused keeps normal typing and shortcuts stay off (including contenteditable, select, same-origin iframe, and closed-shadow controls; a focused element that cannot take focus itself is treated as a closed-shadow host). Checkboxes, radios, buttons, range, color, file, image, reset, and submit inputs are not text editors and do not disable shortcuts. A closed Mesurer mount (`shadowMode: "closed"`) registers its root so focus and hit tests still see inside it.
+
+`tests/visual-parity/keyboard-ownership-contract.mjs` exercises these variants against `examples/basic/keyboard-ownership.html` (flags `capture`, `docblock`, `hostcancel`, `prompt`, `doc`, `wrap`, `shadow=closed`), including Tab out of Mesurer, host focus handlers, dispose with a retained wrapper, and remount.
+
 ## What is tested
 
 Package smoke exercises the exact packed npm artifact under adversarial host conditions, including:

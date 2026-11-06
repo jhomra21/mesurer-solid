@@ -13,7 +13,7 @@ import {
   type TypographyInfo,
 } from "./typography";
 import type { MesurerTheme } from "../../core/persistence";
-import { isMesurerInputBoundary } from "../../core/events";
+import { isMesurerInputBoundaryAt } from "../../core/events";
 import { hasNativeScrollAnchoring } from "../native-scroll-registry";
 import { isResponsivePreviewDocument } from "../../core/document-tree";
 
@@ -211,7 +211,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
 
   const pick = (x: number, y: number) => {
     for (const element of doc.elementsFromPoint(x, y)) {
-      if (isMesurerInputBoundary(element, win)) return null;
+      if (isMesurerInputBoundaryAt(element, x, y, win)) return null;
 
       if (inspectable(element)) return element;
     }
@@ -477,8 +477,8 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     raf = win.requestAnimationFrame(() => { raf = 0; sync(); });
   };
 
-  const uiEvent = (event: Event) =>
-    event.composedPath().some((node) => isMesurerInputBoundary(node, win));
+  const uiEvent = (event: MouseEvent) =>
+    event.composedPath().some((node) => isMesurerInputBoundaryAt(node, event.clientX, event.clientY, win));
 
   const onMove = (event: MouseEvent) => {
     pointer = { x: event.clientX, y: event.clientY };
