@@ -64,7 +64,7 @@ Recording does not use `MediaRecorder`. Capture APIs are only pixel/stream acqui
 
 The initial recording is WebM. Export supports WebM and, when the current runtime exposes a compatible AVC encoder, MP4. Call `formats()` instead of assuming MP4 is available. Export scale is 1×, 2×, or 3×. MP4 dimensions are normalized to valid even pixel dimensions at the format boundary.
 
-Export playback speed is 0.5×, 1×, 1.5×, or 2×. MediaBunny retimes the trimmed video samples (`VideoSample.setTimestamp` and `setDuration` inside the Conversion `process` hook), so a 2× export lasts half the trimmed duration and a 0.5× export lasts twice as long. Omitting `speed` keeps the existing 1× behavior. Audio is still discarded.
+Export playback speed is 0.5×, 1×, 1.5×, or 2×. MediaBunny retimes the trimmed video samples (`VideoSample.setTimestamp` and `setDuration` inside the Conversion `process` hook), so a 2× export lasts half the trimmed duration and a 0.5× export lasts twice as long. Only an omitted `speed` means 1×; any other value that is not exactly 0.5, 1, 1.5, or 2 (including 0, negatives, `NaN`, `Infinity`, and strings) is rejected with an error by both the service and the `recording.export` command. Audio is still discarded.
 
 The frame pump applies encoder backpressure rather than building an unbounded queue. If MediaBunny is still accepting the previous frame, Mesurer waits instead of accumulating stale frame work.
 
@@ -72,7 +72,7 @@ The frame pump applies encoder backpressure rather than building an unbounded qu
 
 When Chromium exposes Region Capture, Mesurer asks the video track to crop to the selected DOM region through `CropTarget`. Otherwise it maps viewport coordinates into the captured video and paints the correct source rectangle into a canvas. The fallback accounts for HiDPI scaling and letterboxed tab/screen streams instead of stretching independent axes.
 
-Chromium can drop the first region crop while the capture stream starts. Mesurer waits for two presented frames that already look cropped (the region's aspect ratio, not the whole tab), retries the crop once, and otherwise resets it and uses the canvas-painted fallback above, so a recording never opens on or keeps a whole-tab frame.
+Chromium can drop the first region crop while the capture stream starts. Mesurer records the stream's size before cropping and waits for two distinct presented frames that have the region's aspect ratio and no longer have that whole-tab size. Each wait for a presented frame is capped at 250 ms; a wait that times out counts as no frame, its pending `requestVideoFrameCallback` is cancelled, and the whole confirmation is bounded by a 600 ms deadline. Mesurer then retries the crop once and otherwise resets it and uses the canvas-painted fallback above. A selection as large as the viewport cannot be told apart from a whole-tab frame, so it skips cropping and uses the fallback. A recording never opens on or keeps a whole-tab frame.
 
 The recorded region keeps its selected size when the window is resized. If a smaller window clips the region, Chromium delivers only the on-screen part; Mesurer paints that part at its original position and fills the clipped remainder black instead of stretching it across the clip.
 
@@ -165,7 +165,8 @@ The dedicated Chromium contract uses an animated canvas as a deterministic displ
 - shrinking the window while the region stays visible, and while it becomes partly off-screen, keeps the output at the selected size with the red marker at the same relative position and size, and the clipped part black;
 - the first decoded frame already has the exact region size and the same framing as the second;
 - opening, sampling with, and closing Color Picker (toolbar and `P`) leaves Recording active and the exported duration covers the whole span;
-- 0.5×, 1×, 2×, and an omitted `speed` export the expected duration with strictly increasing decoded timestamps, and the editor's Speed choice reaches a real download.
+- 0.5×, 1×, 1.5×, 2× (WebM, and MP4 when the browser can encode AVC; otherwise the contract logs why it skipped MP4), and an omitted `speed` export the expected duration with strictly increasing decoded timestamps, invalid speeds are rejected at the service and command, and the editor's Speed choice reaches a real download;
+- crop confirmation is driven by stubbed `cropTo` and video-frame sources: a dropped first crop, repeated failure, no presented frames, a scaled whole-tab stream on a HiDPI page, and a selection equal to the viewport each record exactly the selection.
 
 It decodes every frame with MediaBunny `CanvasSink` in the page and writes `test-results/recording-region/recording-region-contract.json` plus frame PNGs.
 

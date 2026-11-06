@@ -184,33 +184,38 @@ export const cropRecordingTrackToElement = async (
   return true;
 };
 
+// Resolves true when the video presented a new frame, false when the 250 ms cap expired first.
 export const nextRecordingVideoFrame = (
   source: HTMLVideoElement,
   ownerWindow: Window,
-) => new Promise<void>((resolve) => {
+) => new Promise<boolean>((resolve) => {
   let settled = false;
-
-  const finish = () => {
-    if (settled) return;
-    settled = true;
-    ownerWindow.clearTimeout(timer);
-    resolve();
-  };
-
-  const timer = ownerWindow.setTimeout(finish, 250);
+  let handle: number | null = null;
 
   // SAFETY: requestVideoFrameCallback is an optional browser method; the fallback path is used when it is absent.
   const frameSource = source as HTMLVideoElement & {
     requestVideoFrameCallback?: (callback: () => void) => number;
+    cancelVideoFrameCallback?: (handle: number) => void;
   };
 
+  const finish = (presented: boolean) => {
+    if (settled) return;
+    settled = true;
+    ownerWindow.clearTimeout(timer);
+
+    if (!presented && handle !== null) frameSource.cancelVideoFrameCallback?.(handle);
+    resolve(presented);
+  };
+
+  const timer = ownerWindow.setTimeout(() => finish(false), 250);
+
   if (frameSource.requestVideoFrameCallback) {
-    frameSource.requestVideoFrameCallback(finish);
+    handle = frameSource.requestVideoFrameCallback(() => finish(true));
 
     return;
   }
 
-  ownerWindow.requestAnimationFrame(finish);
+  ownerWindow.requestAnimationFrame(() => finish(true));
 });
 
 const REGION_CROP_WAIT_MS = 600;
@@ -218,41 +223,48 @@ const REGION_CROP_WAIT_MS = 600;
 const nearly = (value: number, target: number) =>
   Math.abs(value - target) <= Math.max(2, target * 0.02);
 
-// A cropped frame has the region's aspect ratio and is not the whole tab.
-// A region as large as the viewport is the whole tab, so its aspect ratio alone proves the crop.
+type VideoSize = { width: number; height: number };
+
+const selectionFillsViewport = (rect: ScreenshotRect, viewport: RecordingViewportMetrics) =>
+  rect.width >= viewport.width - 1 && rect.height >= viewport.height - 1;
+
+// A cropped frame has the region's aspect ratio and no longer has the size of the stream before cropping.
 const regionCropReady = (
   source: HTMLVideoElement,
   rect: ScreenshotRect,
-  ownerWindow: Window,
+  uncropped: VideoSize,
 ) => {
   const aspectMatches =
     Math.abs(source.videoWidth * rect.height - source.videoHeight * rect.width)
     <= CAPTURE_ASPECT_TOLERANCE * 3 * source.videoHeight * rect.width;
 
-  const viewport = recordingViewportMetrics(ownerWindow);
-  const pixelRatio = ownerWindow.devicePixelRatio || 1;
-  const fillsViewport = rect.width >= viewport.width - 1 && rect.height >= viewport.height - 1;
+  const stillWholeTab =
+    nearly(source.videoWidth, uncropped.width) && nearly(source.videoHeight, uncropped.height);
 
-  const wholeTab =
-    nearly(source.videoWidth, viewport.width * pixelRatio)
-    && nearly(source.videoHeight, viewport.height * pixelRatio);
-
-  return aspectMatches && (fillsViewport || !wholeTab);
+  return aspectMatches && !stillWholeTab;
 };
 
 // The first frame at a new crop size is often the previous, uncropped picture.
-// Require two presented frames that already look cropped.
+// Require two distinct presented frames that already look cropped; a wait that
+// timed out without a presented frame proves nothing. The overall deadline
+// bounds the wait so the caller can retry or fall back.
 const waitForRegionCrop = async (
   source: HTMLVideoElement,
   rect: ScreenshotRect,
+  uncropped: VideoSize,
   ownerWindow: Window,
 ) => {
   const deadline = ownerWindow.performance.now() + REGION_CROP_WAIT_MS;
   let stableFrames = 0;
 
   while (ownerWindow.performance.now() < deadline) {
-    await nextRecordingVideoFrame(source, ownerWindow);
-    stableFrames = regionCropReady(source, rect, ownerWindow) ? stableFrames + 1 : 0;
+    if (!(await nextRecordingVideoFrame(source, ownerWindow))) {
+      stableFrames = 0;
+
+      continue;
+    }
+
+    stableFrames = regionCropReady(source, rect, uncropped) ? stableFrames + 1 : 0;
 
     if (stableFrames >= 2) return true;
   }
@@ -268,14 +280,15 @@ const confirmRegionCrop = async (
   source: HTMLVideoElement,
   cropTarget: HTMLElement,
   rect: ScreenshotRect,
+  uncropped: VideoSize,
   ownerWindow: Window,
 ) => {
-  if (await waitForRegionCrop(source, rect, ownerWindow)) return true;
+  if (await waitForRegionCrop(source, rect, uncropped, ownerWindow)) return true;
 
   try {
     await cropRecordingTrackToElement(track, cropTarget);
 
-    if (await waitForRegionCrop(source, rect, ownerWindow)) return true;
+    if (await waitForRegionCrop(source, rect, uncropped, ownerWindow)) return true;
     await cropRecordingTrackToElement(track, null);
   } catch {
     // Without a working crop the fallback below still records the selected region.
@@ -582,15 +595,20 @@ export const openRecordingCapture = async (
 
     const cropTarget = createRecordingCropTarget(ownerDocument, rect);
     let regionLocked = false;
+    const uncropped = { width: source.videoWidth, height: source.videoHeight };
 
-    try {
-      regionLocked = await cropRecordingTrackToElement(track, cropTarget);
-    } catch {
-      regionLocked = false;
+    // A selection as large as the viewport yields the same frame size cropped or not,
+    // so a crop could never be confirmed. The canvas path encodes exactly that selection.
+    if (!selectionFillsViewport(rect, recordingViewportMetrics(ownerWindow))) {
+      try {
+        regionLocked = await cropRecordingTrackToElement(track, cropTarget);
+      } catch {
+        regionLocked = false;
+      }
     }
 
     if (regionLocked) {
-      regionLocked = await confirmRegionCrop(track, source, cropTarget, rect, ownerWindow);
+      regionLocked = await confirmRegionCrop(track, source, cropTarget, rect, uncropped, ownerWindow);
     }
 
     if (!regionLocked) {

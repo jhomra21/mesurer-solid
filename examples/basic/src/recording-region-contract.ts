@@ -1,4 +1,4 @@
-import { ALL_FORMATS, BlobSource, CanvasSink, Input } from "mediabunny";
+import { ALL_FORMATS, BlobSource, CanvasSink, Input, canEncodeVideo } from "mediabunny";
 import { mountMesurer } from "../../../packages/mesurer/src/index";
 import {
   MESURER_RECORDING_SERVICE_ID,
@@ -68,6 +68,7 @@ window.__MESURER_HOST__ = {
 const subject = mountMesurer({
   target: document.body,
   isolate: true,
+  agent: true,
   plugins: [recording({ maxDurationSeconds: 12, quality: "high" })],
   persistKey: "mesurer-recording-region-contract",
 });
@@ -190,10 +191,112 @@ const decodeFrames = async (blob: Blob) => {
   }
 };
 
+export type CropProbeOptions = {
+  // "real" delegates to Chromium, "drop-first" ignores the first cropTo, "drop-all" ignores every cropTo.
+  crop: "real" | "drop-first" | "drop-all";
+  // Hold back every requestVideoFrameCallback so no frame is ever reported as presented.
+  stallFrames?: boolean;
+  // Hand the recorder a whole-tab stream of exactly this size (the real capture redrawn onto a canvas),
+  // so a HiDPI page yields a scaled whole-tab stream.
+  wholeTabSize?: { width: number; height: number };
+};
+
+const scaledWholeTabStream = async (source: MediaStream, size: { width: number; height: number }) => {
+  const video = document.createElement("video");
+
+  video.muted = true;
+  video.srcObject = source;
+  await video.play();
+
+  const canvas = document.createElement("canvas");
+
+  canvas.width = size.width;
+  canvas.height = size.height;
+
+  const context = canvas.getContext("2d");
+
+  if (!context) throw new Error("Scaled stream fixture requires a 2D canvas.");
+
+  const draw = () => {
+    context.drawImage(video, 0, 0, size.width, size.height);
+    requestAnimationFrame(draw);
+  };
+
+  draw();
+
+  return canvas.captureStream(60);
+};
+
+type CropProbeLog = {
+  cropCalls: ("target" | "null")[];
+  frameRequests: number;
+  frameCancels: number;
+  streamSize: { width: number; height: number } | null;
+};
+
+const probeLog: CropProbeLog = { cropCalls: [], frameRequests: 0, frameCancels: 0, streamSize: null };
+
+const installCropProbe = (options: CropProbeOptions) => {
+  probeLog.cropCalls = [];
+  probeLog.frameRequests = 0;
+  probeLog.frameCancels = 0;
+  probeLog.streamSize = null;
+
+  const media = navigator.mediaDevices;
+  const getDisplayMedia = media.getDisplayMedia.bind(media);
+
+  media.getDisplayMedia = async (constraints) => {
+    const captured = await getDisplayMedia(constraints);
+    const stream = options.wholeTabSize ? await scaledWholeTabStream(captured, options.wholeTabSize) : captured;
+
+    // SAFETY: cropTo is an optional Chromium extension on the track; it is only read here and wrapped below.
+    const track = stream.getVideoTracks()[0] as MediaStreamTrack & {
+      cropTo?: (target: Element | null) => Promise<void>;
+    };
+
+    const realCropTo = track.cropTo?.bind(track);
+
+    track.cropTo = async (target) => {
+      probeLog.cropCalls.push(target ? "target" : "null");
+
+      const settings = track.getSettings();
+
+      probeLog.streamSize = options.wholeTabSize ?? { width: settings.width ?? 0, height: settings.height ?? 0 };
+
+      const dropped = options.crop === "drop-all"
+        || (options.crop === "drop-first" && probeLog.cropCalls.length === 1);
+
+      if (!dropped && realCropTo) await realCropTo(target);
+    };
+
+    return stream;
+  };
+
+  if (options.stallFrames) {
+    const prototype = HTMLVideoElement.prototype;
+
+    prototype.requestVideoFrameCallback = () => {
+      probeLog.frameRequests += 1;
+
+      return probeLog.frameRequests;
+    };
+
+    prototype.cancelVideoFrameCallback = () => {
+      probeLog.frameCancels += 1;
+    };
+  }
+};
+
+const canEncodeMp4 = (width: number, height: number) =>
+  canEncodeVideo("avc", { width: width + (width % 2), height: height + (height % 2) });
+
 type RegionHarness = {
   region: RecordingRect;
   service: MesurerRecordingService;
   decodeFrames: typeof decodeFrames;
+  installCropProbe: typeof installCropProbe;
+  readCropProbe: () => CropProbeLog;
+  canEncodeMp4: typeof canEncodeMp4;
 };
 
 declare global {
@@ -206,4 +309,7 @@ window.__MESURER_REGION_TEST__ = {
   region: REGION,
   service,
   decodeFrames,
+  installCropProbe,
+  readCropProbe: () => structuredClone(probeLog),
+  canEncodeMp4,
 };

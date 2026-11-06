@@ -37,8 +37,8 @@ const check = (condition, message, detail) => {
   if (!condition) failures.push(detail === undefined ? message : `${message}: ${JSON.stringify(detail)}`);
 };
 
-const openPage = async () => {
-  const context = await browser.newContext({ viewport: FULL_VIEWPORT, deviceScaleFactor: 1 });
+const openPage = async (deviceScaleFactor = 1) => {
+  const context = await browser.newContext({ viewport: FULL_VIEWPORT, deviceScaleFactor });
   const page = await context.newPage();
 
   page.on("pageerror", (error) => errors.push(String(error)));
@@ -51,12 +51,13 @@ const openPage = async () => {
   return page;
 };
 
-const startRecording = async (page) => {
-  await page.evaluate(async () => {
+const startRecording = async (page, { region, probe } = {}) => {
+  await page.evaluate(async ({ region, probe }) => {
     const harness = window.__MESURER_REGION_TEST__;
 
-    await harness.service.start({ ...harness.region });
-  });
+    if (probe) harness.installCropProbe(probe);
+    await harness.service.start(region ?? { ...harness.region });
+  }, { region, probe });
   await page.waitForFunction(() =>
     window.__MESURER_REGION_TEST__.service.snapshot().status === "recording");
 };
@@ -94,7 +95,7 @@ const median = (values) => {
 const EXPECTED_RED = { x: 40, y: 40, pixels: 40 * 40 };
 
 // A stretched slice or an uncropped whole-tab frame changes the marker's position and footprint.
-const checkFraming = (label, candidates, tolerance = 6) => {
+const checkFraming = (label, candidates, tolerance = 6, expected = EXPECTED_RED) => {
   const mismatches = [];
 
   for (const frame of candidates) {
@@ -102,9 +103,9 @@ const checkFraming = (label, candidates, tolerance = 6) => {
 
     if (
       !actual
-      || Math.abs(actual.x - EXPECTED_RED.x) > tolerance
-      || Math.abs(actual.y - EXPECTED_RED.y) > tolerance
-      || Math.abs(actual.pixels / EXPECTED_RED.pixels - 1) > 0.25
+      || Math.abs(actual.x - expected.x) > tolerance
+      || Math.abs(actual.y - expected.y) > tolerance
+      || Math.abs(actual.pixels / expected.pixels - 1) > 0.25
     ) {
       mismatches.push({ timestamp: frame.timestamp, actual });
     }
@@ -113,7 +114,7 @@ const checkFraming = (label, candidates, tolerance = 6) => {
   check(
     mismatches.length === 0,
     `${label}: red marker is off its region position in ${mismatches.length}/${candidates.length} frames`,
-    { expected: EXPECTED_RED, firstMismatch: mismatches[0] },
+    { expected, firstMismatch: mismatches[0] },
   );
 };
 
@@ -296,26 +297,70 @@ const speedScenario = async () => {
     const trimmed = trim.endTime - trim.startTime;
     const exports = {};
 
-    for (const speed of [1, 2, 0.5]) {
-      const result = await decodeExport(page, { format: "webm", ...trim, speed });
+    const mp4 = await page.evaluate(
+      ({ width, height }) => window.__MESURER_REGION_TEST__.canEncodeMp4(width, height),
+      asset,
+    );
+
+    if (!mp4) console.log("Skipping MP4 speed coverage: this Chromium cannot encode AVC video.");
+    report.mp4SpeedSkipped = !mp4;
+
+    const variants = [1, 2, 0.5, 1.5].map((speed) => ({ format: "webm", speed }));
+
+    if (mp4) variants.push({ format: "mp4", speed: 1 }, { format: "mp4", speed: 1.5 });
+
+    for (const { format, speed } of variants) {
+      const key = format === "webm" ? speed : `${format}-${speed}`;
+      const result = await decodeExport(page, { format, ...trim, speed });
       const times = result.frames.map((frame) => frame.timestamp);
       const expected = trimmed / speed;
 
-      exports[speed] = { expected, duration: result.duration, frameCount: times.length, first: times[0], last: times.at(-1) };
+      exports[key] = { expected, duration: result.duration, frameCount: times.length, first: times[0], last: times.at(-1) };
       check(
         Math.abs(result.duration - expected) <= 0.2,
-        `speed ${speed}x: duration must be trimmed duration / speed`,
-        exports[speed],
+        `speed ${format} ${speed}x: duration must be trimmed duration / speed`,
+        exports[key],
       );
       check(
         times.length > 5 && times.every((time, index) => index === 0 || time > times[index - 1]),
-        `speed ${speed}x: frame timestamps must be strictly increasing`,
+        `speed ${format} ${speed}x: frame timestamps must be strictly increasing`,
         { frames: times.length },
       );
       check(
         result.frames.every((frame) => frame.width === asset.width && frame.height === asset.height),
-        `speed ${speed}x: export must keep the recorded size`,
+        `speed ${format} ${speed}x: export must keep the recorded size`,
       );
+    }
+
+    // Only an omitted speed means 1x; anything else outside the offered set must fail loudly.
+    for (const speed of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 3, "2", null]) {
+      const outcome = await page.evaluate(async (value) => {
+        const harness = window.__MESURER_REGION_TEST__;
+        const describe = (cause) => (cause instanceof Error ? cause.message : String(cause));
+
+        const attempt = async (run) => {
+          try {
+            await run();
+
+            return "accepted";
+          } catch (cause) {
+            return describe(cause);
+          }
+        };
+
+        return {
+          service: await attempt(() => harness.service.export({ format: "webm", speed: value })),
+          command: await attempt(() => window.__MESURER__.command("recording.export", { speed: value })),
+        };
+      }, speed);
+
+      for (const [boundary, message] of Object.entries(outcome)) {
+        check(
+          message !== "accepted" && /speed/i.test(message),
+          `speed: ${String(speed)} must be rejected with a speed error at the ${boundary} boundary`,
+          message,
+        );
+      }
     }
 
     // The default must stay 1x so existing callers keep their duration.
@@ -386,7 +431,100 @@ const speedScenario = async () => {
   }
 };
 
+const SCALED_REGION = { left: 480, top: 330, width: 500, height: 350 };
+
+// The red marker sits 240px/140px inside SCALED_REGION; a whole-tab frame shrunk into it would move and shrink the marker.
+const SCALED_RED = { x: 260, y: 160, pixels: 40 * 40 };
+
+const cropScenario = async (name, {
+  deviceScaleFactor = 1,
+  region,
+  probe,
+  expectCalls,
+  expectSize = REGION_SIZE,
+  expectedRed = EXPECTED_RED,
+  expectStream,
+  expectStalled = false,
+}) => {
+  const page = await openPage(deviceScaleFactor);
+
+  try {
+    await startRecording(page, { region, probe });
+    await page.waitForTimeout(900);
+
+    const log = await page.evaluate(() => window.__MESURER_REGION_TEST__.readCropProbe());
+    const result = await stopAndDecode(page, name);
+    const { frames } = result;
+
+    report[name] = { log, asset: result.asset, frameCount: frames.length, first: frames[0] };
+    check(
+      JSON.stringify(log.cropCalls) === JSON.stringify(expectCalls),
+      `${name}: unexpected cropTo sequence`,
+      { expected: expectCalls, actual: log.cropCalls },
+    );
+
+    if (expectStream) {
+      check(
+        log.streamSize?.width === expectStream.width && log.streamSize?.height === expectStream.height,
+        `${name}: uncropped stream must be ${expectStream.width}x${expectStream.height}`,
+        log.streamSize,
+      );
+    }
+
+    if (expectStalled) {
+      check(
+        log.frameRequests > 0 && log.frameCancels === log.frameRequests,
+        `${name}: every outstanding video-frame callback must be cancelled`,
+        log,
+      );
+    }
+
+    check(frames.length > 5, `${name}: too few decoded frames`, frames.length);
+    check(
+      frames.every((frame) => frame.width === expectSize.width && frame.height === expectSize.height),
+      `${name}: every frame must be exactly the selection size`,
+      [...new Set(frames.map((frame) => `${frame.width}x${frame.height}`))],
+    );
+    checkFraming(name, frames.filter((frame) => frame.timestamp <= 0.7), 8, expectedRed);
+  } finally {
+    await page.context().close();
+  }
+};
+
+const cropScenarios = async () => {
+  await cropScenario("crop-first-fails", {
+    probe: { crop: "drop-first" },
+    expectCalls: ["target", "target"],
+  });
+  await cropScenario("crop-repeated-failure", {
+    probe: { crop: "drop-all" },
+    expectCalls: ["target", "target", "null"],
+  });
+  await cropScenario("crop-no-presented-frames", {
+    probe: { crop: "real", stallFrames: true },
+    expectCalls: ["target", "target", "null"],
+    expectStalled: true,
+  });
+  await cropScenario("crop-scaled-whole-tab", {
+    deviceScaleFactor: 2,
+    region: SCALED_REGION,
+    probe: { crop: "drop-all", wholeTabSize: FULL_VIEWPORT },
+    expectStream: FULL_VIEWPORT,
+    expectCalls: ["target", "target", "null"],
+    expectSize: { width: 500, height: 350 },
+    expectedRed: SCALED_RED,
+  });
+  await cropScenario("crop-selection-fills-viewport", {
+    region: { left: 0, top: 0, ...FULL_VIEWPORT },
+    probe: { crop: "real" },
+    expectCalls: [],
+    expectSize: FULL_VIEWPORT,
+    expectedRed: { x: 740, y: 490, pixels: 40 * 40 },
+  });
+};
+
 try {
+  await cropScenarios();
   await speedScenario();
   await resizeScenario("resize-region-visible", { width: 960, height: 660 }, {
     expectGreen: true,

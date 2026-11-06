@@ -27,7 +27,7 @@ import {
   type RecordingQuality,
   type RecordingScale,
   type RecordingSpeed,
-  isRecordingSpeed,
+  assertRecordingSpeed,
 } from "../core/recording";
 import {
   createRecordingPreviewController,
@@ -188,7 +188,7 @@ const parseExportCommandOptions = (
 
   if (value.scale === 1 || value.scale === 2 || value.scale === 3) next.scale = value.scale;
 
-  if (isRecordingSpeed(value.speed)) next.speed = value.speed;
+  if (value.speed !== undefined) next.speed = assertRecordingSpeed(value.speed);
 
   return next;
 };

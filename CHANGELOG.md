@@ -9,6 +9,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 - Resizing the window during a region recording no longer stretches the clip: when a smaller window clips the region, the visible part stays in place and the clipped remainder is black (upstream `77e3464`).
 - Recording no longer opens on, or keeps recording, a whole-tab frame when Chromium drops the first region crop: it waits for two cropped frames, retries the crop once, and otherwise falls back to painting the selected region (upstream `75f56aa`).
 - Add a playback speed choice (0.5×, 1×, 1.5×, 2×) to the Recording export menu and an optional `speed` export option on the `recording:v1` service. MediaBunny retimes the trimmed video; omitting it keeps 1×.
+- Recording confirms a region crop only from distinct presented frames that differ from the pre-crop stream size, so a scaled whole-tab frame can no longer pass as cropped; timed-out frame waits no longer count, and a selection equal to the viewport uses the canvas path.
+- Recording export now rejects any `speed` other than 0.5, 1, 1.5, or 2 instead of silently exporting at 1×; only an omitted `speed` means 1×.
 - Add a Chromium contract that records real current-tab video and decodes it with MediaBunny to prove resize alignment, first-frame framing, Color Picker use during a recording, and speed export (upstream `75f56aa` behaviors).
 
 ## 0.2.5 - 2026-11-05

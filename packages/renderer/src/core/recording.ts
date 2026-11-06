@@ -24,8 +24,24 @@ export const RECORDING_SPEEDS = [0.5, 1, 1.5, 2] as const;
 
 export type RecordingSpeed = (typeof RECORDING_SPEEDS)[number];
 
-export const isRecordingSpeed = (value: unknown): value is RecordingSpeed =>
-  RECORDING_SPEEDS.some((speed) => speed === value);
+
+export type RecordingSpeedInput =
+  | number
+  | string
+  | boolean
+  | null
+  | readonly RecordingSpeedInput[]
+  | { readonly [key: string]: RecordingSpeedInput };
+
+export const assertRecordingSpeed = (value: RecordingSpeedInput): RecordingSpeed => {
+  const match = RECORDING_SPEEDS.find((speed) => speed === value);
+
+  if (match === undefined) {
+    throw new Error(`Recording export speed must be one of ${RECORDING_SPEEDS.join(", ")}.`);
+  }
+
+  return match;
+};
 
 export type RecordingMediaInfo = {
   duration: number;
@@ -115,7 +131,7 @@ export const normalizeRecordingExportOptions = (
     endTime,
     scale: options.scale ?? 1,
     quality: options.quality ?? "medium",
-    speed: isRecordingSpeed(options.speed) ? options.speed : 1,
+    speed: options.speed === undefined ? 1 : assertRecordingSpeed(options.speed),
   };
 };
 
