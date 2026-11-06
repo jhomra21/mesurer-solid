@@ -4,7 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Keep Mesurer usable on pages that fight for the keyboard: after you use Mesurer, shortcuts (S, 1, 2, Delete, Escape) work even when the page keeps a prompt focused, typing in the Context note composer, direct text editing, Settings, and Notes search survives page key listeners that cancel or stop every key, and host document listeners no longer see keys typed in Mesurer fields.
+- Host checkboxes, radios, and other non-text inputs no longer disable shortcuts, a focused host closed-shadow control keeps its own typing, and Typography no longer pins host text under Mesurer UI when mounted with `shadowMode: "closed"`.
 
 ## 0.2.5 - 2026-11-05
 

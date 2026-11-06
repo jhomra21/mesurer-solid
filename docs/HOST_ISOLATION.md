@@ -68,6 +68,19 @@ When a document-backed inspector must occlude page selection evidence, the relat
 
 During screenshot capture, Mesurer control chrome is hidden and then restored through the shared capture-presentation boundary. Native host capture, Chromium extension capture, and browser display capture all use that path. If a selected native or extension capture path fails, Screenshot reports the error instead of switching to another permission model.
 
+## Keyboard ownership
+
+Keyboard ownership is per window (`packages/renderer/src/core/keyboard-ownership.ts`). Mesurer owns the keyboard from the moment the user presses, focuses, or Mesurer programmatically focuses Mesurer UI (including the page-hosted direct text editor) until the user presses the page. While owned:
+
+- Shortcuts are no longer disabled by a host editor that keeps or regains focus; pressing Mesurer UI blurs a focused page editor.
+- Page `HTMLElement.focus()` calls are ignored, so a prompt that refocuses itself on blur cannot take focus from Mesurer fields. The original method is restored when ownership ends or Mesurer unmounts.
+- `preventDefault`, `stopPropagation`, and `stopImmediatePropagation` calls on keyboard, input, composition, and clipboard events made before Mesurer's own first window-capture listener ran are ignored, so a host listener registered before mount cannot swallow typing, Escape, or Delete. Mesurer cannot run earlier than such a listener, so it makes the cancellation inert instead. A host that cached the native methods or writes `cancelBubble`/`returnValue` is out of reach.
+- Keys typed into a Mesurer text field stop at the outermost Mesurer node (the island host or a document-backed inspector mount), so host document listeners never see them. Escape is exempt because Mesurer's lifecycle handler listens on window.
+
+Pressing a host control releases ownership, so a text field the user clicked keeps normal typing and shortcuts stay off (including contenteditable, select, same-origin iframe, and closed-shadow controls; a focused element that cannot take focus itself is treated as a closed-shadow host). Checkboxes, radios, buttons, range, color, file, image, reset, and submit inputs are not text editors and do not disable shortcuts. A closed Mesurer mount (`shadowMode: "closed"`) registers its root so focus and hit tests still see inside it.
+
+`tests/visual-parity/keyboard-ownership-contract.mjs` exercises these variants against `examples/basic/keyboard-ownership.html` (flags `capture`, `prompt`, `doc`, `shadow=closed`).
+
 ## What is tested
 
 Package smoke exercises the exact packed npm artifact under adversarial host conditions, including:

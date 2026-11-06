@@ -11,6 +11,7 @@ import { GUIDE_DRAG_HOLD_MS } from "./core/constants";
 import { getDistanceOverlay, updateDistanceForResize } from "./core/distances";
 import { getInspectMeasurement, getRectFromDom, updateMeasurementForResize } from "./core/dom";
 import { isEditableKeyboardEvent, trySetPointerCapture } from "./core/events";
+import { installKeyboardOwnership } from "./core/keyboard-ownership";
 import { getRectFromPoints, getViewportSize, normalizeRect } from "./core/geometry";
 import { getAccessibleDocuments, isResponsivePreviewDocument } from "./core/document-tree";
 import { projectPoint } from "./core/frame-geometry";
@@ -1736,9 +1737,14 @@ export default function Mesurer(props: MesurerProps) {
       portalMount = target;
     }
 
+    const releaseKeyboard = installKeyboardOwnership(ownerWindow, target);
     setEnvironment({ ownerDocument, ownerWindow, portalTarget: target, portalMount, ownedPortalMount });
 
-    return () => { if (ownedPortalMount) portalMount.remove(); };
+    return () => {
+      releaseKeyboard();
+
+      if (ownedPortalMount) portalMount.remove();
+    };
   });
 
   return (
