@@ -665,6 +665,12 @@ if (!animatedTarget || !animatedTarget.getAnimations().length) {
 
 acceptanceStage = "select a real CSS animation";
 
+// The selected copy's Inspect card is placed below it and can cover the animated
+// target, so dismiss that selection the way a user would before picking another element.
+await window.electronMesurer.pressKey("Escape");
+
+await waitFor(() => nativeScrollTarget.dataset.mesurerSourceSelectionPaint === undefined ? true : null);
+
 await window.electronMesurer.clickAt(centerOf(animatedTarget));
 
 const motionPlayer = await waitFor(() =>
