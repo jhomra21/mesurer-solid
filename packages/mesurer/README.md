@@ -48,7 +48,7 @@ For Vite, put this in the existing browser entry such as `src/main.tsx`, `src/ma
 
 `src/dev/mesurer.ts` is an optional organization pattern, not a required filename or directory. Do not mount Mesurer from `vite.config.ts`, server/API code, Node-only scripts, an Electron main process, or a module that also executes during SSR.
 
-The returned handle owns the mount. Await `mesurer.ready` when startup completion, initial rendered stability, or direct host access matters. It resolves after every initial plugin has registered and the toolbar has rendered its complete tool set, so toolbar buttons are at their final positions and can be clicked immediately. Call `mesurer.dispose()` for explicit cleanup, call `mesurer.dispose()` for explicit cleanup, or pass `signal` when an existing lifecycle should own disposal.
+The returned handle owns the mount. Await `mesurer.ready` when startup completion, initial rendered stability, or direct host access matters. It resolves after every initial plugin has registered and the toolbar has rendered its complete tool set, so toolbar buttons are at their final positions and can be clicked immediately. Call `mesurer.dispose()` for explicit cleanup, or pass `signal` when an existing lifecycle should own disposal.
 
 Full placement examples: [Getting started](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md).
 
