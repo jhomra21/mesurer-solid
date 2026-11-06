@@ -10,7 +10,7 @@ Mesurer Solid ports [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thi
 
 The renderer carries its own isolated Solid 2 runtime. Your application can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without installing Solid for Mesurer.
 
-**Current stable:** `mesurer-solid@0.2.5` on the `latest` dist-tag.
+**Current stable:** `mesurer-solid@0.2.6` on the `latest` dist-tag.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jhomra21/mesurer-solid/main/docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">
@@ -245,7 +245,7 @@ Contributor setup, validation expectations, and repository ownership are documen
 
 ## Upstream
 
-Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current stable 0.2.5 audit is pinned to `ibelick/mesurer@5c2fdaefde54591329d94b179af6ef5f32e15676` (`v0.2.7`, re-verified November 5, 2026); adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
+Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current stable 0.2.6 audit is pinned to `ibelick/mesurer@5c2fdaefde54591329d94b179af6ef5f32e15676` (`v0.2.7`, re-verified November 6, 2026); adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
 
 ## License
 

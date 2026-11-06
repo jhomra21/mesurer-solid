@@ -36,6 +36,10 @@ The historical `guide` state and the `action-guide-create-*` interactions compar
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
 
+### 2026-11-06 stable-readiness sweep
+
+Upstream `main` was rechecked at `5c2fdaefde54591329d94b179af6ef5f32e15676` and npm `mesurer@latest` is `0.2.7`, unchanged from the prior pin. Every delta in the 2026-11-05 tables below is classified as adopted, intentional divergence, or not applicable. The stable 0.2.6 documentation sweep found no new upstream delta.
+
 ### 2026-11-05 upstream bug-fix follow-up
 
 | Upstream delta or issue | Decision | Solid mapping and evidence |
@@ -336,4 +340,4 @@ Mesurer Solid keeps the upstream region-capture interaction behind optional `scr
 
 A newer upstream feature is not automatically a Mesurer Solid release blocker. A stable release is blocked when an adopted behavior has drifted, a public capability claim is false, or an important product difference is undocumented.
 
-For stable 0.2.5, upstream `main` is pinned to `5c2fdaefde54591329d94b179af6ef5f32e15676` and npm `mesurer@latest` is `0.2.7`, both verified 2026-11-05. Before each later stable release, compare upstream `main` with the then-current audited SHA and classify meaningful deltas as **adopt**, **intentional divergence**, or **not applicable**. Do not turn unrelated upstream repository churn into an automatic feature backlog.
+For stable 0.2.6, upstream `main` is pinned to `5c2fdaefde54591329d94b179af6ef5f32e15676` and npm `mesurer@latest` is `0.2.7`, both rechecked in the 2026-11-06 stable-readiness sweep (first pinned 2026-11-05 for 0.2.5). Before each later stable release, compare upstream `main` with the then-current audited SHA and classify meaningful deltas as **adopt**, **intentional divergence**, or **not applicable**. Do not turn unrelated upstream repository churn into an automatic feature backlog.
