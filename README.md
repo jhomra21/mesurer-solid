@@ -10,7 +10,7 @@ Mesurer Solid ports [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thi
 
 The renderer carries its own isolated Solid 2 runtime. Your application can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without installing Solid for Mesurer.
 
-**Current stable:** `mesurer-solid@0.2.6` on the `latest` dist-tag.
+**Current stable:** `mesurer-solid@0.2.7` on the `latest` dist-tag.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jhomra21/mesurer-solid/main/docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">
@@ -52,7 +52,7 @@ if (import.meta.env.DEV) {
 
 For Vite, that usually means `src/main.tsx`, `src/main.ts`, or the equivalent browser entry. In Electron, mount Mesurer from the renderer entry. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native window capture and Color Picker samples the current application window through the same capability. For Recording, import `mesurer-solid/electron` once from Electron main before creating BrowserWindows; Mesurer owns the narrow Recording preload/IPC path. In SSR applications, mount from a client-only boundary. Do not mount Mesurer from server code, build configuration, or an Electron main process.
 
-The returned handle owns the mount. `dispose()` is idempotent, `ready` resolves to the live plugin host after startup and the initial rendered state settle, and an optional `AbortSignal` can own cleanup. See [Getting started](./docs/GETTING_STARTED.md) for lifecycle, framework placement, and HMR guidance. The [Electron renderer example](./examples/electron-renderer/README.md) documents native current-window capture for Screenshot and Color Picker through preload and `webContents.capturePage()`.
+The returned handle owns the mount. `dispose()` is idempotent, `ready` resolves to the live plugin host after startup, once the toolbar has rendered its complete tool set, and after the initial rendered state settles, and an optional `AbortSignal` can own cleanup. See [Getting started](./docs/GETTING_STARTED.md) for lifecycle, framework placement, and HMR guidance. The [Electron renderer example](./examples/electron-renderer/README.md) documents native current-window capture for Screenshot and Color Picker through preload and `webContents.capturePage()`.
 
 ### Add first-party plugins
 
@@ -245,7 +245,7 @@ Contributor setup, validation expectations, and repository ownership are documen
 
 ## Upstream
 
-Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current stable 0.2.6 audit is pinned to `ibelick/mesurer@5c2fdaefde54591329d94b179af6ef5f32e15676` (`v0.2.7`, re-verified November 6, 2026); adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
+Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current stable 0.2.7 audit is pinned to `ibelick/mesurer@5c2fdaefde54591329d94b179af6ef5f32e15676` (`v0.2.7`, re-verified November 6, 2026); adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
 
 ## License
 

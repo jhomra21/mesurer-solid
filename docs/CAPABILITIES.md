@@ -1,6 +1,6 @@
 # Capabilities
 
-This page lists the public Mesurer features and the APIs that expose them for `mesurer-solid@0.2.6` stable. Feature guides contain the detailed interaction rules.
+This page lists the public Mesurer features and the APIs that expose them for `mesurer-solid@0.2.7` stable. Feature guides contain the detailed interaction rules.
 
 ## Built-in tools
 
@@ -76,7 +76,7 @@ Mounted-instance-only helpers include:
 
 | Member | Use |
 | --- | --- |
-| `ready` | Promise that resolves to the live plugin host after plugin startup and the initial rendered state settle. |
+| `ready` | Promise that resolves to the live plugin host after plugin startup, once the toolbar has rendered its complete tool set, and after the initial rendered state settles. |
 | `service<T>(id)` | Resolve a typed plugin-owned value after startup. Falsy registered values are returned unchanged. |
 | `copyContext(request?)` | Copy formatted Context through the enabled Context service. |
 | `bringToFront()` | Reassert the Mesurer host above later host-page overlays when the host layer supports it. |
