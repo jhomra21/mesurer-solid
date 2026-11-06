@@ -92,6 +92,7 @@ on:
       - "tests/visual-parity/arrange-contract.mjs"
       - "tests/visual-parity/arrange-presentation-policy-contract.mjs"
       - "tests/visual-parity/color-picker-contract.mjs"
+      - "tests/visual-parity/guide-drag-contract.mjs"
       - "tests/visual-parity/toolbar-drag-contract.mjs"
       - "tests/visual-parity/toolbar-compact-contract.mjs"
       - "tests/visual-parity/presentation-settings-contract.mjs"
@@ -298,6 +299,12 @@ jobs:
         env:
           COLOR_PICKER_URL: http://127.0.0.1:4174/
         run: bun tests/visual-parity/color-picker-contract.mjs
+
+      - name: Exercise guide drag snapping, stroke, and text selection
+        env:
+          GUIDE_DRAG_URL: http://127.0.0.1:4174/
+          GUIDE_DRAG_OUT: guide-drag-artifacts
+        run: bun tests/visual-parity/guide-drag-contract.mjs
 
       - name: Measure Mesurer with Mesurer
         env:
@@ -575,6 +582,17 @@ jobs:
             selection-hit-testing-artifacts
             extension-active-tabs-artifacts
             responsive-extension-assets-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload guide drag and Color Picker evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-guide-drag-contract
+          path: |
+            guide-drag-artifacts
+            color-picker-artifacts
           if-no-files-found: warn
           retention-days: 14
 

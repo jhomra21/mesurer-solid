@@ -696,6 +696,10 @@ export const screenshotPlugin = (
       cancel();
     };
 
+    const unsubscribeWorkspace = workspace.subscribe(() => {
+      if (active() && !workspace.snapshot().enabled) cancel();
+    });
+
     overlay.addEventListener("pointerdown", onPointerDown);
     overlay.addEventListener("pointermove", onPointerMove);
     overlay.addEventListener("pointerup", onPointerUp);
@@ -794,6 +798,7 @@ export const screenshotPlugin = (
     ctx.lifecycle.onDispose(() => {
       disposed = true;
       operation += 1;
+      unsubscribeWorkspace();
       overlay.removeEventListener("pointerdown", onPointerDown);
       overlay.removeEventListener("pointermove", onPointerMove);
       overlay.removeEventListener("pointerup", onPointerUp);
