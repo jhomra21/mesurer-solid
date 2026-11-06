@@ -6,6 +6,22 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.2.6 - 2026-11-06
+
+- Add a `toolbar` mount option (`position`, `dock`, `draggable`) for setting where the toolbar starts, its initial Free/Snap dock, and whether it can be dragged (upstream issues #23 and #10). Defaults are unchanged. A tab-session placement and a dock chosen in Settings still win over the initial option; `draggable: false` pins the toolbar to `position` and ignores both the saved placement and pointer drags. `toolbar` is also accepted by `mesurer-solid/inject`. Remove the toolbar from code with `mounted.dispose()` or by aborting the `signal` option; `M` only toggles inspection.
+- Dragging a guide with no tool active now snaps like the Guides tool and honors the Snap setting (upstream `e600402`).
+- Guides draw and measure at their rounded position and keep their configured weight when selected or hovered, so the painted line matches the measurement (upstream `d46b908`).
+- Turning Mesurer off with `M` ends an open Screenshot region selection instead of leaving its overlay on the page (upstream `ca2b4cd`).
+- Document that the browser Color Picker needs Chromium on Windows or macOS and is hidden where `EyeDropper` is missing.
+- Keep Mesurer usable on pages that fight for the keyboard: after you use Mesurer, shortcuts (S, 1, 2, Delete, Escape) work even when the page keeps a prompt focused, typing in the Context note composer, direct text editing, Settings, and Notes search survives page key listeners that cancel or stop every key, and host bubble-phase document listeners no longer see keys typed in Mesurer fields. Mesurer only overrides host key cancellation for keys travelling to Mesurer, releases the keyboard when focus moves to a host control (click, Tab, or host code), no longer force-blurs a focused host field when you press Mesurer, and stops intercepting `focus()` and `preventDefault()` once disposed even if another library wrapped them.
+- Host checkboxes, radios, and other non-text inputs no longer disable shortcuts, a focused host closed-shadow control keeps its own typing, and Typography no longer pins host text under Mesurer UI when mounted with `shadowMode: "closed"`.
+- Resizing the window during a region recording no longer stretches the clip: when a smaller window clips the region, the visible part stays in place and the clipped remainder is black (upstream `77e3464`).
+- Recording no longer opens on, or keeps recording, a whole-tab frame when Chromium drops the first region crop: it waits for two cropped frames, retries the crop once, and otherwise falls back to painting the selected region (upstream `75f56aa`).
+- Add a playback speed choice (0.5×, 1×, 1.5×, 2×) to the Recording export menu and an optional `speed` export option on the `recording:v1` service. MediaBunny retimes the trimmed video; omitting it keeps 1×.
+- Recording confirms a region crop only from distinct presented frames that differ from the pre-crop stream size, so a scaled whole-tab frame can no longer pass as cropped; timed-out frame waits no longer count, and a selection equal to the viewport uses the canvas path.
+- Recording export now rejects any `speed` other than 0.5, 1, 1.5, or 2 instead of silently exporting at 1×; only an omitted `speed` means 1×.
+- Add a Chromium contract that records real current-tab video and decodes it with MediaBunny to prove resize alignment, first-frame framing, Color Picker use during a recording, and speed export (upstream `75f56aa` behaviors).
+
 ## 0.2.6-beta.0 - 2026-11-06
 
 - Add a `toolbar` mount option (`position`, `dock`, `draggable`) for setting where the toolbar starts, its initial Free/Snap dock, and whether it can be dragged (upstream issues #23 and #10). Defaults are unchanged. A tab-session placement and a dock chosen in Settings still win over the initial option; `draggable: false` pins the toolbar to `position` and ignores both the saved placement and pointer drags. `toolbar` is also accepted by `mesurer-solid/inject`. Remove the toolbar from code with `mounted.dispose()` or by aborting the `signal` option; `M` only toggles inspection.
