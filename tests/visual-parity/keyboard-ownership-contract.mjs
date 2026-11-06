@@ -13,7 +13,10 @@ const variants = [
   { name: "document-listener", query: "?doc" },
   { name: "capture-listener", query: "?capture&doc" },
   { name: "refocusing-prompt", query: "?prompt&doc" },
-  { name: "hostile", query: "?capture&prompt&doc" },
+  { name: "hostile", query: "?capture&docblock&prompt&doc" },
+  { name: "host-enter-cancel", query: "?hostcancel&doc" },
+  { name: "document-capture-listener", query: "?docblock&doc" },
+  { name: "dispose-remount", query: "?wrap", wrapMount: true },
   { name: "closed-shadow-mount", query: "?shadow=closed", closedMount: true },
 ];
 
@@ -120,8 +123,94 @@ const runVariant = async (variant) => {
     await settingsDialog.waitFor({ state: "hidden", timeout: 2_000 });
   };
 
+  // Hosts that cancel and stop every key also block typing into their own fields by design.
+  const cancelsAll = /capture|docblock/.test(variant.query);
+  const hostLast = page.locator("#host-last");
+
+  const focusMesurerControl = () => page.evaluate(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    island.shadowRoot.querySelector("button").focus();
+  });
+
+  // Dispatches a host-authored cancelable keydown whose own listener calls preventDefault.
+  const hostState = () => page.evaluate(() => {
+    const listener = (event) => event.preventDefault();
+    document.body.addEventListener("keydown", listener);
+    const event = new KeyboardEvent("keydown", { cancelable: true, bubbles: true });
+    document.body.dispatchEvent(event);
+    document.body.removeEventListener("keydown", listener);
+
+    return { prevented: event.defaultPrevented };
+  });
+
+  // Reproduces what a retained wrapper would see: a Mesurer-looking node that takes focus after the real one is gone.
+  const focusDetachedMesurerNode = () => page.evaluate(() => {
+    const fake = document.createElement("div");
+    fake.setAttribute("data-mesurer-root", "true");
+    fake.innerHTML = "<input id='fake-mesurer-input' />";
+    document.body.append(fake);
+    document.getElementById("fake-mesurer-input").focus();
+
+    return () => fake.remove();
+  }).then(() => undefined);
+
   try {
     await page.goto(`${baseUrl}${variant.query}`, { waitUntil: "domcontentloaded" });
+
+    if (variant.wrapMount) {
+      await page.waitForFunction(() => Boolean(window.__KB__));
+      await settingsButton.waitFor({ state: "visible" });
+      await focusMesurerControl();
+      await page.evaluate(() => window.__KB__.dispose());
+
+      await step("after dispose a library-wrapped host focus() and preventDefault() behave natively", async () => {
+        await focusDetachedMesurerNode();
+
+        const focused = await page.evaluate(() => {
+          document.getElementById("host-last").focus();
+
+          return document.activeElement?.id;
+        });
+
+        assert.equal(focused, "host-last", "retained focus wrapper still blocks host focus()");
+
+        await focusDetachedMesurerNode();
+        assert.equal((await hostState()).prevented, true, "retained preventDefault wrapper still swallows host cancellation");
+        await page.evaluate(() => document.querySelector("[data-mesurer-root='true']:not([data-mesurer-island])")?.remove());
+      });
+
+      await page.evaluate(() => window.__KB__.remount());
+      await settingsButton.waitFor({ state: "visible" });
+      await focusMesurerControl();
+
+      await step("after remount, the previous instance's wrappers hold no stale ownership", async () => {
+        await clickLocator(hostLast);
+
+        const focused = await page.evaluate(() => {
+          document.getElementById("host-mover").focus();
+
+          return document.activeElement?.id;
+        });
+
+        assert.equal(focused, "host-mover", "stale focus wrapper blocked host focus()");
+        assert.equal((await hostState()).prevented, true, "stale preventDefault wrapper swallowed host cancellation");
+      });
+
+      await step("remounted Mesurer fields still receive typing under a hostile host", async () => {
+        const guide = await openSettings("Guide settings");
+        const hex = guide.getByRole("textbox", { name: "Color hex value" });
+        await hex.waitFor({ state: "visible" });
+        await clickLocator(hex);
+        await page.keyboard.press("Control+a");
+        await page.keyboard.type("12ab34");
+        assert.match((await hex.inputValue()).toLowerCase(), /12ab34/);
+        await dismissSettings();
+      });
+
+      await page.screenshot({ path: `${outputDir}/${variant.name}.png` });
+
+      return { variant: variant.name, results, errors };
+    }
 
     if (variant.closedMount) {
       await page.waitForFunction(() => Boolean(window.__KB__));
@@ -292,16 +381,91 @@ const runVariant = async (variant) => {
         assert.equal(await pressed(editButton), false, "2 toggled Edit");
 
         // A host that cancels its own keys at window capture also blocks typing into its own fields.
-        if (value && !variant.query.includes("capture")) assert.equal(await value(), "s2");
+        if (value && !cancelsAll) assert.equal(await value(), "s2");
       });
     };
 
     // A host that cancels or steals focus on its own keys makes its other fields unusable by design, so they are only checked on cooperative hosts.
-    const cooperativeHost = !variant.query.includes("capture") && !variant.query.includes("prompt");
+    const cooperativeHost = !cancelsAll && !variant.query.includes("prompt");
 
-    if (!variant.query.includes("capture")) {
+    if (!cancelsAll) {
       await hostTyping("a host text area", () => clickLocator(hostPrompt), async () => (await promptValue()).slice(-2));
     }
+
+    const tabTo = async (id) => {
+      for (let attempt = 0; attempt < 90; attempt += 1) {
+        await page.keyboard.press("Shift+Tab");
+
+        if ((await activeId()) === id) return;
+      }
+
+      throw new Error(`Tab never reached #${id}`);
+    };
+
+    await step("Tab from Mesurer into a host input releases ownership, so typing there stays the host's", async () => {
+      await idleTools();
+      await focusMesurerControl();
+      await tabTo("host-last");
+      await page.keyboard.type("s2");
+      await page.waitForTimeout(60);
+      assert.equal(await pressed(selectButton), false, "S toggled Select while the host input was focused after Tab");
+      assert.equal(await pressed(editButton), false, "2 toggled Edit while the host input was focused after Tab");
+
+      if (!cancelsAll) assert.equal(await hostLast.inputValue(), "s2", "host input lost typing after Tab");
+    });
+
+    await step("host cancellation of a host-targeted key is left alone after Tab from Mesurer", async () => {
+      await focusMesurerControl();
+      await tabTo("host-last");
+      await page.evaluate(() => window.__KB__.hostCancels.splice(0));
+      await page.keyboard.press("Enter");
+      const cancels = await page.evaluate(() => window.__KB__.hostCancels.filter((entry) => entry.type === "keydown" && entry.key === "Enter"));
+
+      if (cancelsAll || variant.query.includes("hostcancel")) {
+        assert.equal(cancels.length, 1, "host listener did not run");
+        assert.equal(cancels[0].prevented, true, "Mesurer neutralized a host listener's preventDefault on a host-targeted event");
+      }
+    });
+
+    await step("host key handler can move focus after keyboard navigation out of Mesurer", async () => {
+      // A host that cancels every key cannot also move focus with one.
+      if (cancelsAll) return;
+
+      await focusMesurerControl();
+      await tabTo("host-mover");
+      await page.keyboard.press("Enter");
+
+      if (!cancelsAll) assert.equal(await activeId(), "host-last", "host focus() was ignored after Tab left Mesurer");
+    });
+
+    await step("programmatic host focus() works once the user left Mesurer", async () => {
+      await focusMesurerControl();
+      await tabTo("host-last");
+
+      const focused = await page.evaluate(() => {
+        document.getElementById("host-prompt").focus();
+
+        return document.activeElement?.id;
+      });
+
+      assert.equal(focused, "host-prompt");
+    });
+
+    await step("pressing Mesurer does not blur a host field Mesurer did not take focus from", async () => {
+      // The refocusing prompt steals focus back from any host field by design.
+      if (variant.query.includes("prompt")) return;
+      await idleTools();
+      await clickLocator(hostLast);
+      const before = await page.evaluate(() => window.__KB__.state.hostBlurs);
+      await page.evaluate(() => {
+        const button = document.querySelector("[data-mesurer-island='true']").shadowRoot.querySelector("button");
+        const init = { bubbles: true, composed: true, cancelable: true, button: 0, pointerId: 7, pointerType: "mouse" };
+        button.dispatchEvent(new PointerEvent("pointerdown", init));
+        button.dispatchEvent(new PointerEvent("pointerup", init));
+      });
+      assert.equal(await activeId(), "host-last", "host field lost focus");
+      assert.equal(await page.evaluate(() => window.__KB__.state.hostBlurs), before, "host blur handler ran");
+    });
 
     if (!cooperativeHost) {
       await page.screenshot({ path: `${outputDir}/${variant.name}.png` });
