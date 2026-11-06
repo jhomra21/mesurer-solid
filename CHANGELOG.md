@@ -8,6 +8,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 - Build Mesurer with Solid 2.0.0-rc.21 (previously 2.0.0-rc.15) and `@solidjs/vite-plugin` 3.0.0-next.56. Solid stays bundled inside `mesurer-solid`, so applications do not need to install or upgrade Solid.
 - Clear every Solid development diagnostic and browser console warning Mesurer produced on its own fixtures, fixing each at its source instead of silencing it, and add a browser contract that fails on any console warning, error, or page error.
+- The Inspect card is re-placed in the same update as its own size change, so Show more/less no longer leaves its controls at a stale position for a frame (a click in that frame hit a detail row instead of the button). Motion observation of a deselected element is now released, so an Edit-mode write no longer leaves that element flagged as JavaScript animation, which hid its Inspect card when reselected.
 - Dragging the toolbar in Snap mode now docks on the edge under the pointer when the page is busy. A busy frame hands the toolbar one pointer move for the whole path, and the toolbar used to skip the free middle that frees it from the edge it left, so a fast drag to a side of a short window could dock at the bottom corner.
 
 ## 0.2.6 - 2026-11-06

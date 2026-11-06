@@ -302,6 +302,9 @@ export function MotionPlayer(props: {
           motionLevel(element, target.element) !== null)),
       );
 
+      // Teardown also drops the element's cached observed motion. Without it a
+      // one-off page write (an Edit commit) keeps the element flagged as
+      // JavaScript motion across deselect and reselect.
       return stopObserved;
     },
   );
