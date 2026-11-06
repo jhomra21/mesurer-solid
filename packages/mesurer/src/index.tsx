@@ -119,6 +119,22 @@ export type MesurerPersistence = {
 
 export type AgentBridgeOptions = { globalName?: string; root?: Document | HTMLElement | ShadowRoot };
 
+export type MesurerToolbarOptions = {
+  /**
+   * Where the toolbar rests until the user moves it. Applies when the tab has no saved placement
+   * (or always, when `draggable` is false). Free keeps a 16px inset from the named edges;
+   * Snap docks to the edge and spot, with `left` and `right` standing the toolbar up.
+   */
+  position?: "top-left" | "top" | "top-right" | "bottom-left" | "bottom" | "bottom-right" | "left" | "right";
+  /** Initial dock mode. A mode the user chose in Settings wins. Default `"free"`. */
+  dock?: "free" | "snap";
+  /**
+   * Allow dragging the toolbar. Default `true`. When `false`, pointer drags do nothing, the placement
+   * is never saved or restored, and the toolbar stays at `position` (Snap keeps it docked there).
+   */
+  draggable?: boolean;
+};
+
 export type MesurerOptions = {
   highlightColor?: string;
   guideColor?: string;
@@ -138,6 +154,8 @@ export type MesurerOptions = {
   guideStyle?: Partial<GuideStyle>;
   selectionSpacingStyle?: Partial<SelectionSpacingStyle>;
   rulerSettings?: Partial<RulerSettings>;
+  /** Initial toolbar placement, dock mode, and whether it can be dragged. */
+  toolbar?: MesurerToolbarOptions;
   /**
    * Initial enabled plugin set. Omit this to use the first-party catalog defaults.
    * First-party plugins, including Codex, remain toggleable in Settings from the

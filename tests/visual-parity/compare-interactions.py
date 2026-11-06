@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance
 
+from guide_stroke import historical_guide_stroke, is_historical_guide_stroke_pixel
+
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("interaction-artifacts")
 threshold = 8
 cases = json.loads((out / "cases.json").read_text())
@@ -153,6 +155,13 @@ for name in cases:
         failures.append(f"{name}: image size differs {react.size} vs {solid.size}")
         continue
 
+    guide_stroke = None
+    if name.startswith("action-guide-create-"):
+        hitboxes = react_state.get("guideHitboxes") or []
+        guide_stroke = historical_guide_stroke(react, solid, hitboxes[0] if len(hitboxes) == 1 else None)
+        if guide_stroke is None:
+            failures.append(f"{name}: Solid stroke does not match the adopted d46b908 geometry against historical v0.0.11")
+
     width, height = react.size
     rp, sp = react.load(), solid.load()
     exact = thresholded = max_delta = 0
@@ -167,6 +176,8 @@ for name in cases:
                 ignored_toolbar_exact += 1
                 if delta > threshold:
                     ignored_toolbar_thresholded += 1
+                continue
+            if is_historical_guide_stroke_pixel(guide_stroke, x, y):
                 continue
             if (
                 selection_label_region is not None

@@ -72,7 +72,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-The base inspector includes Select, X-ray, Color Picker, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. First-party Recording uses MediaBunny for encoded video, trim, resize, and WebM/MP4 export; its capture adapters only acquire pixels. Electron apps should import `mesurer-solid/electron` once from the main-process entrypoint before creating BrowserWindows; Mesurer then owns its narrow Recording preload/IPC automatically, so the app does not add Recording code to its own preload. The toolbar groups those controls into Select and Edit. Motion inspection is built into Select and appears for the selected element, with a live preview, playback controls, and keyframe details. Select, measurement geometry, X-ray, Motion, and Context can inspect same-origin iframes; cross-origin frame contents are inaccessible. Typography stays read-only in Select; Edit owns movement and direct text/style changes. Color Picker uses application-local capture when `window.__MESURER_HOST__.captureScreenshot` is available; other supported browser hosts use an operational `EyeDropper`. A successful sample is copied to the clipboard using `colorPickerClickFormat`.
+The base inspector includes Select, X-ray, Color Picker, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. First-party Recording uses MediaBunny for encoded video, trim, resize, and WebM/MP4 export; its capture adapters only acquire pixels. Electron apps should import `mesurer-solid/electron` once from the main-process entrypoint before creating BrowserWindows; Mesurer then owns its narrow Recording preload/IPC automatically, so the app does not add Recording code to its own preload. The toolbar groups those controls into Select and Edit. Motion inspection is built into Select and appears for the selected element, with a live preview, playback controls, and keyframe details. Select, measurement geometry, X-ray, Motion, and Context can inspect same-origin iframes; cross-origin frame contents are inaccessible. Typography stays read-only in Select; Edit owns movement and direct text/style changes. Color Picker uses application-local capture when `window.__MESURER_HOST__.captureScreenshot` is available; other supported browser hosts use an operational `EyeDropper`. A successful sample is copied to the clipboard using `colorPickerClickFormat`. The browser picker needs Chromium on Windows or macOS; Linux builds may not expose `EyeDropper`, in which case the tool is hidden.
 
 `mesurer-solid/plugins` also exports the built-in factories for lower-level composition. Normal mounts already include the built-ins. Use `excludeBuiltins` with names such as `"xray"`, `"typography"`, and `"colorPicker"` when a mount should omit one.
 
@@ -116,6 +116,22 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Choose System, Light, or Dark appearance while keeping the same theme across isolated and document-backed Mesurer UI.
 
 Use `1` for Select and `2` for Edit. Select owns X-ray, Color Picker, Typography, Screenshot, Recording, and built-in Motion inspection, including across accessible same-origin iframes. Edit owns movement and direct text/style changes. Rulers, Guides, and Layout Guides remain usable in both modes; Context and Codex remain visible in both modes. The grouped toolbar changes modes in 150 ms. `Shift+A` still enters Edit as a compatibility shortcut.
+
+Set where the toolbar starts from code with the `toolbar` mount option:
+
+```ts
+mountMesurer({
+  toolbar: {
+    position: "top-right", // "top-left" | "top" | "top-right" | "bottom-left" | "bottom" | "bottom-right" | "left" | "right"
+    dock: "snap", // initial dock mode, "free" (default) or "snap"
+    draggable: false, // default true
+  },
+})
+```
+
+`position` is an edge and a spot on it, with the toolbar's usual 16px inset. In Free mode `left` and `right` keep the horizontal toolbar centered along that edge; in Snap mode they stand it up. It applies only when the tab has no saved placement: a placement the user dragged, and a dock mode chosen in Settings, win over the option. With `draggable: false` the toolbar ignores pointer drags and any saved placement, stays at `position` (Snap keeps it docked to that edge and spot as the window resizes), and saves nothing; buttons, menus, and Settings work as usual. `toolbar` is also accepted by `mesurer-solid/inject`.
+
+There is no close button on the toolbar. Remove it from code with `mounted.dispose()` or by aborting the `signal` passed to mount. `M` only turns inspection off and on; the toolbar stays visible.
 
 Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
 

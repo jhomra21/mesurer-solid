@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance
 
+from guide_stroke import historical_guide_stroke, is_historical_guide_stroke_pixel
+
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("parity-artifacts")
 threshold = 8
 states = sorted(p.name.removeprefix("react-").removesuffix(".png") for p in out.glob("react-*.png"))
@@ -200,6 +202,14 @@ for state in states:
     solid_metrics = normalize_interactive_typography_layer_metrics(solid_metrics, typography_layer_feature)
     label_region = selection_label_region(state, react_metrics, solid_metrics)
 
+    guide_stroke = (
+        historical_guide_stroke(react, solid, react_metrics.get("guide", {}).get("rect"))
+        if state == "guide"
+        else None
+    )
+    if state == "guide" and guide_stroke is None:
+        raise SystemExit("guide: Solid stroke does not match the adopted d46b908 geometry against historical v0.0.11")
+
     width, height = react.size
     rp = react.load()
     sp = solid.load()
@@ -209,6 +219,7 @@ for state in states:
     ignored_toolbar_thresholded = 0
     ignored_selection_label_exact = 0
     ignored_selection_label_thresholded = 0
+    ignored_guide_stroke_exact = 0
     max_delta = 0
     for y in range(height):
         for x in range(width):
@@ -219,6 +230,9 @@ for state in states:
                 ignored_toolbar_exact += 1
                 if delta > threshold:
                     ignored_toolbar_thresholded += 1
+                continue
+            if is_historical_guide_stroke_pixel(guide_stroke, x, y):
+                ignored_guide_stroke_exact += 1
                 continue
             if (
                 label_region is not None
@@ -286,6 +300,7 @@ for state in states:
         "ignored_historical_toolbar_threshold_pixels": ignored_toolbar_thresholded,
         "ignored_selection_label_exact_pixels": ignored_selection_label_exact,
         "ignored_selection_label_threshold_pixels": ignored_selection_label_thresholded,
+        "ignored_historical_guide_stroke_exact_pixels": ignored_guide_stroke_exact,
         "normalized_current_typography_interaction_layer": typography_layer_feature is not None,
         "normalized_selection_label_rasterization": label_region is not None,
         "max_channel_delta": max_delta,
