@@ -1,6 +1,6 @@
 # Getting started
 
-Mesurer runs in the browser. Mount it once from the browser entry for the page or renderer you want to inspect. The current stable package is `mesurer-solid@0.2.6` on `latest`.
+Mesurer runs in the browser. Mount it once from the browser entry for the page or renderer you want to inspect. The current stable package is `mesurer-solid@0.2.7` on `latest`.
 
 ## Install
 
@@ -60,7 +60,7 @@ const host = await mesurer.ready
 const description = await mesurer.describe()
 ```
 
-`ready` resolves to the live plugin host after built-ins, configured plugins, persisted plugin state, fonts, and the initial rendered frames settle. If the mount is disposed before that point, `ready` rejects with an `AbortError`.
+`ready` resolves to the live plugin host after built-ins, configured plugins, persisted plugin state, fonts, and the initial rendered frames settle, and the toolbar has rendered its complete tool set. If the mount is disposed before that point, `ready` rejects with an `AbortError`.
 
 Use `dispose()` when your framework already has an explicit cleanup hook. When another lifecycle already owns an `AbortController`, pass its signal instead:
 

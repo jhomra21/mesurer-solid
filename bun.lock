@@ -38,7 +38,7 @@
     },
     "packages/mesurer": {
       "name": "@jhomra21/mesurer-solid",
-      "version": "0.2.6-beta.0",
+      "version": "0.2.7-beta.0",
       "bin": {
         "mesurer-skill": "scripts/install-skill.mjs",
         "mesurer-codex": "scripts/codex-bridge.mjs",
