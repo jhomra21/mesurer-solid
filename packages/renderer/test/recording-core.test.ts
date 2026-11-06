@@ -29,7 +29,23 @@ describe("recording core", () => {
       endTime: 4,
       scale: 2,
       quality: "medium",
+      speed: 1,
     });
+  });
+
+  it("accepts only offered speeds and defaults only an omitted speed", () => {
+    const media = { duration: 4, width: 640, height: 360 };
+
+    for (const speed of [0.5, 1, 1.5, 2] as const) {
+      expect(normalizeRecordingExportOptions(media, { speed }).speed).toBe(speed);
+    }
+
+    expect(normalizeRecordingExportOptions(media, {}).speed).toBe(1);
+
+    for (const speed of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 3, "2", null]) {
+      // SAFETY: the test deliberately passes values outside RecordingSpeed to prove the runtime boundary rejects them.
+      expect(() => normalizeRecordingExportOptions(media, { speed } as never)).toThrow(/speed/i);
+    }
   });
 
   it("owns container MIME types centrally", () => {

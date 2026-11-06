@@ -11,6 +11,7 @@ import {
   WebMOutputFormat,
   canEncodeVideo,
   type VideoCodec,
+  type VideoSample,
 } from "mediabunny";
 
 export type RecordingExportFormat = "webm" | "mp4";
@@ -18,6 +19,29 @@ export type RecordingExportFormat = "webm" | "mp4";
 export type RecordingQuality = "low" | "medium" | "high";
 
 export type RecordingScale = 1 | 2 | 3;
+
+export const RECORDING_SPEEDS = [0.5, 1, 1.5, 2] as const;
+
+export type RecordingSpeed = (typeof RECORDING_SPEEDS)[number];
+
+
+export type RecordingSpeedInput =
+  | number
+  | string
+  | boolean
+  | null
+  | readonly RecordingSpeedInput[]
+  | { readonly [key: string]: RecordingSpeedInput };
+
+export const assertRecordingSpeed = (value: RecordingSpeedInput): RecordingSpeed => {
+  const match = RECORDING_SPEEDS.find((speed) => speed === value);
+
+  if (match === undefined) {
+    throw new Error(`Recording export speed must be one of ${RECORDING_SPEEDS.join(", ")}.`);
+  }
+
+  return match;
+};
 
 export type RecordingMediaInfo = {
   duration: number;
@@ -31,6 +55,7 @@ export type RecordingExportOptions = {
   endTime?: number;
   scale?: RecordingScale;
   quality?: RecordingQuality;
+  speed?: RecordingSpeed;
 };
 
 export type NormalizedRecordingExportOptions = {
@@ -39,6 +64,7 @@ export type NormalizedRecordingExportOptions = {
   endTime: number;
   scale: RecordingScale;
   quality: RecordingQuality;
+  speed: RecordingSpeed;
 };
 
 export type MediaBunnyCanvasRecorder = {
@@ -105,6 +131,7 @@ export const normalizeRecordingExportOptions = (
     endTime,
     scale: options.scale ?? 1,
     quality: options.quality ?? "medium",
+    speed: options.speed === undefined ? 1 : assertRecordingSpeed(options.speed),
   };
 };
 
@@ -306,6 +333,14 @@ export const exportMediaBunnyRecording = async (
     formats: ALL_FORMATS,
   });
 
+  // Trimmed samples already start at 0, so dividing retimes the whole clip.
+  const retime = (sample: VideoSample) => {
+    sample.setTimestamp(sample.timestamp / normalized.speed);
+    sample.setDuration(sample.duration / normalized.speed);
+
+    return sample;
+  };
+
   const target = new BufferTarget();
 
   const output = new Output({
@@ -328,6 +363,7 @@ export const exportMediaBunnyRecording = async (
         fit: "fill",
         quality: quality(normalized.quality),
         forceTranscode: true,
+        process: normalized.speed === 1 ? undefined : retime,
       },
       audio: { discard: true },
     });

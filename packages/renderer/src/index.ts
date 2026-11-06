@@ -120,6 +120,7 @@ export type {
   RecordingExportOptions,
   RecordingQuality,
   RecordingScale,
+  RecordingSpeed,
 } from "./core/recording";
 
 export {

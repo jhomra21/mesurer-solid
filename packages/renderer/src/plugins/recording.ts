@@ -26,6 +26,8 @@ import {
   type RecordingExportOptions,
   type RecordingQuality,
   type RecordingScale,
+  type RecordingSpeed,
+  assertRecordingSpeed,
 } from "../core/recording";
 import {
   createRecordingPreviewController,
@@ -136,6 +138,7 @@ type ExportCommandOptions = {
   startTime?: number;
   endTime?: number;
   scale?: RecordingScale;
+  speed?: RecordingSpeed;
 };
 
 const cloneRect = (rect: ScreenshotRect | null): ScreenshotRect | null =>
@@ -184,6 +187,8 @@ const parseExportCommandOptions = (
   if (isFinitePluginNumber(value.endTime)) next.endTime = value.endTime;
 
   if (value.scale === 1 || value.scale === 2 || value.scale === 3) next.scale = value.scale;
+
+  if (value.speed !== undefined) next.speed = assertRecordingSpeed(value.speed);
 
   return next;
 };

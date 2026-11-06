@@ -20,6 +20,7 @@
       },
       "devDependencies": {
         "@solidjs/vite-plugin": "^3.0.0-next.50",
+        "mediabunny": "1.59.0",
         "typescript": "^5.9.2",
         "vite": "^8.1.5",
       },
@@ -37,7 +38,7 @@
     },
     "packages/mesurer": {
       "name": "@jhomra21/mesurer-solid",
-      "version": "0.2.2",
+      "version": "0.2.5",
       "bin": {
         "mesurer-skill": "scripts/install-skill.mjs",
         "mesurer-codex": "scripts/codex-bridge.mjs",

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>Mesurer Recording Region Contract</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #ffffff; font-family: system-ui, sans-serif; }
+      .marker { position: fixed; z-index: 0; margin: 0; }
+      #marker-red { background: rgb(255 0 0); }
+      #marker-green { background: rgb(0 200 0); }
+      #marker-sweep { background: rgb(0 0 255); }
+    </style>
+  </head>
+  <body>
+    <div class="marker" id="marker-red"></div>
+    <div class="marker" id="marker-green"></div>
+    <div class="marker" id="marker-sweep"></div>
+    <script type="module" src="/src/recording-region-contract.ts"></script>
+  </body>
+</html>

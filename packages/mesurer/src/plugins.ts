@@ -155,6 +155,7 @@ export type {
   RecordingQuality,
   RecordingRect,
   RecordingScale,
+  RecordingSpeed,
 } from "./recording";
 
 export {
