@@ -1,3 +1,5 @@
+import { RECORDING_SPEEDS } from "../core/recording";
+
 export const RECORDING_PREVIEW_PANEL_WIDTH = 352;
 
 export const RECORDING_PREVIEW_PANEL_EXPANDED_WIDTH = 576;
@@ -546,6 +548,29 @@ export const createRecordingPreviewUi = ({
     return { scale, ...row };
   });
 
+  const speedHeading = ownerDocument.createElement("p");
+
+  speedHeading.textContent = "Speed";
+
+  setStyle(speedHeading, {
+    margin: "0",
+    padding: "6px 8px 4px",
+    color: "var(--msr-color-ink-500, #64748b)",
+    "font-size": "10px",
+    "font-weight": "500",
+  });
+
+  exportMenu.append(speedHeading);
+
+  const speedRows = RECORDING_SPEEDS.map((speed) => {
+    const row = makeRecordingMenuRow(ownerDocument, `${speed}×`);
+
+    row.button.dataset.mesurerRecordingSpeed = String(speed);
+    exportMenu.append(row.button);
+
+    return { speed, ...row };
+  });
+
   const download = makeIconButton(ownerDocument, "Download", "↓");
 
   download.dataset.mesurerRecordingExport = "true";
@@ -592,6 +617,7 @@ export const createRecordingPreviewUi = ({
     exportMenu,
     formatRows,
     scaleRows,
+    speedRows,
     download,
     expand,
     status,

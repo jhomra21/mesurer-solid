@@ -36,7 +36,7 @@ The typed `recording:v1` service exposes:
 - `stop()` — finalize the active capture and return the recorded asset;
 - `cancel()` — abandon selection or recording and release capture resources;
 - `discard()` — remove the current ready clip;
-- `export(options?)` — trim, scale, and export through MediaBunny.
+- `export(options?)` — trim, scale, change playback speed, and export through MediaBunny. Options are `format`, `startTime`, `endTime`, `scale` (1, 2, or 3), `quality`, and `speed` (0.5, 1, 1.5, or 2; default 1).
 
 Status is one of `idle`, `selecting`, `recording`, `ready`, `exporting`, or `error`.
 
@@ -64,11 +64,17 @@ Recording does not use `MediaRecorder`. Capture APIs are only pixel/stream acqui
 
 The initial recording is WebM. Export supports WebM and, when the current runtime exposes a compatible AVC encoder, MP4. Call `formats()` instead of assuming MP4 is available. Export scale is 1×, 2×, or 3×. MP4 dimensions are normalized to valid even pixel dimensions at the format boundary.
 
+Export playback speed is 0.5×, 1×, 1.5×, or 2×. MediaBunny retimes the trimmed video samples (`VideoSample.setTimestamp` and `setDuration` inside the Conversion `process` hook), so a 2× export lasts half the trimmed duration and a 0.5× export lasts twice as long. Omitting `speed` keeps the existing 1× behavior. Audio is still discarded.
+
 The frame pump applies encoder backpressure rather than building an unbounded queue. If MediaBunny is still accepting the previous frame, Mesurer waits instead of accumulating stale frame work.
 
 ## Region capture
 
 When Chromium exposes Region Capture, Mesurer asks the video track to crop to the selected DOM region through `CropTarget`. Otherwise it maps viewport coordinates into the captured video and paints the correct source rectangle into a canvas. The fallback accounts for HiDPI scaling and letterboxed tab/screen streams instead of stretching independent axes.
+
+Chromium can drop the first region crop while the capture stream starts. Mesurer waits for two presented frames that already look cropped (the region's aspect ratio, not the whole tab), retries the crop once, and otherwise resets it and uses the canvas-painted fallback above, so a recording never opens on or keeps a whole-tab frame.
+
+The recorded region keeps its selected size when the window is resized. If a smaller window clips the region, Chromium delivers only the on-screen part; Mesurer paints that part at its original position and fills the clipped remainder black instead of stretching it across the clip.
 
 Mesurer removes hidden media elements, stops tracks, and releases timers/animation frames when recording stops, is cancelled, the track ends, the plugin is disabled, or the mount is disposed.
 
@@ -112,7 +118,7 @@ Stopping a recording opens the compact upstream-style Mesurer editor. The collap
 
 - click-to-play video preview plus a compact Play/Pause control and current/duration time;
 - one timeline with a playhead and keyboard/pointer-accessible trim-start and trim-end handles;
-- an export-options menu that groups detected formats with 1× / 2× / 3× output sizes and shows the resulting pixel dimensions;
+- an export-options menu that groups detected formats, 1× / 2× / 3× output sizes with their pixel dimensions, and a 0.5× / 1× / 1.5× / 2× playback speed (1× by default);
 - a compact Download action that exports through MediaBunny;
 - grow/shrink preview control;
 - hover/focus Close action;
@@ -153,5 +159,14 @@ The dedicated Chromium contract uses an animated canvas as a deterministic displ
 - packed Electron acquisition through `mesurer-solid/electron` with no application-owned Recording preload or IPC, using a renderer-bound WebContents stream id. The contract enables Select before capture, verifies the Select interaction overlay stays pointer-transparent, sends a native Electron click through the recorded region, checks the 60 fps default and 120 fps setting, and retains the WebM artifact;
 - Screenshot remains immediately interactive after a finished Recording is dismissed;
 - Escape/cancel and clean browser diagnostics.
+
+`tests/visual-parity/recording-region-contract.mjs` uses Chromium's real current-tab capture and Region Capture (new headless mode) with a fixture of colored markers near the bottom-right corner. It verifies that:
+
+- shrinking the window while the region stays visible, and while it becomes partly off-screen, keeps the output at the selected size with the red marker at the same relative position and size, and the clipped part black;
+- the first decoded frame already has the exact region size and the same framing as the second;
+- opening, sampling with, and closing Color Picker (toolbar and `P`) leaves Recording active and the exported duration covers the whole span;
+- 0.5×, 1×, 2×, and an omitted `speed` export the expected duration with strictly increasing decoded timestamps, and the editor's Speed choice reaches a real download.
+
+It decodes every frame with MediaBunny `CanvasSink` in the page and writes `test-results/recording-region/recording-region-contract.json` plus frame PNGs.
 
 Build/package checks also reject `MediaRecorder` in the Recording implementation and reject accidental MediaBunny bundling across the MPL/MIT boundary.

@@ -6,6 +6,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Resizing the window during a region recording no longer stretches the clip: when a smaller window clips the region, the visible part stays in place and the clipped remainder is black (upstream `77e3464`).
+- Recording no longer opens on, or keeps recording, a whole-tab frame when Chromium drops the first region crop: it waits for two cropped frames, retries the crop once, and otherwise falls back to painting the selected region (upstream `75f56aa`).
+- Add a playback speed choice (0.5×, 1×, 1.5×, 2×) to the Recording export menu and an optional `speed` export option on the `recording:v1` service. MediaBunny retimes the trimmed video; omitting it keeps 1×.
+- Add a Chromium contract that records real current-tab video and decodes it with MediaBunny to prove resize alignment, first-frame framing, Color Picker use during a recording, and speed export (upstream `75f56aa` behaviors).
+
 ## 0.2.5 - 2026-11-05
 
 - Replace tabbed Settings with the sectioned upstream panel (Guides, Inspect, Color picker, Rulers, General), 252px wide, ported from upstream `5c2fdae`. Every Solid setting keeps its persisted key and default and sits in its matching section, including plugin settings, presentation switches, Appearance, Shortcuts, dock/auto-hide, Persist, Inspect info card, and Selection spacing.

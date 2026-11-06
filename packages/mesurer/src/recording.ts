@@ -13,6 +13,8 @@ export type RecordingQuality = "low" | "medium" | "high";
 
 export type RecordingScale = 1 | 2 | 3;
 
+export type RecordingSpeed = 0.5 | 1 | 1.5 | 2;
+
 export type RecordingRect = {
   left: number;
   top: number;
@@ -26,6 +28,7 @@ export type RecordingExportOptions = {
   endTime?: number;
   scale?: RecordingScale;
   quality?: RecordingQuality;
+  speed?: RecordingSpeed;
 };
 
 export type MesurerRecordingStatus =

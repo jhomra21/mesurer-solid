@@ -2,6 +2,7 @@ import type {
   RecordingExportFormat,
   RecordingExportOptions,
   RecordingScale,
+  RecordingSpeed,
 } from "../core/recording";
 import {
   RECORDING_PREVIEW_PANEL_EXPANDED_WIDTH as PANEL_EXPANDED_WIDTH,
@@ -106,6 +107,7 @@ export const createRecordingPreviewController = ({
     exportMenu,
     formatRows,
     scaleRows,
+    speedRows,
     download,
     expand,
     status,
@@ -120,6 +122,7 @@ export const createRecordingPreviewController = ({
   let supportedFormats: RecordingExportFormat[] = ["webm"];
   let selectedFormat: RecordingExportFormat = "webm";
   let selectedScale: RecordingScale = 1;
+  let selectedSpeed: RecordingSpeed = 1;
   let trimStartValue = 0;
   let trimEndValue = 0;
   let dragKind: DragKind | null = null;
@@ -233,6 +236,15 @@ export const createRecordingPreviewController = ({
     }
   };
 
+  const updateSpeedRows = () => {
+    for (const row of speedRows) {
+      const selected = row.speed === selectedSpeed;
+
+      row.button.setAttribute("aria-checked", selected ? "true" : "false");
+      row.check.style.opacity = selected ? "1" : "0";
+    }
+  };
+
   const updateFormatRows = () => {
     formatRows.replaceChildren();
 
@@ -295,6 +307,7 @@ export const createRecordingPreviewController = ({
       download,
       expand,
       ...scaleRows.map((row) => row.button),
+      ...speedRows.map((row) => row.button),
     ]) {
       control.toggleAttribute("disabled", value);
     }
@@ -598,6 +611,13 @@ export const createRecordingPreviewController = ({
     });
   }
 
+  for (const row of speedRows) {
+    row.button.addEventListener("click", () => {
+      selectedSpeed = row.speed;
+      updateSpeedRows();
+    });
+  }
+
   const onDocumentPointerDown = (event: PointerEvent) => {
     if (exportMenu.style.display === "none") return;
     const path = event.composedPath();
@@ -635,6 +655,7 @@ export const createRecordingPreviewController = ({
       startTime: start,
       endTime: end,
       scale: selectedScale,
+      speed: selectedSpeed,
     }).then((result) => {
       if (operation !== revision) return;
 
@@ -700,6 +721,7 @@ export const createRecordingPreviewController = ({
       asset = nextAsset;
       expanded = false;
       selectedScale = 1;
+      selectedSpeed = 1;
       selectedFormat = "webm";
       supportedFormats = ["webm"];
       trimStartValue = 0;
@@ -728,6 +750,7 @@ export const createRecordingPreviewController = ({
       setExportMenuOpen(false);
       updateFormatRows();
       updateScaleRows();
+      updateSpeedRows();
       syncTimeline();
       setBusy(false);
       panel.style.display = "block";

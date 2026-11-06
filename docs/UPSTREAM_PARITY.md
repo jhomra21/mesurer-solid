@@ -34,6 +34,15 @@ The historical React `605d202` compare lane predates the Inspect info card and t
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
 
+### 2026-11-05 upstream bug-fix follow-up
+
+| Upstream delta | Decision | Solid mapping and evidence |
+| --- | --- | --- |
+| Keep package crop aligned when the window is resized (`77e3464`, `visibleSelectionSlice`) | **Adopted; browser-proven** | `visibleSelectionSlice` in `recording-capture.ts` is used by the region-locked paint path so a clipped region is drawn at its original position over black instead of stretched. The letterbox placement (`placeRecordingRectInVideo`) already matched upstream's `placeScreenshotRectInVideo`. `recording-region-contract.mjs` shrinks the window mid-recording (region stays visible and region partly off-screen) and decodes the export; it failed on 0.2.5 (red marker 2.15× too large, no black fill) and passes now. |
+| Wait for two frames at the cropped size before the first paint (`75f56aa`) | **Adopted with a Solid-owned fallback; browser-proven** | Chromium sometimes drops the first `cropTo` while the stream starts (about one run in three in new headless Chromium), leaving whole-tab frames that 0.2.5 stretched into the clip. `openRecordingCapture` now waits for two presented frames that look cropped (region aspect ratio, not the whole tab), retries `cropTo` once, and otherwise resets the crop with `cropTo(null)` and uses the canvas-painted fallback. Upstream's size match against `rect × devicePixelRatio` does not hold here because Chromium upscales cropped frames, so Solid checks aspect and whole-tab size instead. The contract asserts the first decoded frame has the exact region size and the red marker at its region position. |
+| Color Picker must not cancel an active recording (`75f56aa`) | **Verified, no change needed** | Solid's Color Picker never touched Recording state. The contract opens, samples with, and closes the picker through the toolbar and `P` during a recording and asserts the status stays `recording` and the export covers the whole span. |
+| Export at a different playback speed (upstream issue #47) | **Solid extension** | Optional `speed` (0.5, 1, 1.5, 2) on `recording:v1` `export()` and a Speed section in the export menu, implemented with MediaBunny `VideoSample.setTimestamp`/`setDuration`. Upstream has not shipped this; it is not parity. |
+
 ### 2026-11-05 pinned-current follow-up
 
 The upstream `main` SHA was rechecked against `5c2fdaefde54591329d94b179af6ef5f32e15676` on this date, and `npm view mesurer version` returned `0.2.7`. Stable 0.2.5 adopts the sectioned Settings panel and the three upstream behaviors below. The beta series additionally delivers the Responsive card drag and selection/hover fixes and the vertical toolbar layout documented in the feature guides.

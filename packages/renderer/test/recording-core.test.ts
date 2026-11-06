@@ -29,6 +29,7 @@ describe("recording core", () => {
       endTime: 4,
       scale: 2,
       quality: "medium",
+      speed: 1,
     });
   });
 

@@ -16,7 +16,11 @@ on:
       - "extension/**"
       - "examples/basic/recording-contract.html"
       - "examples/basic/src/recording-contract.ts"
+      - "examples/basic/recording-region-contract.html"
+      - "examples/basic/src/recording-region-contract.ts"
+      - "examples/basic/package.json"
       - "tests/visual-parity/recording-contract.mjs"
+      - "tests/visual-parity/recording-region-contract.mjs"
       - ".github/workflows/recording-contract.yml"
   workflow_dispatch:
 
@@ -96,6 +100,17 @@ jobs:
         env:
           RECORDING_URL: http://127.0.0.1:4175/recording-contract.html
         run: bun tests/visual-parity/recording-contract.mjs
+      - name: Exercise Recording region, resize, Color Picker, and speed export in Chromium
+        env:
+          RECORDING_REGION_URL: http://127.0.0.1:4175/recording-region-contract.html
+        run: bun tests/visual-parity/recording-region-contract.mjs
+      - name: Upload Recording region artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: recording-region-contract
+          path: test-results/recording-region
+          if-no-files-found: ignore
       - name: Assert Solid runtime diagnostics are clean
         run: |
           if grep -nE 'STRICT_READ_UNTRACKED|\$\$pointermove' recording-vite.log; then
