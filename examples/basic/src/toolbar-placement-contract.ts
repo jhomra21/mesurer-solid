@@ -32,4 +32,14 @@ const options: MountMesurerOptions = {
 
 if (!params.has("none")) options.toolbar = toolbar;
 
-mountMesurer(options);
+declare global {
+  interface Window {
+    __TOOLBAR_READY__?: boolean;
+  }
+}
+
+const mounted = mountMesurer(options);
+
+await mounted.ready;
+
+window.__TOOLBAR_READY__ = true;

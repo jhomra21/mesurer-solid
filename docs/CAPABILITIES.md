@@ -90,7 +90,7 @@ Mounted-instance-only helpers include:
 
 | Method | Result |
 | --- | --- |
-| `ready()` | Wait until the Mesurer plugin host is ready. |
+| `ready()` | Wait until the Mesurer plugin host is ready and the toolbar has rendered its complete tool set. |
 | `describe()` | Describe loaded plugins, tools, settings, overlays, state slices, commands, hooks, and services. |
 | `inspect(selector, index?)` | Inspect one matching rendered element. |
 | `inspectAll(selector, limit?)` | Inspect multiple matching rendered elements. |

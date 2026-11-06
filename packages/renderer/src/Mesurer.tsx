@@ -94,6 +94,8 @@ export type MesurerProps = {
   onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
   isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;
   onBuiltinController?: (controller: MesurerBuiltinController | null) => void;
+  /** Internal composable-runtime gate: false until every initial plugin tool has registered, so the toolbar never shows a partial tool set. */
+  toolbarReady?: boolean;
   responsiveOpen?: boolean;
   responsiveShortcutsEnabled?(): boolean;
   onResponsiveClose?: () => void;
@@ -1646,25 +1648,27 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           onHostPick={(point) => { void builtinController.pickColorAt(point); }}
           responsiveOpen={input.responsiveOpen === true}
         />
-        <Toolbar
-          model={model}
-          ownerWindow={ownerWindow}
-          onBuiltinAction={runBuiltinAction}
-          pluginTools={input.pluginTools}
-          onPluginTool={input.onPluginTool}
-          onPluginToolMenuItem={input.onPluginToolMenuItem}
-          isBuiltinActionDisabled={builtinActionDisabled}
-          responsiveOpen={input.responsiveOpen}
-          onClearWorkspace={clearWorkspace}
-          selectionSpacingStyle={props.selectionSpacingStyle}
-          onSelectionSpacingStyleChange={onSelectionSpacingStyleChange}
-          onResetSettings={() => { model.resetSettings(); onResetSelectionSpacingStyle(); activePersistence?.clearSettings(); }}
-          initialPosition={resolveInitialToolbarPosition(ownerWindow, savedToolbarPosition)}
-          anchor={savedToolbarPosition ? undefined : toolbarMountAnchor(input.toolbar?.position)}
-          draggable={toolbarDraggable}
-          onPositionChange={(position) => writeToolbarPosition(ownerWindow, storageKey, position)}
-          motion={{ element: motionElement }}
-        />
+        <Show when={input.toolbarReady !== false}>
+          <Toolbar
+            model={model}
+            ownerWindow={ownerWindow}
+            onBuiltinAction={runBuiltinAction}
+            pluginTools={input.pluginTools}
+            onPluginTool={input.onPluginTool}
+            onPluginToolMenuItem={input.onPluginToolMenuItem}
+            isBuiltinActionDisabled={builtinActionDisabled}
+            responsiveOpen={input.responsiveOpen}
+            onClearWorkspace={clearWorkspace}
+            selectionSpacingStyle={props.selectionSpacingStyle}
+            onSelectionSpacingStyleChange={onSelectionSpacingStyleChange}
+            onResetSettings={() => { model.resetSettings(); onResetSelectionSpacingStyle(); activePersistence?.clearSettings(); }}
+            initialPosition={resolveInitialToolbarPosition(ownerWindow, savedToolbarPosition)}
+            anchor={savedToolbarPosition ? undefined : toolbarMountAnchor(input.toolbar?.position)}
+            draggable={toolbarDraggable}
+            onPositionChange={(position) => writeToolbarPosition(ownerWindow, storageKey, position)}
+            motion={{ element: motionElement }}
+          />
+        </Show>
         <Show when={input.responsiveOpen}>
           <ResponsiveStage
             ownerDocument={ownerDocument}
