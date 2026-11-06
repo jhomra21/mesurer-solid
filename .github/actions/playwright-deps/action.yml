@@ -22,6 +22,8 @@ runs:
       env:
         PLAYWRIGHT_RUNNER: ${{ inputs.runner }}
       run: |
+        # GitHub runs composite bash steps with -e; the retry loop needs the exit status instead.
+        set +e
         set -uo pipefail
 
         case "$PLAYWRIGHT_RUNNER" in
@@ -38,6 +40,9 @@ runs:
           sudo rm -f /var/lib/man-db/auto-update
         fi
 
+        # Fresh runners can start unattended-upgrades, which holds the dpkg lock that install-deps waits on.
+        sudo systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+
         max_attempts=3
         attempt=1
         while [ "$attempt" -le "$max_attempts" ]; do
@@ -49,6 +54,8 @@ runs:
             exit 0
           fi
           echo "::warning::Playwright install-deps attempt $attempt of $max_attempts failed with exit code $status."
+          echo "Package-manager processes after the failed attempt:"
+          ps -eo pid,etime,args | grep -E 'apt|dpkg|unattended' | grep -v grep || true
           if [ "$attempt" -lt "$max_attempts" ]; then
             # timeout stops the runner, not the sudo apt-get/dpkg it spawned; clear them so the
             # next attempt does not wait on the package lock.
