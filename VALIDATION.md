@@ -42,6 +42,12 @@ Current contracts cover shared-overlap anchors for separated boxes, guide-line-t
 
 See [Measurements and distance geometry](./docs/MEASUREMENTS.md).
 
+## Console diagnostics
+
+Mesurer must not log warnings or errors in a browser. Solid's development diagnostics (`EFFECT_WRITES_OWN_SOURCE`, `NO_OWNER_CLEANUP`, `UNSTABLE_LIST_IDENTITY`, and newer ones) arrive as console warnings, so they are covered by the same rule. Fix the code that raises one. Do not filter console output, wrap `console`, or turn dev diagnostics off.
+
+`tests/visual-parity/console-diagnostics-contract.mjs` discovers every `examples/basic/*.html` page, drives the common tools on each at several device pixel ratios (Select, Edit, Rulers, Guides, Typography, X-ray, Settings, toolbar menus, the M toggle, Context notes, and the Screenshot, Recording, and Motion fixtures), and fails on any console warning, console error, page error, failed request, or Vite error overlay. Only Vite's own `[vite] connecting...` and `[vite] connected.` debug lines are ignored. It writes `console-diagnostics.json` to `CONSOLE_DIAGNOSTICS_OUT`, with the visited pages, the interaction steps that ran, and the recorded messages. Set `CONSOLE_DIAGNOSTICS_MODE=prod` and `CONSOLE_DIAGNOSTICS_URL` to run it against a built `vite preview`. The `console-diagnostics` job in `.github/workflows/browser-contracts.yml` runs it against the dev server.
+
 ## Supporting tests
 
 Unit, jsdom, attribute, role, count, existence, and implementation-detail checks are supporting tests only. They may protect invariants and shorten debugging, but they do not prove the feature works in the browser and must not be cited as the reason a manual failure is fixed.

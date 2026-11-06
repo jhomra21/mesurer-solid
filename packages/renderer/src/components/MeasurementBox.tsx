@@ -1,4 +1,4 @@
-import { Show, createEffect, createSignal, onCleanup, onSettled } from "solid-js";
+import { Show, createSignal, onSettled } from "solid-js";
 import { Portal } from "@solidjs/web";
 import type { InspectMeasurement, Measurement, Rect } from "../core/types";
 import type { EdgeVisibility } from "../core/edge-visibility";
@@ -8,7 +8,7 @@ import { installNestedScrollCompensation } from "../runtime/nested-scroll-compen
 import { registerSelectionChromeTarget } from "../runtime/native-scroll-registry";
 import { getRectFromDom } from "../core/dom";
 import { intersectRect, responsivePreviewVisibleRect } from "../runtime/responsive-preview-geometry";
-import { chromeEdgeThickness, snapChromeRect } from "../runtime/device-pixel-chrome";
+import { chromeEdgeThickness, snapChromeRect, watchDevicePixelRatio } from "../runtime/device-pixel-chrome";
 
 export type MeasurementBoxProps = {
   measurement: Measurement | InspectMeasurement | null;
@@ -34,21 +34,12 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   const edges = () => props.edgeVisibility ?? allEdges;
   const isSelectionGroup = () => Boolean(props.measurement?.id.startsWith("group-"));
   const isSelectedMeasurement = () => Boolean(props.measurement && "paddingRect" in props.measurement);
-  createEffect(() => chromeDpr(), (dpr) => {
+  onSettled(() => {
     const ownerWindow = chromeElement?.ownerDocument.defaultView;
 
     if (!ownerWindow) return;
 
-    if (dpr !== ownerWindow.devicePixelRatio) {
-      setChromeDpr(ownerWindow.devicePixelRatio || 1);
-
-      return;
-    }
-
-    const resolution = ownerWindow.matchMedia(`(resolution: ${dpr}dppx)`);
-    const update = () => setChromeDpr(ownerWindow.devicePixelRatio || 1);
-    resolution.addEventListener("change", update);
-    onCleanup(() => resolution.removeEventListener("change", update));
+    return watchDevicePixelRatio(ownerWindow, setChromeDpr);
   });
 
   const edgeThickness = () => chromeEdgeThickness(chromeDpr());
@@ -126,7 +117,6 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     const ownerWindow = target?.ownerDocument.defaultView;
 
     if (!target || !ownerWindow) return;
-    setChromeDpr(chromeElement?.ownerDocument.defaultView?.devicePixelRatio || 1);
 
     // A selected page element can start inside Mesurer's isolated ShadowRoot,
     // while its source target still belongs to the document. Let Solid own the

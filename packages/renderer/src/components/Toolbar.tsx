@@ -978,66 +978,66 @@ export function Toolbar(props: ToolbarProps) {
   );
 
 
-  const renderPluginTool = (tool: ToolContribution) => (
-    <CompactItem visible={visibleInToolbar(toolActive(tool))}>
+  const renderPluginTool = (tool: () => ToolContribution) => (
+    <CompactItem visible={visibleInToolbar(toolActive(tool()))}>
       <Show
-        when={(tool.menu?.items.length ?? 0) > 0}
+        when={(tool().menu?.items.length ?? 0) > 0}
         fallback={
           <ToolbarButton
-            id={`plugin:${tool.id}`}
-            toolId={tool.id}
-            active={tool.active?.() ?? false}
-            expanded={tool.id === "context.notes" ? tool.active?.() ?? false : undefined}
-            disabled={tool.disabled?.() ?? false}
-            label={tool.label}
-            shortcut={tool.shortcut}
-            onClick={() => props.onPluginTool?.(tool)}
-            {...buttonProps(`plugin:${tool.id}`)}
+            id={`plugin:${tool().id}`}
+            toolId={tool().id}
+            active={tool().active?.() ?? false}
+            expanded={tool().id === "context.notes" ? tool().active?.() ?? false : undefined}
+            disabled={tool().disabled?.() ?? false}
+            label={tool().label}
+            shortcut={tool().shortcut}
+            onClick={() => props.onPluginTool?.(tool())}
+            {...buttonProps(`plugin:${tool().id}`)}
           >
-            <PluginIcon tool={tool} />
+            <PluginIcon tool={tool()} />
           </ToolbarButton>
         }
       >
         <div
           data-mesurer-plugin-menu-root="true"
-          data-mesurer-tool-menu-root={tool.id}
+          data-mesurer-tool-menu-root={tool().id}
           class="msr:relative msr:flex msr:items-stretch"
         >
           <ToolbarButton
-            id={`plugin:${tool.id}`}
-            toolId={tool.id}
-            active={tool.active?.() ?? false}
-            expanded={tool.id === "context.notes" ? tool.active?.() ?? false : undefined}
-            disabled={tool.disabled?.() ?? false}
-            label={tool.label}
-            shortcut={tool.shortcut}
-            onClick={() => props.onPluginTool?.(tool)}
-            {...buttonProps(`plugin:${tool.id}`)}
+            id={`plugin:${tool().id}`}
+            toolId={tool().id}
+            active={tool().active?.() ?? false}
+            expanded={tool().id === "context.notes" ? tool().active?.() ?? false : undefined}
+            disabled={tool().disabled?.() ?? false}
+            label={tool().label}
+            shortcut={tool().shortcut}
+            onClick={() => props.onPluginTool?.(tool())}
+            {...buttonProps(`plugin:${tool().id}`)}
           >
-            <PluginIcon tool={tool} />
+            <PluginIcon tool={tool()} />
           </ToolbarButton>
           <button
             type="button"
-            data-mesurer-tool-menu-trigger={tool.id}
-            aria-label={`${tool.label} options`}
-            aria-expanded={pluginMenuOpenId() === tool.id ? "true" : "false"}
-            class={`msr:relative msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${pluginMenuOpenId() === tool.id ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
-            onMouseEnter={() => tooltip.onTooltipEnter(`plugin-menu:${tool.id}`)}
+            data-mesurer-tool-menu-trigger={tool().id}
+            aria-label={`${tool().label} options`}
+            aria-expanded={pluginMenuOpenId() === tool().id ? "true" : "false"}
+            class={`msr:relative msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${pluginMenuOpenId() === tool().id ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
+            onMouseEnter={() => tooltip.onTooltipEnter(`plugin-menu:${tool().id}`)}
             onMouseLeave={tooltip.onTooltipLeave}
             onClick={(event) => togglePluginMenu(
-              tool.id,
+              tool().id,
               event.currentTarget.parentElement ?? event.currentTarget,
             )}
           >
             <CaretDownIcon size={8} />
             <Tooltip
-              label={`${tool.label} options`}
-              visible={tooltipsEnabled() && tooltip.visibleTooltipId() === `plugin-menu:${tool.id}`}
+              label={`${tool().label} options`}
+              visible={tooltipsEnabled() && tooltip.visibleTooltipId() === `plugin-menu:${tool().id}`}
               instant={tooltip.tooltipInstant()}
               side={tooltipSide()}
             />
           </button>
-          {renderPluginMenu(tool)}
+          {renderPluginMenu(tool())}
         </div>
       </Show>
     </CompactItem>
@@ -1576,7 +1576,7 @@ export function Toolbar(props: ToolbarProps) {
               <Show when={selectPluginTools().length > 0}>
                 <ToolbarDivider visible={!compact() || (selectPluginActive() && selectBuiltinToolsActive())} marker="select-plugins" />
                 <div role="group" aria-label="Select plugin tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
-                  <For each={selectPluginTools()}>{(tool) => renderPluginTool(tool)}</For>
+                  <For each={selectPluginTools()} keyed={(tool) => tool.id}>{(tool) => renderPluginTool(tool)}</For>
                 </div>
               </Show>
             </div>
@@ -1592,7 +1592,7 @@ export function Toolbar(props: ToolbarProps) {
             <div ref={(element) => { editModePanelElement = element; }} class="mesurer-toolbar-mode-panel">
               <Show when={editPluginTools().length > 0}>
                 <div role="group" aria-label="Edit tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
-                  <For each={editPluginTools()}>{(tool) => renderPluginTool(tool)}</For>
+                  <For each={editPluginTools()} keyed={(tool) => tool.id}>{(tool) => renderPluginTool(tool)}</For>
                 </div>
               </Show>
             </div>
@@ -1650,7 +1650,7 @@ export function Toolbar(props: ToolbarProps) {
       <Show when={alwaysPluginTools().length > 0}>
         <ToolbarDivider visible={alwaysPluginDividerVisible()} marker="plugins" />
         <div role="group" aria-label="Always available tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
-          <For each={alwaysPluginTools()}>{(tool) => renderPluginTool(tool)}</For>
+          <For each={alwaysPluginTools()} keyed={(tool) => tool.id}>{(tool) => renderPluginTool(tool)}</For>
         </div>
       </Show>
 

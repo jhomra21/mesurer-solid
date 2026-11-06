@@ -226,7 +226,7 @@ const sampleAsset = async (
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, video.videoWidth);
     canvas.height = Math.max(1, video.videoHeight);
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
 
     if (!context) throw new Error("Could not sample the recorded video.");
 

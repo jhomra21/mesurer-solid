@@ -6,6 +6,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Build Mesurer with Solid 2.0.0-rc.21 (previously 2.0.0-rc.15) and `@solidjs/vite-plugin` 3.0.0-next.56. Solid stays bundled inside `mesurer-solid`, so applications do not need to install or upgrade Solid.
+- Clear every Solid development diagnostic and browser console warning Mesurer produced on its own fixtures, fixing each at its source instead of silencing it, and add a browser contract that fails on any console warning, error, or page error.
+
 ## 0.2.6 - 2026-11-06
 
 - Add a `toolbar` mount option (`position`, `dock`, `draggable`) for setting where the toolbar starts, its initial Free/Snap dock, and whether it can be dragged (upstream issues #23 and #10). Defaults are unchanged. A tab-session placement and a dock chosen in Settings still win over the initial option; `draggable: false` pins the toolbar to `position` and ignores both the saved placement and pointer drags. `toolbar` is also accepted by `mesurer-solid/inject`. Remove the toolbar from code with `mounted.dispose()` or by aborting the `signal` option; `M` only toggles inspection.

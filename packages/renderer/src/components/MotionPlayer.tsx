@@ -4,7 +4,6 @@ import {
   createEffect,
   createMemo,
   createSignal,
-  onCleanup,
   untrack,
 } from "solid-js";
 import {
@@ -303,7 +302,7 @@ export function MotionPlayer(props: {
           motionLevel(element, target.element) !== null)),
       );
 
-      onCleanup(stopObserved);
+      return stopObserved;
     },
   );
 
@@ -316,7 +315,7 @@ export function MotionPlayer(props: {
         if (element.isConnected) setPlaybackElement(element);
       }, 250);
 
-      onCleanup(() => ownerWindow.clearTimeout(timer));
+      return () => ownerWindow.clearTimeout(timer);
     },
   );
 
@@ -366,7 +365,7 @@ export function MotionPlayer(props: {
 
       const interval = ownerWindow.setInterval(refresh, 250);
 
-      onCleanup(() => ownerWindow.clearInterval(interval));
+      return () => ownerWindow.clearInterval(interval);
     },
   );
 
@@ -406,11 +405,11 @@ export function MotionPlayer(props: {
 
       untrack(update);
 
-      onCleanup(() => {
+      return () => {
         disposed = true;
         ownerWindow.clearTimeout(timer);
         ownerWindow.cancelAnimationFrame(frame);
-      });
+      };
     },
   );
 
@@ -504,11 +503,6 @@ export function MotionPlayer(props: {
       ownerWindow.addEventListener("resize", positionPopup);
       ownerWindow.addEventListener("scroll", positionPopup, true);
 
-      onCleanup(() => {
-        ownerWindow.removeEventListener("resize", positionPopup);
-        ownerWindow.removeEventListener("scroll", positionPopup, true);
-      });
-
       ownerWindow.queueMicrotask(() => {
         if (!speedOpen()) return;
         customSpeedInput?.focus({ preventScroll: true });
@@ -538,10 +532,12 @@ export function MotionPlayer(props: {
       ownerWindow.addEventListener("pointerdown", dismiss, true);
       ownerWindow.addEventListener("keydown", dismiss, true);
 
-      onCleanup(() => {
+      return () => {
+        ownerWindow.removeEventListener("resize", positionPopup);
+        ownerWindow.removeEventListener("scroll", positionPopup, true);
         ownerWindow.removeEventListener("pointerdown", dismiss, true);
         ownerWindow.removeEventListener("keydown", dismiss, true);
-      });
+      };
     },
   );
 
@@ -602,7 +598,7 @@ export function MotionPlayer(props: {
               </span>
 
               <div
-                ref={scrubTrack}
+                ref={(element) => { scrubTrack = element; }}
                 role="slider"
                 tabindex={controllable() ? 0 : -1}
                 data-mesurer-motion-scrubber="true"
@@ -661,9 +657,9 @@ export function MotionPlayer(props: {
                 {controllable() ? timestamp(duration()) : "—"}
               </span>
 
-              <div ref={speedAnchorElement} class="msr:relative msr:flex msr:h-5 msr:shrink-0 msr:items-center">
+              <div ref={(element) => { speedAnchorElement = element; }} class="msr:relative msr:flex msr:h-5 msr:shrink-0 msr:items-center">
                 <select
-                  ref={speedSelectElement}
+                  ref={(element) => { speedSelectElement = element; }}
                   data-mesurer-motion-speed="true"
                   aria-label="Playback speed"
                   aria-controls={speedOpen() ? customSpeedId : undefined}
@@ -713,7 +709,7 @@ export function MotionPlayer(props: {
                         <ControlShell
                           left={
                             <div
-                              ref={customSpeedTrack}
+                              ref={(element) => { customSpeedTrack = element; }}
                               class="msr:relative msr:min-w-0 msr:flex-1 msr:touch-none msr:select-none msr:px-2"
                               style={{ height: "20px" }}
                               data-slider-container="true"
@@ -786,7 +782,7 @@ export function MotionPlayer(props: {
                           }
                           right={
                             <input
-                              ref={customSpeedInput}
+                              ref={(element) => { customSpeedInput = element; }}
                               type="text"
                               aria-label="Custom playback speed value"
                               value={speedEditing() ? speedDraft() : `${speed()}x`}

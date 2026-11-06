@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { Portal } from "@solidjs/web";
 import { GUIDE_DRAG_HOLD_MS, GUIDE_HITBOX_SIZE, MEASURE_LABEL_OFFSET } from "../core/constants";
 import { getInspectMeasurement, getRectFromDom } from "../core/dom";
@@ -14,7 +14,7 @@ import { hasNativeScrollAnchoring } from "../runtime/native-scroll-registry";
 import { ensureMesurerStyles } from "../runtime/style-inject";
 import { MESURER_STYLES } from "../styles.generated";
 import { intersectRect, responsivePreviewVisibleRect } from "../runtime/responsive-preview-geometry";
-import { chromeEdgeThickness, snapChromeRect } from "../runtime/device-pixel-chrome";
+import { chromeEdgeThickness, snapChromeRect, watchDevicePixelRatio } from "../runtime/device-pixel-chrome";
 import { DistanceOverlayItem, type SelectionSpacingInteraction } from "./DistanceOverlayItem";
 import { MeasurementBox } from "./MeasurementBox";
 import { InspectInfoCard } from "./InspectInfoCard";
@@ -111,26 +111,12 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   // but preserve the resulting opacity: 1 - (1 - alpha)^2.
   const selectedOutline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 96%, transparent)`;
   const selectedFill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 15.36%, transparent)`;
-  createEffect(() => hoverChromeDpr(), (dpr) => {
+  onSettled(() => {
     const ownerWindow = overlayElement?.ownerDocument.defaultView;
 
     if (!ownerWindow) return;
 
-    if (dpr !== ownerWindow.devicePixelRatio) {
-      setHoverChromeDpr(ownerWindow.devicePixelRatio || 1);
-
-      return;
-    }
-
-    const resolution = ownerWindow.matchMedia(`(resolution: ${dpr}dppx)`);
-    const update = () => setHoverChromeDpr(ownerWindow.devicePixelRatio || 1);
-    resolution.addEventListener("change", update);
-    onCleanup(() => resolution.removeEventListener("change", update));
-  });
-  onSettled(() => {
-    const ownerWindow = overlayElement?.ownerDocument.defaultView;
-
-    if (ownerWindow) setHoverChromeDpr(ownerWindow.devicePixelRatio || 1);
+    return watchDevicePixelRatio(ownerWindow, setHoverChromeDpr);
   });
   const selectedMeasurements = createMemo(() => props.model.state.selectedMeasurements);
   const [previewGeometryRevision, setPreviewGeometryRevision] = createSignal(0);
@@ -952,31 +938,31 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         <Show when={lines().right.value > 0}><><div class="msr:absolute msr:h-px msr:bg-[#2563eb]" style={{ left: `${lines().right.x1}px`, width: `${lines().right.x2 - lines().right.x1}px`, top: `${lines().right.y}px` }} /><Tag axis="x" left={(lines().right.x1 + lines().right.x2) / 2} top={lines().right.y + MEASURE_LABEL_OFFSET}>{formatValue(lines().right.value)}</Tag></></Show>
       </>}</Show>
 
-      <For each={renderedGuides()}>{(guide) => {
-        const previewGuide = () => guide.id.startsWith("__mesurer-preview-");
-        const selected = () => !previewGuide() && props.model.state.selectedGuideIds.includes(guide.id);
-        const hovered = () => !previewGuide() && props.hoverGuide?.id === guide.id;
+      <For each={renderedGuides()} keyed={(guide) => guide.id}>{(guide) => {
+        const previewGuide = () => guide().id.startsWith("__mesurer-preview-");
+        const selected = () => !previewGuide() && props.model.state.selectedGuideIds.includes(guide().id);
+        const hovered = () => !previewGuide() && props.hoverGuide?.id === guide().id;
         const strokeColor = () => selected() ? guideColor("active") : hovered() ? guideColor("hover") : guideColor("default");
         const strokeWidth = () => props.model.state.settings.guideStyle.width;
-        const position = () => Math.round(guide.position);
+        const position = () => Math.round(guide().position);
         const strokeOffset = () => GUIDE_HITBOX_SIZE / 2 - Math.floor((strokeWidth() - 1) / 2);
 
         const backgroundImage = () => props.model.state.settings.guideStyle.pattern === "solid" ? undefined
           : props.model.state.settings.guideStyle.pattern === "dotted"
             ? `radial-gradient(circle, ${strokeColor()} 0 ${strokeWidth() / 2}px, transparent ${strokeWidth() / 2 + 0.5}px)`
-            : `repeating-linear-gradient(${guide.orientation === "vertical" ? "to bottom" : "to right"}, ${strokeColor()} 0 ${props.model.state.settings.guideStyle.dashLength}px, transparent ${props.model.state.settings.guideStyle.dashLength}px ${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px)`;
+            : `repeating-linear-gradient(${guide().orientation === "vertical" ? "to bottom" : "to right"}, ${strokeColor()} 0 ${props.model.state.settings.guideStyle.dashLength}px, transparent ${props.model.state.settings.guideStyle.dashLength}px ${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px)`;
 
         const backgroundSize = () => props.model.state.settings.guideStyle.pattern === "dotted"
-          ? guide.orientation === "vertical" ? `${strokeWidth()}px ${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px` : `${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px ${strokeWidth()}px`
+          ? guide().orientation === "vertical" ? `${strokeWidth()}px ${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px` : `${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px ${strokeWidth()}px`
           : undefined;
 
-        return <div class="msr:absolute" data-mesurer-guide="true" style={guide.orientation === "vertical"
+        return <div class="msr:absolute" data-mesurer-guide="true" style={guide().orientation === "vertical"
           ? { left: `${position() - GUIDE_HITBOX_SIZE / 2}px`, top: "0", width: `${GUIDE_HITBOX_SIZE}px`, height: "100%", "pointer-events": !previewGuide() && guidePointerEvents() ? "auto" : "none" }
           : { top: `${position() - GUIDE_HITBOX_SIZE / 2}px`, left: "0", height: `${GUIDE_HITBOX_SIZE}px`, width: "100%", "pointer-events": !previewGuide() && guidePointerEvents() ? "auto" : "none" }}
-          onPointerDown={(event) => { if (!previewGuide() && props.model.current.toolMode !== "none") interactiveGuideDown(guide, event); }}
-          onPointerUp={(event) => { if (!previewGuide() && props.model.current.toolMode !== "none") interactiveGuideUp(guide, event); }}
-          onPointerCancel={(event) => { if (!previewGuide() && props.model.current.toolMode !== "none") interactiveGuideUp(guide, event); }}>
-          <div class="msr:absolute" style={guide.orientation === "vertical"
+          onPointerDown={(event) => { if (!previewGuide() && props.model.current.toolMode !== "none") interactiveGuideDown(guide(), event); }}
+          onPointerUp={(event) => { if (!previewGuide() && props.model.current.toolMode !== "none") interactiveGuideUp(guide(), event); }}
+          onPointerCancel={(event) => { if (!previewGuide() && props.model.current.toolMode !== "none") interactiveGuideUp(guide(), event); }}>
+          <div class="msr:absolute" style={guide().orientation === "vertical"
             ? { left: `${strokeOffset()}px`, top: "0", width: `${strokeWidth()}px`, height: "100%", "background-color": props.model.state.settings.guideStyle.pattern === "solid" ? strokeColor() : "transparent", "background-image": backgroundImage(), "background-size": backgroundSize(), opacity: props.model.state.settings.guideStyle.opacity }
             : { top: `${strokeOffset()}px`, left: "0", height: `${strokeWidth()}px`, width: "100%", "background-color": props.model.state.settings.guideStyle.pattern === "solid" ? strokeColor() : "transparent", "background-image": backgroundImage(), "background-size": backgroundSize(), opacity: props.model.state.settings.guideStyle.opacity }} />
         </div>;
