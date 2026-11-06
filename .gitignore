@@ -24,6 +24,7 @@ interaction-artifacts/
 interaction-artifacts-*/
 interaction-side-by-side-*/
 responsive-selection-card-artifacts/
+console-diagnostics-artifacts/
 react-vite.log
 solid-vite.log
 react-vite.pid

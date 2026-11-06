@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { getElementSelector } from "@jhomra21/mesurer-solid-dom";
 import { formatInspectCssParts, visibleInspectCssParts } from "../core/inspect-css";
 import { getRectFromDom } from "../core/dom";
@@ -373,6 +373,15 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
 
   const setHeaderElement = (element: HTMLDivElement) => {
     headerElement = element;
+  };
+
+  // Ref callbacks run without an owner, so capture-phase listeners are attached
+  // once the header is mounted and released by the settled cleanup.
+  onSettled(() => {
+    const element = headerElement;
+
+    if (!element) return;
+
     element.addEventListener("pointerup", onHeaderPointerEnd, true);
     element.addEventListener("pointercancel", onHeaderPointerEnd, true);
 
@@ -386,12 +395,12 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
 
     element.addEventListener("click", suppressDraggedClick, true);
 
-    onCleanup(() => {
+    return () => {
       element.removeEventListener("pointerup", onHeaderPointerEnd, true);
       element.removeEventListener("pointercancel", onHeaderPointerEnd, true);
       element.removeEventListener("click", suppressDraggedClick, true);
-    });
-  };
+    };
+  });
 
   createEffect(() => [cardElement(), props.ownerWindow] as const, ([node, ownerWindow]) => {
     // Expansion and source retargeting can change the card height; the ResizeObserver
@@ -411,7 +420,8 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
     const observer = new Observer(measure);
     observer.observe(node);
     measure();
-    onCleanup(() => observer.disconnect());
+
+    return () => observer.disconnect();
   });
   let expandedElement: Element | undefined;
   let expandedMeasurementId: string | undefined;
@@ -511,11 +521,11 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
       nestedScroll = installNestedScrollCompensation(owner, target, () => [card], { trackWindow: true });
       card.style.translate = "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)";
 
-      onCleanup(() => {
+      return () => {
         nestedScroll?.release();
         nestedScroll = null;
         card.style.removeProperty("translate");
-      });
+      };
     },
   );
 
@@ -640,9 +650,9 @@ export function InspectInfoCard(props: InspectInfoCardProps) {
       </div>
       <div class={`msr:mt-2 msr:min-h-0 msr:px-2 ${expanded() ? "mesurer-thin-scrollbar msr:max-h-[min(70vh,32rem)] msr:overflow-y-auto" : ""}`}>
         <div data-mesurer-inspect-details="true" class="msr:flex msr:flex-col msr:gap-0.5">
-          <For each={typographyRows()}>{(row) => <InspectDetailRow row={row} copy={copy} passThrough={props.passThrough} onCopyResult={(success) => setCopyFeedback(success ? "Copied!" : "Copy failed")} />}</For>
+          <For each={typographyRows()} keyed={(row) => row.label}>{(row) => <InspectDetailRow row={row()} copy={copy} passThrough={props.passThrough} onCopyResult={(success) => setCopyFeedback(success ? "Copied!" : "Copy failed")} />}</For>
           <Show when={props.layoutDetailsEnabled}>
-            <For each={visible().visible}>{(row) => <InspectDetailRow row={row} copy={copy} passThrough={props.passThrough} onCopyResult={(success) => setCopyFeedback(success ? "Copied!" : "Copy failed")} />}</For>
+            <For each={visible().visible} keyed={(row) => row.label}>{(row) => <InspectDetailRow row={row()} copy={copy} passThrough={props.passThrough} onCopyResult={(success) => setCopyFeedback(success ? "Copied!" : "Copy failed")} />}</For>
           </Show>
         </div>
       </div>

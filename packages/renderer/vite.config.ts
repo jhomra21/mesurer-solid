@@ -25,6 +25,8 @@ export default defineConfig({
     },
   },
   test: {
+    // @solidjs/vite-plugin 3 no longer selects jsdom for Vitest.
+    environment: "jsdom",
     // Node 25+ enables process-wide Web Storage by default. Disable it in
     // Vitest workers so jsdom remains the owner of window.localStorage.
     execArgv: webStorageDisableFlag ? [webStorageDisableFlag] : [],

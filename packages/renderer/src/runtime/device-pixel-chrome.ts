@@ -23,6 +23,34 @@ export function snapChromeRect(
   };
 }
 
+/**
+ * Reports the window's current device pixel ratio, then again whenever it
+ * changes (zoom, display move). The ratio is read from the browser, never from
+ * previously reported state, so callers do not have to read their own signal.
+ * Returns the stop function.
+ */
+export function watchDevicePixelRatio(
+  ownerWindow: Window,
+  report: (devicePixelRatio: number) => void,
+): () => void {
+  let resolution: MediaQueryList | undefined;
+
+  const arm = () => {
+    resolution = ownerWindow.matchMedia(`(resolution: ${ownerWindow.devicePixelRatio}dppx)`);
+    resolution.addEventListener("change", onChange, { once: true });
+  };
+
+  const onChange = () => {
+    report(ownerWindow.devicePixelRatio || 1);
+    arm();
+  };
+
+  report(ownerWindow.devicePixelRatio || 1);
+  arm();
+
+  return () => resolution?.removeEventListener("change", onChange);
+}
+
 /** Whole-device-pixel edge thickness expressed in CSS pixels. */
 export function chromeEdgeThickness(devicePixelRatio: number): number {
   const dpr = devicePixelRatio || 1;

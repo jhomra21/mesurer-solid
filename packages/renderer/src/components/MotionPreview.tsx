@@ -1,4 +1,4 @@
-import { createEffect, onCleanup, untrack } from "solid-js";
+import { createEffect, untrack } from "solid-js";
 import { scopedMotionAnimations, motionCssProperty } from "../core/motion";
 import { createMotionDependencies, cssVariables } from "../core/motion-dependencies";
 import { fitMotionPreview } from "../core/motion-preview";
@@ -594,7 +594,7 @@ export function MotionPreview(props: {
 
     const interval = ownerWindow.setInterval(scan, 250);
 
-    onCleanup(() => {
+    return () => {
       disposed = true;
 
       if (wakeRef) wakeRef.current = null;
@@ -606,7 +606,7 @@ export function MotionPreview(props: {
       ownerWindow.cancelAnimationFrame(request);
       snapshot.dispose();
       shadow.replaceChildren();
-    });
+    };
     },
   );
 
