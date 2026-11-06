@@ -1,15 +1,45 @@
-const realmFor = (ownerWindow: Window) => {
+export const realmFor = (ownerWindow: Window) => {
   // SAFETY: ownerWindow is the document realm for these events and owns the DOM constructors used below.
   return ownerWindow as Window & typeof globalThis;
 };
 
+// A closed ShadowRoot hides its focused descendant and its hit targets from outside. Mesurer's own
+// island registers its root here so focus and pointer ownership can still see inside it.
+const mesurerShadowRoots = new WeakMap<Element, ShadowRoot>();
+
+export function registerMesurerShadowRoot(root: ShadowRoot): () => void {
+  mesurerShadowRoots.set(root.host, root);
+
+  return () => {
+    if (mesurerShadowRoots.get(root.host) === root) mesurerShadowRoots.delete(root.host);
+  };
+}
+
+const keyboardOwnedWindows = new WeakSet<Window>();
+
+export function setKeyboardOwned(ownerWindow: Window, owned: boolean): void {
+  if (owned) keyboardOwnedWindows.add(ownerWindow);
+  else keyboardOwnedWindows.delete(ownerWindow);
+}
+
+export function isKeyboardOwned(ownerWindow: Window): boolean {
+  return keyboardOwnedWindows.has(ownerWindow);
+}
+
 export function getDeepActiveElement(ownerWindow: Window): Element | null {
   let active: Element | null = ownerWindow.document.activeElement;
 
-  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  while (active) {
+    const root: ShadowRoot | null = active.shadowRoot ?? mesurerShadowRoots.get(active) ?? null;
+
+    if (!root?.activeElement) break;
+    active = root.activeElement;
+  }
 
   return active;
 }
+
+const NON_TEXT_INPUT_TYPES = new Set(["button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit"]);
 
 export function isEditableElement(node: EventTarget | null, ownerWindow: Window): boolean {
   const realm = realmFor(ownerWindow);
@@ -17,7 +47,9 @@ export function isEditableElement(node: EventTarget | null, ownerWindow: Window)
   if (!(node instanceof realm.HTMLElement)) return false;
   const tagName = node.tagName;
 
-  if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") return true;
+  if (node instanceof realm.HTMLInputElement) return !NON_TEXT_INPUT_TYPES.has(node.type);
+
+  if (tagName === "TEXTAREA" || tagName === "SELECT") return true;
 
   if (node.isContentEditable) return true;
   const editable = node.getAttribute("contenteditable");
@@ -72,6 +104,28 @@ export function isMesurerInputBoundary(node: EventTarget | null, ownerWindow: Wi
   return false;
 }
 
+/**
+ * Like isMesurerInputBoundary, but also resolves an island host at a viewport point. A closed
+ * ShadowRoot retargets every hit inside it to the host, so the node alone cannot say whether the
+ * pointer is over Mesurer UI or over the transparent interaction plane.
+ */
+export function isMesurerInputBoundaryAt(node: EventTarget | null, x: number, y: number, ownerWindow: Window): boolean {
+  if (isMesurerInputBoundary(node, ownerWindow)) return true;
+  const root = node instanceof realmFor(ownerWindow).Element ? mesurerShadowRoots.get(node) : undefined;
+  const hit = root?.elementFromPoint(x, y) ?? null;
+
+  return hit !== null && isMesurerInputBoundary(hit, ownerWindow);
+}
+
+/** A node that begins Mesurer-owned UI as seen from outside: the island host, an inspector mount, or the renderer root. */
+export function isMesurerBoundaryNode(node: EventTarget | null, ownerWindow: Window): boolean {
+  if (!(node instanceof realmFor(ownerWindow).Element)) return false;
+
+  return node.getAttribute("data-mesurer-island") === "true"
+    || node.getAttribute("data-mesurer-inspector-ui") === "true"
+    || node.getAttribute("data-mesurer-root") === "true";
+}
+
 export function isMesurerUiNode(node: EventTarget | null, ownerWindow: Window): boolean {
   if (isInsideMesurer(node, ownerWindow)) return true;
   const realm = realmFor(ownerWindow);
@@ -90,10 +144,24 @@ export function isTypingInMesurer(event: KeyboardEvent, ownerWindow: Window): bo
     isEditableElement(node, ownerWindow) && isMesurerUiNode(node, ownerWindow));
 }
 
+// An element that cannot take focus itself yet is the active element can only be a host whose
+// closed ShadowRoot holds the focus. Whatever is focused inside is invisible, so assume typing.
+function isOpaqueFocusHost(active: Element | null, ownerWindow: Window): boolean {
+  const realm = realmFor(ownerWindow);
+
+  return active instanceof realm.HTMLElement
+    && active !== ownerWindow.document.body
+    && active !== ownerWindow.document.documentElement
+    && !active.hasAttribute("tabindex")
+    && active.tabIndex < 0;
+}
+
 export function isTypingInPage(ownerWindow: Window): boolean {
   const active = getDeepActiveElement(ownerWindow);
 
-  return isEditableElement(active, ownerWindow) && !isInsideMesurer(active, ownerWindow);
+  if (isInsideMesurer(active, ownerWindow)) return false;
+
+  return isEditableElement(active, ownerWindow) || isOpaqueFocusHost(active, ownerWindow);
 }
 
 export function isMesurerKeyboardEvent(event: Event, ownerWindow: Window): boolean {
@@ -106,7 +174,12 @@ export function isEditableKeyboardEvent(event: KeyboardEvent, ownerWindow: Windo
   // Escape belongs to interaction lifecycle/cancel handling, not the global shortcut gate.
   if (event.key === "Escape" || event.code === "Escape") return false;
 
-  if (isTypingInMesurer(event, ownerWindow) || isTypingInPage(ownerWindow)) return true;
+  if (isTypingInMesurer(event, ownerWindow)) return true;
+
+  // After the user works in Mesurer, a page prompt that keeps or regains focus no longer owns typing.
+  if (isKeyboardOwned(ownerWindow)) return false;
+
+  if (isTypingInPage(ownerWindow)) return true;
 
   return event.composedPath().some((target) => isEditableElement(target, ownerWindow));
 }

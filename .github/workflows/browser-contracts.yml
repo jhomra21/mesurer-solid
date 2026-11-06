@@ -92,6 +92,7 @@ on:
       - "tests/visual-parity/arrange-contract.mjs"
       - "tests/visual-parity/arrange-presentation-policy-contract.mjs"
       - "tests/visual-parity/color-picker-contract.mjs"
+      - "tests/visual-parity/guide-drag-contract.mjs"
       - "tests/visual-parity/toolbar-drag-contract.mjs"
       - "tests/visual-parity/toolbar-compact-contract.mjs"
       - "tests/visual-parity/presentation-settings-contract.mjs"
@@ -100,6 +101,11 @@ on:
       - "tests/visual-parity/extension-active-tabs-contract.mjs"
       - "tests/visual-parity/responsive-extension-assets-contract.mjs"
       - "tests/visual-parity/shortcuts-setting-contract.mjs"
+      - "tests/visual-parity/keyboard-ownership-contract.mjs"
+      - "examples/basic/keyboard-ownership.html"
+      - "examples/basic/src/keyboard-ownership.ts"
+      - "packages/renderer/src/core/events.ts"
+      - "packages/renderer/src/core/keyboard-ownership.ts"
       - "tests/visual-parity/settings-interactions-contract.mjs"
       - "tests/visual-parity/text-editing-contract.mjs"
       - "tests/visual-parity/theme-contract.mjs"
@@ -188,7 +194,7 @@ jobs:
             echo $! > ../../browser-contracts-vite.pid
           )
 
-          for path in index.html self-hosting.html multi-spacing.html plugin-settings.html selection-hit-testing.html extension-active-tabs.html layout-guides.html responsive-preview.html; do
+          for path in index.html keyboard-ownership.html self-hosting.html multi-spacing.html plugin-settings.html selection-hit-testing.html extension-active-tabs.html layout-guides.html responsive-preview.html; do
             ready=0
             for attempt in $(seq 1 45); do
               if curl --fail --silent --show-error "http://127.0.0.1:4174/${path}" >/dev/null; then
@@ -235,6 +241,12 @@ jobs:
         env:
           SHORTCUTS_SETTING_URL: http://127.0.0.1:4174/
         run: bun tests/visual-parity/shortcuts-setting-contract.mjs
+
+      - name: Exercise keyboard ownership against hostile host pages
+        env:
+          KEYBOARD_OWNERSHIP_URL: http://127.0.0.1:4174/keyboard-ownership.html
+          KEYBOARD_OWNERSHIP_OUT: keyboard-ownership-artifacts
+        run: bun tests/visual-parity/keyboard-ownership-contract.mjs
 
       - name: Exercise sectioned Settings interactions
         env:
@@ -298,6 +310,12 @@ jobs:
         env:
           COLOR_PICKER_URL: http://127.0.0.1:4174/
         run: bun tests/visual-parity/color-picker-contract.mjs
+
+      - name: Exercise guide drag snapping, stroke, and text selection
+        env:
+          GUIDE_DRAG_URL: http://127.0.0.1:4174/
+          GUIDE_DRAG_OUT: guide-drag-artifacts
+        run: bun tests/visual-parity/guide-drag-contract.mjs
 
       - name: Measure Mesurer with Mesurer
         env:
@@ -575,6 +593,18 @@ jobs:
             selection-hit-testing-artifacts
             extension-active-tabs-artifacts
             responsive-extension-assets-artifacts
+            keyboard-ownership-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload guide drag and Color Picker evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-guide-drag-contract
+          path: |
+            guide-drag-artifacts
+            color-picker-artifacts
           if-no-files-found: warn
           retention-days: 14
 

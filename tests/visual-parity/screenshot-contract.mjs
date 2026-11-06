@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 const url = process.env.SCREENSHOT_URL ?? "http://127.0.0.1:4174/screenshot-contract.html";
@@ -500,6 +501,56 @@ try {
   }
 
   await preview.waitFor({ state: "visible" });
+
+  // Regression: disabling Mesurer (M) while region selection is open must end
+  // the selection instead of leaving a full-viewport capture overlay behind.
+  const selectionState = () => page.evaluate(() => {
+    const root = document.querySelector("[data-mesurer-island='true']")?.shadowRoot;
+    const overlay = root?.querySelector("[data-mesurer-screenshot-select='true']");
+    const screenshotRoot = root?.querySelector("[data-mesurer-screenshot='true']");
+
+    return {
+      active: window.__MESURER_SCREENSHOT_TEST__?.service.active() ?? null,
+      overlayDisplay: overlay ? getComputedStyle(overlay).display : null,
+      rootPointerEvents: screenshotRoot ? getComputedStyle(screenshotRoot).pointerEvents : null,
+    };
+  });
+
+  await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+  await page.keyboard.press("Shift+S");
+  await page.waitForFunction(() => window.__MESURER_SCREENSHOT_TEST__?.service.active() === true);
+  const selecting = await selectionState();
+
+  if (selecting.overlayDisplay !== "block" || selecting.rootPointerEvents !== "auto") {
+    throw new Error(`Shift+S did not open region selection: ${JSON.stringify(selecting)}`);
+  }
+
+  await page.keyboard.press("m");
+  await page.waitForTimeout(200);
+  const disabledWhileSelecting = await selectionState();
+
+  if (
+    disabledWhileSelecting.active !== false
+    || disabledWhileSelecting.overlayDisplay !== "none"
+    || disabledWhileSelecting.rootPointerEvents !== "none"
+  ) {
+    throw new Error(`Disabling Mesurer left Screenshot selection active: ${JSON.stringify(disabledWhileSelecting)}`);
+  }
+
+  await page.keyboard.press("m");
+  await page.waitForTimeout(200);
+  const reenabled = await selectionState();
+
+  if (reenabled.active !== false || reenabled.overlayDisplay !== "none" || reenabled.rootPointerEvents !== "none") {
+    throw new Error(`Re-enabling Mesurer revived a stale Screenshot overlay: ${JSON.stringify(reenabled)}`);
+  }
+
+  const disableArtifactDir = process.env.SCREENSHOT_OUT ?? "screenshot-artifacts";
+  await mkdir(disableArtifactDir, { recursive: true });
+  await writeFile(
+    `${disableArtifactDir}/screenshot-disable-contract.json`,
+    JSON.stringify({ selecting, disabledWhileSelecting, reenabled }, null, 2),
+  );
 
   if (errors.length) throw new Error(`Screenshot browser errors:\n${errors.join("\n")}`);
   console.log("Screenshot plugin browser contract: PASS");

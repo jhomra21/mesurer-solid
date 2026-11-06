@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 const url = process.env.COLOR_PICKER_URL ?? "http://127.0.0.1:4174/";
@@ -236,6 +237,33 @@ try {
   if (opens !== 3) {
     throw new Error(`Expected three native EyeDropper opens across repeated toolbar sampling and P restart, got ${opens}`);
   }
+
+  // Escape closes the Color Picker before it clears any workspace evidence.
+  const guidesButton = supportedPage.getByRole("button", { name: /^Guides/ });
+  const guides = supportedPage.locator('[data-mesurer-guide="true"]');
+
+  await guidesButton.click();
+  await supportedPage.mouse.click(640, 450);
+  await guidesButton.click();
+  await guides.first().waitFor({ state: "attached" });
+  const guidesBeforeEscape = await guides.count();
+
+  await clickLocatorCenter(colorButton);
+  await supportedPage.waitForFunction(() => document.querySelector(".mesurer-color-picker") !== null);
+  await supportedPage.keyboard.press("Escape");
+  await supportedPage.waitForTimeout(150);
+
+  if (await panel.count() || (await colorButton.getAttribute("aria-pressed")) === "true") {
+    throw new Error("Escape did not close the active Color Picker");
+  }
+
+  if ((await guides.count()) !== guidesBeforeEscape || guidesBeforeEscape === 0) {
+    throw new Error(`Escape cleared guides while closing the Color Picker: ${guidesBeforeEscape} before, ${await guides.count()} after`);
+  }
+
+  const outDir = process.env.COLOR_PICKER_OUT ?? "color-picker-artifacts";
+  await mkdir(outDir, { recursive: true });
+  await writeFile(`${outDir}/color-picker-escape.json`, JSON.stringify({ guidesBeforeEscape, guidesAfterEscape: await guides.count(), pickerClosed: true }, null, 2));
 
   await supportedPage.evaluate(() => {
     Reflect.deleteProperty(window, "EyeDropper");

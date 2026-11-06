@@ -11,6 +11,7 @@ import { GUIDE_DRAG_HOLD_MS } from "./core/constants";
 import { getDistanceOverlay, updateDistanceForResize } from "./core/distances";
 import { getInspectMeasurement, getRectFromDom, updateMeasurementForResize } from "./core/dom";
 import { isEditableKeyboardEvent, trySetPointerCapture } from "./core/events";
+import { installKeyboardOwnership } from "./core/keyboard-ownership";
 import { getRectFromPoints, getViewportSize, normalizeRect } from "./core/geometry";
 import { getAccessibleDocuments, isResponsivePreviewDocument } from "./core/document-tree";
 import { projectPoint } from "./core/frame-geometry";
@@ -58,7 +59,7 @@ import {
 import { hasNativeScrollAnchoring } from "./runtime/native-scroll-registry";
 import { getMesurerPageKey, subscribeMesurerPageKey } from "./runtime/page-location";
 import { ensureMesurerStyles } from "./runtime/style-inject";
-import { resolveInitialToolbarPosition, type ToolbarPosition } from "./runtime/toolbar-position";
+import { resolveInitialToolbarPosition, toolbarMountAnchor, type ToolbarMountOptions, type ToolbarPosition } from "./runtime/toolbar-position";
 import { createTextInspector, type TextInspectorAPI } from "./runtime/typography";
 import { createXrayScope } from "./runtime/xray-scope";
 import type { MesurerBuiltinPluginId } from "./plugins/builtins";
@@ -84,6 +85,7 @@ export type MesurerProps = {
   guideStyle?: Partial<GuideStyle>;
   selectionSpacingStyle?: Partial<SelectionSpacingStyle>;
   rulerSettings?: Partial<RulerSettings>;
+  toolbar?: ToolbarMountOptions;
   persistence?: MesurerPersistence;
   onPersistenceError?: (cause: unknown) => void;
   /** Internal composable-runtime contributions rendered by the canonical toolbar. */
@@ -269,6 +271,9 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   const pageTarget = input.pageTarget ?? ownerDocument.body;
   const instanceId = ++instanceCount;
   const storageKey = input.persistKey ?? `mesurer-state:${getTabId(ownerWindow)}${instanceId === 1 ? "" : `:${instanceId}`}`;
+  const toolbarDraggable = input.toolbar?.draggable !== false;
+  // A toolbar that cannot be dragged has no user placement, so the mount option is the only source.
+  const savedToolbarPosition = toolbarDraggable ? readToolbarPosition(ownerWindow, storageKey) : undefined;
   const selectionCache: SelectionEntriesCache = { key: "", entries: [], overlayNode: null, frame: -1 };
   let clickCycle: ClickCycleState | null = null;
   let rootElement: HTMLDivElement | null = null;
@@ -1627,6 +1632,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           selectionSpacingStyle={props.selectionSpacingStyle}
           interactive={model.state.enabled && !model.state.settingsOpen}
           editSelectionHover={() => input.editSelectionHover?.() ?? false}
+          snapGuide={snapGuide}
           onPointerDown={(event) => { if (!input.responsiveOpen) pointerDown(event); }}
           onPointerMove={(event) => { if (!input.responsiveOpen) pointerMove(event); }}
           onPointerUp={(event) => { if (!input.responsiveOpen) pointerUp(event); }}
@@ -1653,7 +1659,9 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           selectionSpacingStyle={props.selectionSpacingStyle}
           onSelectionSpacingStyleChange={onSelectionSpacingStyleChange}
           onResetSettings={() => { model.resetSettings(); onResetSelectionSpacingStyle(); activePersistence?.clearSettings(); }}
-          initialPosition={resolveInitialToolbarPosition(ownerWindow, readToolbarPosition(ownerWindow, storageKey))}
+          initialPosition={resolveInitialToolbarPosition(ownerWindow, savedToolbarPosition)}
+          anchor={savedToolbarPosition ? undefined : toolbarMountAnchor(input.toolbar?.position)}
+          draggable={toolbarDraggable}
           onPositionChange={(position) => writeToolbarPosition(ownerWindow, storageKey, position)}
           motion={{ element: motionElement }}
         />
@@ -1703,7 +1711,7 @@ export default function Mesurer(props: MesurerProps) {
     persistOnReload: props.persistOnReload ?? false,
     shortcutsEnabled: props.shortcutsEnabled ?? true,
     theme: props.theme ?? "system",
-    toolbarDock: "free",
+    toolbarDock: props.toolbar?.dock ?? "free",
     toolbarAutoHide: false,
     colorPickerFormats: props.colorPickerFormats ?? ["hex", "rgb", "oklch"],
     colorPickerClickFormat: props.colorPickerClickFormat ?? "hex",
@@ -1736,9 +1744,14 @@ export default function Mesurer(props: MesurerProps) {
       portalMount = target;
     }
 
+    const releaseKeyboard = installKeyboardOwnership(ownerWindow, target);
     setEnvironment({ ownerDocument, ownerWindow, portalTarget: target, portalMount, ownedPortalMount });
 
-    return () => { if (ownedPortalMount) portalMount.remove(); };
+    return () => {
+      releaseKeyboard();
+
+      if (ownedPortalMount) portalMount.remove();
+    };
   });
 
   return (

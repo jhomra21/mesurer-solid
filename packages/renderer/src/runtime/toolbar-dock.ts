@@ -103,6 +103,9 @@ export type DockAlign = "start" | "center" | "end"
 
 export const DOCK_ALIGNS: DockAlign[] = ["center", "start", "end"]
 
+// A requested resting spot: an edge and the spot on it, honored in both dock modes.
+export type ToolbarAnchor = { side: ToolbarSide; align: DockAlign }
+
 // A glued toolbar settles on the nearest of its edge's three spots, so it never flies past a
 // corner it was left next to, nor into one from the middle.
 export const dockAlignFor = (side: ToolbarSide, point: Point, size: Size, viewport: Size): DockAlign => {

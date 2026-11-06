@@ -38,6 +38,8 @@ The camera chevron exposes Auto-copy, Auto-download, and Include measurements.
 5. Mesurer restores its presentation.
 6. It runs the enabled copy/download outputs and shows the result thumbnail.
 
+Pressing `Esc`, turning Screenshot off in Settings, or turning Mesurer off with `M` ends region selection and restores the page's pointer events and the toolbar.
+
 Cropping uses the captured bitmap dimensions rather than assuming `devicePixelRatio`, so the selected CSS rectangle stays aligned when the provider's bitmap scale differs.
 
 Mesurer control chrome is excluded from the camera subject. That includes the selection overlay, toolbar, direct text editor and formatting controls, semantic preset popup, contextual Typography card, screenshot preview/viewer, and status UI.

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mesurer keyboard ownership contract</title>
+    <style>
+      html, body { margin: 0; min-height: 100%; font-family: ui-sans-serif, system-ui, sans-serif; background: #f8fafc; color: #0f172a; }
+      /* Page text sits underneath wherever the toolbar floats, so a click on Mesurer UI has host text to wrongly pin. */
+      #cover { position: fixed; inset: 0; z-index: 0; margin: 0; padding: 4px; font-size: 14px; line-height: 20px; overflow: hidden; color: #475569; }
+      main { position: relative; z-index: 1; display: grid; gap: 12px; padding: 120px 48px 48px; width: 360px; }
+      #kb-target { margin: 0; padding: 16px; border: 1px solid #cbd5e1; border-radius: 12px; background: white; font-weight: 600; }
+      textarea, [contenteditable], select, input:not([type]), input[type="text"] { box-sizing: border-box; width: 100%; padding: 6px; border: 1px solid #94a3b8; background: white; }
+      iframe { width: 100%; height: 48px; border: 1px solid #94a3b8; background: white; }
+    </style>
+  </head>
+  <body>
+    <p id="cover"></p>
+    <main>
+      <p id="kb-target">Keyboard ownership target</p>
+      <textarea id="host-prompt" aria-label="Host prompt"></textarea>
+      <div id="host-editable" contenteditable="true" role="textbox" aria-label="Host editable"></div>
+      <select id="host-select" aria-label="Host select"><option>one</option><option>two</option></select>
+      <label><input id="host-checkbox" type="checkbox" /> Host checkbox</label>
+      <iframe id="host-frame" title="Host frame" srcdoc="<body style='margin:0'><input id='frame-input' aria-label='Frame input' style='width:100%;box-sizing:border-box;padding:6px' /></body>"></iframe>
+      <div id="host-closed"></div>
+      <button id="host-mover" type="button">Host mover</button>
+      <input id="host-last" type="text" aria-label="Host last input" />
+    </main>
+    <script type="module" src="/src/keyboard-ownership.ts"></script>
+  </body>
+</html>
+

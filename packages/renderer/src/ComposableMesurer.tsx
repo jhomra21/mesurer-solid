@@ -12,6 +12,7 @@ import {
 } from "@jhomra21/mesurer-solid-core";
 import Mesurer from "./Mesurer";
 import { isEditableKeyboardEvent } from "./core/events";
+import { installKeyboardOwnership } from "./core/keyboard-ownership";
 import {
   MesurerModelRegistrationContext,
   type MesurerModel,
@@ -338,6 +339,8 @@ export default function ComposableMesurer(props: MesurerProps) {
     const ownerDocument = target.ownerDocument ?? document;
     const ownerWindow = ownerDocument.defaultView ?? window;
     const pageTarget = input.pageTarget ?? ownerDocument.body;
+    // Plugins register window key listeners below; ownership has to see keys first.
+    const releaseKeyboard = installKeyboardOwnership(ownerWindow, target);
 
     const requireModel = () => {
       if (!rendererModel) throw new Error("Mesurer renderer model is unavailable for runtime bridge setup.");
@@ -1028,6 +1031,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       flushPluginState();
       ownerWindow.removeEventListener("pagehide", onPageHide);
       ownerWindow.removeEventListener("keydown", captureShortcut, true);
+      releaseKeyboard();
       unsubscribe();
       visibilityStyle.remove();
       rendererModel = null;

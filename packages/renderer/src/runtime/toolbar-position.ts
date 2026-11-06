@@ -1,3 +1,5 @@
+import type { ToolbarAnchor } from "./toolbar-dock";
+
 export type ToolbarPosition = {
   x: number; y: number;
   edge?: "top" | "bottom" | "left" | "right" | null;
@@ -6,6 +8,29 @@ export type ToolbarPosition = {
 };
 
 export const DEFAULT_TOOLBAR_POSITION: ToolbarPosition = { x: 16, y: 16 };
+
+export type ToolbarMountPosition = "top-left" | "top" | "top-right" | "bottom-left" | "bottom" | "bottom-right" | "left" | "right";
+
+export type ToolbarMountOptions = {
+  position?: ToolbarMountPosition;
+  dock?: "free" | "snap";
+  draggable?: boolean;
+};
+
+// Each public position is an edge and the spot on it, the same placement model Snap docks to.
+const MOUNT_ANCHORS: Record<ToolbarMountPosition, ToolbarAnchor> = {
+  "top-left": { side: "top", align: "start" },
+  top: { side: "top", align: "center" },
+  "top-right": { side: "top", align: "end" },
+  "bottom-left": { side: "bottom", align: "start" },
+  bottom: { side: "bottom", align: "center" },
+  "bottom-right": { side: "bottom", align: "end" },
+  left: { side: "left", align: "center" },
+  right: { side: "right", align: "center" },
+};
+
+export const toolbarMountAnchor = (position: ToolbarMountPosition | undefined): ToolbarAnchor | undefined =>
+  position ? MOUNT_ANCHORS[position] : undefined;
 
 export const MACOS_ELECTRON_TITLEBAR_SAFE_TOP = 48;
 
