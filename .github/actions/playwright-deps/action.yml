@@ -40,6 +40,11 @@ runs:
           sudo rm -f /var/lib/man-db/auto-update
         fi
 
+        # Stalled mirror downloads are the observed hang (apt sits in its http method). Bound each
+        # connection so apt gives up and moves to the next entry in its mirror list on its own.
+        printf 'Acquire::http::Timeout "20";\nAcquire::https::Timeout "20";\nAcquire::Retries "3";\n' \
+          | sudo tee /etc/apt/apt.conf.d/99playwright-deps-timeouts >/dev/null
+
         # Fresh runners can start unattended-upgrades, which holds the dpkg lock that install-deps waits on.
         sudo systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
 
@@ -47,7 +52,7 @@ runs:
         attempt=1
         while [ "$attempt" -le "$max_attempts" ]; do
           echo "Playwright install-deps attempt $attempt of $max_attempts: ${cmd[*]}"
-          timeout --kill-after=15 240 "${cmd[@]}"
+          timeout --kill-after=15 150 "${cmd[@]}"
           status=$?
           if [ "$status" -eq 0 ]; then
             echo "Playwright install-deps succeeded on attempt $attempt."
