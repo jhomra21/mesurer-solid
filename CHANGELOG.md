@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Add a `toolbar` mount option (`position`, `dock`, `draggable`) for setting where the toolbar starts, its initial Free/Snap dock, and whether it can be dragged (upstream issues #23 and #10). Defaults are unchanged. A tab-session placement and a dock chosen in Settings still win over the initial option; `draggable: false` pins the toolbar to `position` and ignores both the saved placement and pointer drags. `toolbar` is also accepted by `mesurer-solid/inject`. Close the toolbar with `M`, `mounted.dispose()`, or the `signal` option.
+- Add a `toolbar` mount option (`position`, `dock`, `draggable`) for setting where the toolbar starts, its initial Free/Snap dock, and whether it can be dragged (upstream issues #23 and #10). Defaults are unchanged. A tab-session placement and a dock chosen in Settings still win over the initial option; `draggable: false` pins the toolbar to `position` and ignores both the saved placement and pointer drags. `toolbar` is also accepted by `mesurer-solid/inject`. Remove the toolbar from code with `mounted.dispose()` or by aborting the `signal` option; `M` only toggles inspection.
 
 ## 0.2.5 - 2026-11-05
 

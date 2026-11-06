@@ -38,7 +38,7 @@ These dated sections record when each decision was audited. Their decision text 
 
 | Upstream issue | Decision | Solid mapping and evidence |
 | --- | --- | --- |
-| #23 toolbar position, disable drag, close button; #10 configurable position | **Solid extension: `toolbar` mount option; no close button** | `toolbar.position` maps onto the existing dock model (edge plus start/center/end spot, 16px inset), `toolbar.dock` seeds the existing Free/Snap setting, and `toolbar.draggable: false` pins the toolbar. Settings and tab-session placement still win when draggable. Closing stays `M`, `mounted.dispose()`, or `signal`; a close button would add a second way to leave the always-present toolbar. Size presets from #10 are not adopted. Evidence: `toolbar-placement-contract.mjs`. |
+| #23 toolbar position, disable drag, close button; #10 configurable position | **Solid extension: `toolbar` mount option; no close button** | `toolbar.position` maps onto the existing dock model (edge plus start/center/end spot, 16px inset), `toolbar.dock` seeds the existing Free/Snap setting, and `toolbar.draggable: false` pins the toolbar. Settings and tab-session placement still win when draggable. Removing the toolbar stays `mounted.dispose()` or aborting `signal` (`M` only toggles inspection); a close button would add a second way to leave the always-present toolbar. Size presets from #10 are not adopted. Evidence: `toolbar-placement-contract.mjs`. |
 
 ### 2026-11-05 pinned-current follow-up
 

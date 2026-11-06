@@ -131,7 +131,7 @@ mountMesurer({
 
 `position` is an edge and a spot on it, with the toolbar's usual 16px inset. In Free mode `left` and `right` keep the horizontal toolbar centered along that edge; in Snap mode they stand it up. It applies only when the tab has no saved placement: a placement the user dragged, and a dock mode chosen in Settings, win over the option. With `draggable: false` the toolbar ignores pointer drags and any saved placement, stays at `position` (Snap keeps it docked to that edge and spot as the window resizes), and saves nothing; buttons, menus, and Settings work as usual. `toolbar` is also accepted by `mesurer-solid/inject`.
 
-There is no close button on the toolbar. Press `M`, call `mounted.dispose()`, or pass `signal` to mount and close it from code.
+There is no close button on the toolbar. Remove it from code with `mounted.dispose()` or by aborting the `signal` passed to mount. `M` only turns inspection off and on; the toolbar stays visible.
 
 Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
 
