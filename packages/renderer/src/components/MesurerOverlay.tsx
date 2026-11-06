@@ -33,6 +33,7 @@ export type MesurerOverlayProps = {
   selectionSpacingStyle: SelectionSpacingStyle;
   interactive: boolean;
   editSelectionHover(): boolean;
+  snapGuide(orientation: Guide["orientation"], position: number, id: string): number;
   onPointerDown: (event: OverlayPointerEvent) => void;
   onPointerMove: (event: PointerEvent) => void;
   onPointerUp: (event: OverlayPointerEvent) => void;
@@ -695,7 +696,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       }
 
       props.model.updateGuide(drag.id, {
-        position: drag.orientation === "vertical" ? event.clientX : event.clientY,
+        position: props.snapGuide(drag.orientation, drag.orientation === "vertical" ? event.clientX : event.clientY, drag.id),
       });
     };
 
@@ -954,7 +955,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         const selected = () => !previewGuide() && props.model.state.selectedGuideIds.includes(guide.id);
         const hovered = () => !previewGuide() && props.hoverGuide?.id === guide.id;
         const strokeColor = () => selected() ? guideColor("active") : hovered() ? guideColor("hover") : guideColor("default");
-        const strokeWidth = () => Math.max(props.model.state.settings.guideStyle.width, selected() || hovered() ? 2 : props.model.state.settings.guideStyle.width);
+        const strokeWidth = () => props.model.state.settings.guideStyle.width;
+        const position = () => Math.round(guide.position);
+        const strokeOffset = () => GUIDE_HITBOX_SIZE / 2 - Math.floor((strokeWidth() - 1) / 2);
 
         const backgroundImage = () => props.model.state.settings.guideStyle.pattern === "solid" ? undefined
           : props.model.state.settings.guideStyle.pattern === "dotted"
@@ -966,14 +969,14 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
           : undefined;
 
         return <div class="msr:absolute" data-mesurer-guide="true" style={guide.orientation === "vertical"
-          ? { left: `${guide.position - GUIDE_HITBOX_SIZE / 2}px`, top: "0", width: `${GUIDE_HITBOX_SIZE}px`, height: "100%", "pointer-events": !previewGuide() && guidePointerEvents() ? "auto" : "none" }
-          : { top: `${guide.position - GUIDE_HITBOX_SIZE / 2}px`, left: "0", height: `${GUIDE_HITBOX_SIZE}px`, width: "100%", "pointer-events": !previewGuide() && guidePointerEvents() ? "auto" : "none" }}
+          ? { left: `${position() - GUIDE_HITBOX_SIZE / 2}px`, top: "0", width: `${GUIDE_HITBOX_SIZE}px`, height: "100%", "pointer-events": !previewGuide() && guidePointerEvents() ? "auto" : "none" }
+          : { top: `${position() - GUIDE_HITBOX_SIZE / 2}px`, left: "0", height: `${GUIDE_HITBOX_SIZE}px`, width: "100%", "pointer-events": !previewGuide() && guidePointerEvents() ? "auto" : "none" }}
           onPointerDown={(event) => { if (!previewGuide() && props.model.current.toolMode !== "none") interactiveGuideDown(guide, event); }}
           onPointerUp={(event) => { if (!previewGuide() && props.model.current.toolMode !== "none") interactiveGuideUp(guide, event); }}
           onPointerCancel={(event) => { if (!previewGuide() && props.model.current.toolMode !== "none") interactiveGuideUp(guide, event); }}>
           <div class="msr:absolute" style={guide.orientation === "vertical"
-            ? { left: `${GUIDE_HITBOX_SIZE / 2 - 1}px`, top: "0", width: `${strokeWidth()}px`, height: "100%", "background-color": props.model.state.settings.guideStyle.pattern === "solid" ? strokeColor() : "transparent", "background-image": backgroundImage(), "background-size": backgroundSize(), opacity: props.model.state.settings.guideStyle.opacity }
-            : { top: `${GUIDE_HITBOX_SIZE / 2 - 1}px`, left: "0", height: `${strokeWidth()}px`, width: "100%", "background-color": props.model.state.settings.guideStyle.pattern === "solid" ? strokeColor() : "transparent", "background-image": backgroundImage(), "background-size": backgroundSize(), opacity: props.model.state.settings.guideStyle.opacity }} />
+            ? { left: `${strokeOffset()}px`, top: "0", width: `${strokeWidth()}px`, height: "100%", "background-color": props.model.state.settings.guideStyle.pattern === "solid" ? strokeColor() : "transparent", "background-image": backgroundImage(), "background-size": backgroundSize(), opacity: props.model.state.settings.guideStyle.opacity }
+            : { top: `${strokeOffset()}px`, left: "0", height: `${strokeWidth()}px`, width: "100%", "background-color": props.model.state.settings.guideStyle.pattern === "solid" ? strokeColor() : "transparent", "background-image": backgroundImage(), "background-size": backgroundSize(), opacity: props.model.state.settings.guideStyle.opacity }} />
         </div>;
       }}</For>
     </div>

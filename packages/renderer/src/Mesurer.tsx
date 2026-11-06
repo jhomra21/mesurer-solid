@@ -1627,6 +1627,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           selectionSpacingStyle={props.selectionSpacingStyle}
           interactive={model.state.enabled && !model.state.settingsOpen}
           editSelectionHover={() => input.editSelectionHover?.() ?? false}
+          snapGuide={snapGuide}
           onPointerDown={(event) => { if (!input.responsiveOpen) pointerDown(event); }}
           onPointerMove={(event) => { if (!input.responsiveOpen) pointerMove(event); }}
           onPointerUp={(event) => { if (!input.responsiveOpen) pointerUp(event); }}

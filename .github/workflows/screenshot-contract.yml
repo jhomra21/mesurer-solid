@@ -76,7 +76,16 @@ jobs:
       - name: Exercise screenshot plugin in Chromium
         env:
           SCREENSHOT_URL: http://127.0.0.1:4174/screenshot-contract.html
+          SCREENSHOT_OUT: screenshot-artifacts
         run: bun tests/visual-parity/screenshot-contract.mjs
+      - name: Upload screenshot contract evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-screenshot-contract
+          path: screenshot-artifacts
+          if-no-files-found: warn
+          retention-days: 14
       - name: Assert Solid runtime diagnostics are clean
         run: |
           if grep -nE 'STRICT_READ_UNTRACKED|\$\$pointermove' screenshot-vite.log; then

@@ -6,6 +6,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Dragging a guide with no tool active now snaps like the Guides tool and honors the Snap setting (upstream `e600402`).
+- Guides draw and measure at their rounded position and keep their configured weight when selected or hovered, so the painted line matches the measurement (upstream `d46b908`).
+- Turning Mesurer off with `M` ends an open Screenshot region selection instead of leaving its overlay on the page (upstream `ca2b4cd`).
+- Document that the browser Color Picker needs Chromium on Windows or macOS and is hidden where `EyeDropper` is missing.
+
 ## 0.2.5 - 2026-11-05
 
 - Replace tabbed Settings with the sectioned upstream panel (Guides, Inspect, Color picker, Rulers, General), 252px wide, ported from upstream `5c2fdae`. Every Solid setting keeps its persisted key and default and sits in its matching section, including plugin settings, presentation switches, Appearance, Shortcuts, dock/auto-hide, Persist, Inspect info card, and Selection spacing.
