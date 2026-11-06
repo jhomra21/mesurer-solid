@@ -44,7 +44,7 @@ export type MesurerPluginInput = MesurerPlugin | MesurerPluginRegistration;
 
 export type MesurerProps = Omit<
   BaseMesurerProps,
-  "pluginTools" | "onPluginTool" | "onPluginToolMenuItem" | "isBuiltinActionDisabled" | "onBuiltinController"
+  "pluginTools" | "onPluginTool" | "onPluginToolMenuItem" | "isBuiltinActionDisabled" | "onBuiltinController" | "toolbarReady"
 > & {
   version?: string;
   plugins?: MesurerPluginInput[];

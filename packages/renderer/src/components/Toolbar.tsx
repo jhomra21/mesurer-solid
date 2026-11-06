@@ -173,7 +173,8 @@ export function Toolbar(props: ToolbarProps) {
   let suppressClick = false;
   let previousUserSelect: string | null = null;
   let cancelActiveDrag: (() => void) | null = null;
-  const [colorPickerSupported, setColorPickerSupported] = createSignal(false);
+  // The first render already reflects the host capability so the Color Picker button never joins the toolbar after it is shown.
+  const [colorPickerSupported, setColorPickerSupported] = createSignal(supportsColorPicker(props.ownerWindow));
   let colorPickerConfirmTimer = 0;
   let compactMotionTimer = 0;
   let modeMotionTimer = 0;
