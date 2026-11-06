@@ -25,10 +25,8 @@ type ElectronTestSummary = {
   electronTextDoubleClicks: number;
   nativeSelectModeSwitch: {
     platform: string;
-    nativeAttempted: boolean;
     point: { x: number; y: number };
     nativeReachedSelect: boolean;
-    usedCommandFallback: boolean;
     hits: ElectronHitStack["hits"];
     events: Array<{ type: string; target: string; detail: number }>;
   };
@@ -98,7 +96,6 @@ declare global {
       doubleClickAt(payload: { x: number; y: number }): Promise<void>;
       pressKey(key: "1" | "Enter" | "Escape"): Promise<void>;
       typeText(value: string): Promise<void>;
-      requireNativeSelect(): Promise<boolean>;
     };
   }
 }
@@ -479,12 +476,7 @@ const selectModeButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="select"]'),
 );
 
-// On Linux, the required consumer smoke uses the public transition. A separate
-// strict E2E attempts the physical click after editing and records the mismatch
-// without preventing unrelated Motion and Recording acceptance.
 acceptanceStage = "return to Select from Edit";
-
-const linuxWindow = /Linux/i.test(navigator.platform);
 
 const modePoint = centerOf(selectModeButton);
 
@@ -521,47 +513,59 @@ const readLiveToolbarMode = () =>
   shadow.querySelector<HTMLElement>("[data-mesurer-toolbar='true']")
     ?.getAttribute("data-mesurer-toolbar-mode");
 
-const nativeAttempted = !linuxWindow || await window.electronMesurer.requireNativeSelect();
-
 const modeTraceStart = electronInputTrace.length;
 
-if (nativeAttempted) {
-  await window.electronMesurer.clickAt(modePoint);
+await window.electronMesurer.clickAt(modePoint);
 
-  for (let attempt = 0; attempt < 15 && readLiveToolbarMode() !== "select"; attempt += 1) {
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-  }
-}
-
-const nativeReachedSelect = nativeAttempted && readLiveToolbarMode() === "select";
+await waitFor(() => readLiveToolbarMode() === "select" ? true : null);
 
 const nativeSelectModeSwitch = {
   platform: navigator.platform,
-  nativeAttempted,
   point: modePoint,
-  nativeReachedSelect,
-  usedCommandFallback: linuxWindow && !nativeReachedSelect,
+  nativeReachedSelect: true,
   hits: acceptanceHitStack.hits,
   events: electronInputTrace.slice(modeTraceStart),
 };
 
-if (!nativeReachedSelect) {
-  if (nativeAttempted) {
-    throw new Error(`Native Select mode switch failed: ${JSON.stringify(nativeSelectModeSwitch)}`);
-  }
-
-  // This is setup for the subsequent Motion E2E, not Linux physical acceptance.
-  await mesurer.agent.command("arrange.toggle");
-}
-
-await waitFor(() => readLiveToolbarMode() === "select" ? true : null);
+const modeStage = await waitFor(() =>
+  shadow.querySelector<HTMLElement>(".mesurer-toolbar-mode-stage"),
+);
 
 const selectForMotionButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>("[data-mesurer-builtin='select'] button"),
 );
 
+// The Select panel slides back in from off-screen for the 150 ms mode switch.
+// A click at its mid-slide position lands outside the window on `html`, so
+// aim only once the transition has ended and the button has stopped moving.
+acceptanceStage = "aim at Select tool after the mode transition";
+
+let previousSelectRect = "";
+
+const selectToolPoint = await waitFor(() => {
+  if (modeStage.hasAttribute("data-mode-motion")) {
+    previousSelectRect = "";
+
+    return null;
+  }
+
+  const rect = selectForMotionButton.getBoundingClientRect();
+  const key = [rect.x, rect.y, rect.width, rect.height].join();
+  const resting = key === previousSelectRect;
+
+  previousSelectRect = key;
+
+  const bounds = toolbar.getBoundingClientRect();
+
+  return resting && rect.width > 0 && rect.x >= bounds.x && rect.right <= bounds.right
+    ? centerOf(selectForMotionButton)
+    : null;
+});
+
+acceptanceStage = "activate the Select tool";
+
 if (selectForMotionButton.getAttribute("aria-pressed") !== "true") {
-  await window.electronMesurer.clickAt(centerOf(selectForMotionButton));
+  await window.electronMesurer.clickAt(selectToolPoint);
 }
 
 await waitFor(() => selectForMotionButton.getAttribute("aria-pressed") === "true" ? true : null);

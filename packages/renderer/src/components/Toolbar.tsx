@@ -764,7 +764,19 @@ export function Toolbar(props: ToolbarProps) {
       lastPointer = { x: next.clientX, y: next.clientY };
 
       if (snapping()) {
-        const result = dragToolbarPosition({ pointer: lastPointer, grab, glued: dockEdge(), upright: vertical(), pushed, latched, sizeFor: dragSizeFor, viewport: viewport() });
+        // A busy frame delivers one pointermove that stands for every sample
+        // since the last one. Dock zones are a path-dependent state machine (a
+        // toolbar pulled off an edge stays free until the pointer has crossed
+        // the free middle), so replay each sample or a fast drag lands on the
+        // wrong edge.
+        const place = (pointer: { x: number; y: number }, from: { side: ToolbarSide | null; upright: boolean; pushed: boolean; latched: boolean }) =>
+          dragToolbarPosition({ pointer, grab, glued: from.side, upright: from.upright, pushed: from.pushed, latched: from.latched, sizeFor: dragSizeFor, viewport: viewport() });
+
+        let result = { side: dockEdge(), upright: vertical(), pushed, latched };
+
+        const coalesced = next.getCoalescedEvents?.() ?? [];
+
+        for (const sample of coalesced.length ? coalesced : [next]) result = place({ x: sample.clientX, y: sample.clientY }, result);
         pushed = result.pushed;
         latched = result.latched;
         setDockEdge(result.side);

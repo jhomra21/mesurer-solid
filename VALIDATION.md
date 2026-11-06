@@ -24,6 +24,10 @@ Edit movement must also be tested against host CSS transitions. Use selected tar
 
 Edit reset acceptance must exercise real pointer input and rendered geometry. A moved selected element must expose its 24px Reset position control, resetting one element must restore its original geometry and remove that element's saved position, and Reset all positions must restore accumulated current-page moves. The browser contract writes its geometry evidence and reset-button screenshot to the retained Edit movement artifact.
 
+Snap docking must also survive a busy frame. The packed Electron docking contract (`toolbar-docking.cjs`) drags with native input once at a normal pace and once while the renderer's main thread is blocked, so Chromium delivers one `pointermove` that coalesces the whole path. Both must dock on the edge under the pointer. The contract waits on observable state (`data-dock-edge`, running animations, a stable box) instead of fixed sleeps, and writes the in-page pointer and `data-dock-edge` trace to its artifact when an assertion fails.
+
+Native clicks after a toolbar mode switch must wait for the 150 ms slide to finish. The packed Electron smoke aims at the Select tool only after `data-mode-motion` clears and the button's box holds still; a click mid-slide lands off-window on `html`.
+
 Host-specific toolbar placement needs host-specific acceptance. On macOS Electron, verify the unsaved default toolbar starts below the native titlebar area and a real drag cannot move any part of the toolbar back into that top strip. Verify the toolbar can still use the left edge below the titlebar. Normal browsers must keep the browser drag behavior. A safe saved toolbar position must survive reload, while an older saved position inside the native titlebar area must be corrected on mount.
 
 ## Measure rendered output, not a proxy
