@@ -1,6 +1,6 @@
 # Mesurer agent integration
 
-Mesurer's agent integration is the rendered page itself. This guide matches `mesurer-solid@0.2.5` stable. The coding agent reads `window.__MESURER__` through the browser control it already has, consumes human visual intent, edits normal application source, and verifies the real Live result.
+Mesurer's agent integration is the rendered page itself. This guide matches `mesurer-solid@0.2.6` stable. The coding agent reads `window.__MESURER__` through the browser control it already has, consumes human visual intent, edits normal application source, and verifies the real Live result.
 
 The normal agent workflow requires no Mesurer MCP server, Send-to-agent callback, or special browser transport. The optional `codex()` plugin is a separate human convenience path for sending Context feedback into local Codex threads; it does not replace the browser-state contract described here. In Electron it can use the native preload bridge. In an ordinary browser it can use the local Mesurer Codex Bridge companion on loopback. Neither path is the Mesurer Solid ChatGPT/Codex agent plugin.
 
@@ -26,9 +26,9 @@ The installer writes a self-contained skill and injection artifact:
 
 ## Know the available capabilities
 
-The base inspector includes Select, X-ray, Color Picker, Rulers, Typography, Guides, Distance, and Settings. Color Picker uses application-local host capture when available and otherwise uses a working browser `EyeDropper`.
+The base inspector includes Select, X-ray, Color Picker, Rulers, Typography, Guides, Distance, and Settings. Color Picker uses application-local host capture when available and otherwise uses a working browser `EyeDropper`, which needs Chromium on Windows or macOS and is hidden where unavailable. Mount-time toolbar placement (`toolbar: { position, dock, draggable }`) is a human-UI option documented in the [package README](./README.md), not an agent control.
 
-First-party plugins add Context, Edit, Layout Guides, Screenshot, Recording, and optional Codex delivery. Recording is a human video-capture workflow with a typed `recording:v1` service; it is not the normal coding-agent evidence channel. Edit movement preserves the existing Arrange agent method names for compatibility. The complete public map, including the low-level inspection methods and plugin host, is in [Capabilities](../../docs/CAPABILITIES.md).
+First-party plugins add Context, Edit, Layout Guides, Screenshot, Recording, and optional Codex delivery. Recording is a human video-capture workflow with a typed `recording:v1` service; it is not the normal coding-agent evidence channel. Its `export` accepts an optional `speed` of exactly 0.5, 1, 1.5, or 2; any other value is rejected (see [Recording](../../docs/RECORDING.md)). Edit movement preserves the existing Arrange agent method names for compatibility. The complete public map, including the low-level inspection methods and plugin host, is in [Capabilities](../../docs/CAPABILITIES.md).
 
 Rulers, ordinary Guides, and Layout Guides remain available while the human is in Edit; X-ray, Color Picker, Typography, Screenshot, and Recording remain Select-lane tools. For normal coding-agent work, use `window.__MESURER__`. Use `window.__MESURER_INSTANCE__` only when the task requires mounted-instance or plugin-host operations.
 
