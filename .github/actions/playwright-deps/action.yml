@@ -1,0 +1,76 @@
+name: Install Playwright Linux dependencies
+description: >-
+  Install Chromium system packages with a per-attempt timeout and retries, so a
+  hung apt step fails fast instead of stalling the job until it is cancelled.
+
+inputs:
+  working-directory:
+    description: Directory to run the Playwright command from.
+    required: false
+    default: "."
+  runner:
+    description: Command runner for Playwright, either bunx or pnpm.
+    required: false
+    default: bunx
+
+runs:
+  using: composite
+  steps:
+    - name: Install Playwright Linux dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PLAYWRIGHT_RUNNER: ${{ inputs.runner }}
+      run: |
+        # GitHub runs composite bash steps with -e; the retry loop needs the exit status instead.
+        set +e
+        set -uo pipefail
+
+        case "$PLAYWRIGHT_RUNNER" in
+          bunx) cmd=(bunx playwright install-deps chromium) ;;
+          pnpm) cmd=(pnpm exec playwright install-deps chromium) ;;
+          *)
+            echo "::error::Unsupported runner '$PLAYWRIGHT_RUNNER'; expected bunx or pnpm."
+            exit 1
+            ;;
+        esac
+
+        # Known apt slowdown on these images; skip silently when absent.
+        if [ -e /var/lib/man-db/auto-update ]; then
+          sudo rm -f /var/lib/man-db/auto-update
+        fi
+
+        # Stalled mirror downloads are the observed hang (apt sits in its http method). Bound each
+        # connection so apt gives up and moves to the next entry in its mirror list on its own.
+        printf 'Acquire::http::Timeout "20";\nAcquire::https::Timeout "20";\nAcquire::Retries "3";\n' \
+          | sudo tee /etc/apt/apt.conf.d/99playwright-deps-timeouts >/dev/null
+
+        # Fresh runners can start unattended-upgrades, which holds the dpkg lock that install-deps waits on.
+        sudo systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+
+        max_attempts=3
+        attempt=1
+        while [ "$attempt" -le "$max_attempts" ]; do
+          echo "Playwright install-deps attempt $attempt of $max_attempts: ${cmd[*]}"
+          timeout --kill-after=15 150 "${cmd[@]}"
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            echo "Playwright install-deps succeeded on attempt $attempt."
+            exit 0
+          fi
+          echo "::warning::Playwright install-deps attempt $attempt of $max_attempts failed with exit code $status."
+          echo "Package-manager processes after the failed attempt:"
+          ps -eo pid,etime,args | grep -E 'apt|dpkg|unattended' | grep -v grep || true
+          if [ "$attempt" -lt "$max_attempts" ]; then
+            # timeout stops the runner, not the sudo apt-get/dpkg it spawned; clear them so the
+            # next attempt does not wait on the package lock.
+            sudo pkill -x apt-get || true
+            sudo pkill -x dpkg || true
+            sleep 10
+            sudo dpkg --configure -a || true
+          fi
+          attempt=$((attempt + 1))
+        done
+
+        echo "::error::Playwright install-deps failed on all $max_attempts attempts."
+        exit 1

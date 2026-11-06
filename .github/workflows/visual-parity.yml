@@ -88,8 +88,10 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright_version.outputs.version }}-chromium
 
       - name: Install Linux browser dependencies
-        working-directory: upstream/apps/site
-        run: pnpm exec playwright install-deps chromium
+        uses: ./.github/actions/playwright-deps
+        with:
+          working-directory: upstream/apps/site
+          runner: pnpm
 
       - name: Install Chromium
         working-directory: upstream/apps/site
@@ -269,8 +271,10 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright_version.outputs.version }}-chromium
 
       - name: Install Linux browser dependencies
-        working-directory: upstream/apps/site
-        run: pnpm exec playwright install-deps chromium
+        uses: ./.github/actions/playwright-deps
+        with:
+          working-directory: upstream/apps/site
+          runner: pnpm
 
       - name: Install Chromium
         working-directory: upstream/apps/site
@@ -457,8 +461,10 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright_version.outputs.version }}-chromium
 
       - name: Install Linux browser dependencies
-        working-directory: upstream/apps/site
-        run: pnpm exec playwright install-deps chromium
+        uses: ./.github/actions/playwright-deps
+        with:
+          working-directory: upstream/apps/site
+          runner: pnpm
 
       - name: Install Chromium
         working-directory: upstream/apps/site
@@ -618,8 +624,10 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright_current_version.outputs.version }}-chromium
 
       - name: Install Linux browser dependencies
-        working-directory: upstream-current/apps/site
-        run: pnpm exec playwright install-deps chromium
+        uses: ./.github/actions/playwright-deps
+        with:
+          working-directory: upstream-current/apps/site
+          runner: pnpm
 
       - name: Install Chromium
         working-directory: upstream-current/apps/site
@@ -767,8 +775,10 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright_current_version.outputs.version }}-chromium
 
       - name: Install Linux browser dependencies
-        working-directory: upstream-current/apps/site
-        run: pnpm exec playwright install-deps chromium
+        uses: ./.github/actions/playwright-deps
+        with:
+          working-directory: upstream-current/apps/site
+          runner: pnpm
 
       - name: Install Chromium
         working-directory: upstream-current/apps/site
