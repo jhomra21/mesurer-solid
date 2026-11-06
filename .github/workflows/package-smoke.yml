@@ -151,7 +151,10 @@ jobs:
             plugins,
             excludeBuiltins: ["xray", excludedBuiltin, "colorPicker"],
             signal: abortController.signal,
+            toolbar: { position: "bottom-right", dock: "snap", draggable: false },
           };
+          // @ts-expect-error Toolbar positions are the eight named edge spots.
+          const invalidToolbarOptions: MountMesurerOptions = { toolbar: { position: "center" } };
           const legacyOptions: MountMeasurerOptions = options;
           const legacyBuiltinOptions: MountMesurerOptions = { excludePlugins: ["text-inspector", "color-picker"] };
           // @ts-expect-error Canonical exclusions use public names such as "typography".

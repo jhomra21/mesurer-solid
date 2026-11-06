@@ -7,7 +7,7 @@ import { getInspectMeasurement } from "../core/dom";
 import { supportsColorPicker } from "../runtime/color-picker-support";
 import { constrainToolbarPosition, getWindowControls } from "../runtime/toolbar-position";
 import type { ToolbarPosition } from "../runtime/toolbar-position";
-import { alignedDockPosition, dockAlignFor, dragToolbarPosition, isVerticalToolbarSide, nearestDropFor, snapToolbarPosition, DOCK_ALIGNS, TOOLBAR_SIDES, type DockAlign, type ToolbarSide } from "../runtime/toolbar-dock";
+import { alignedDockPosition, dockAlignFor, dragToolbarPosition, isVerticalToolbarSide, nearestDropFor, snapToolbarPosition, DOCK_ALIGNS, TOOLBAR_SIDES, type DockAlign, type ToolbarAnchor, type ToolbarSide } from "../runtime/toolbar-dock";
 import { createToolbarAutoHide } from "../runtime/toolbar-auto-hide";
 import { createToolbarTurn } from "../runtime/toolbar-turn";
 import { MotionPlayer } from "./MotionPlayer";
@@ -50,6 +50,10 @@ export type ToolbarProps = {
   selectionSpacingStyle: SelectionSpacingStyle;
   onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void;
   initialPosition?: ToolbarPosition;
+  /** Where the toolbar rests until the user moves it; a saved position replaces it before it gets here. */
+  anchor?: ToolbarAnchor;
+  /** Without dragging, the anchor is the toolbar's place for good and nothing is saved. Defaults to true. */
+  draggable?: boolean;
   onPositionChange?: (position: ToolbarPosition) => void;
   motion?: {
     element(): Element | null;
@@ -102,11 +106,15 @@ type MotionPlayerGeometry = {
 
 export function Toolbar(props: ToolbarProps) {
   const [position, setPosition] = createSignal(props.initialPosition ?? { x: 16, y: 16 });
-  const [dockEdge, setDockEdge] = createSignal<ToolbarSide | null>(props.initialPosition?.edge ?? null);
-  const [vertical, setVertical] = createSignal(untrack(() => props.model.state.settings.toolbarDock === "snap" && (props.initialPosition?.vertical ?? isVerticalToolbarSide(props.initialPosition?.edge ?? null))));
-  const [dockAlignment, setDockAlignment] = createSignal<DockAlign>(props.initialPosition?.align ?? "center");
-  let dockAlign: DockAlign = props.initialPosition?.align ?? "center";
   const snapping = () => props.model.state.settings.toolbarDock === "snap";
+  const [anchor, setAnchor] = createSignal(props.anchor);
+  const draggable = () => props.draggable !== false;
+  const startEdge = untrack(() => (snapping() ? props.anchor?.side : undefined) ?? props.initialPosition?.edge ?? null);
+  const [dockEdge, setDockEdge] = createSignal<ToolbarSide | null>(startEdge);
+  const [vertical, setVertical] = createSignal(untrack(() => snapping() && (props.anchor ? isVerticalToolbarSide(startEdge) : props.initialPosition?.vertical ?? isVerticalToolbarSide(startEdge))));
+  const startAlign = props.anchor?.align ?? props.initialPosition?.align ?? "center";
+  const [dockAlignment, setDockAlignment] = createSignal<DockAlign>(startAlign);
+  let dockAlign: DockAlign = startAlign;
 
   const tuckSafeOffset = () => {
     const controls = getWindowControls(props.ownerWindow);
@@ -177,7 +185,7 @@ export function Toolbar(props: ToolbarProps) {
     constrainToolbarPosition(props.ownerWindow, point, size, viewport(), snapping() && dockEdge() ? 16 : 8);
 
   const reportPosition = (point: { x: number; y: number }) =>
-    props.onPositionChange?.({ ...point, edge: snapping() ? dockEdge() : null, align: dockAlign, vertical: vertical() });
+    draggable() && props.onPositionChange?.({ ...point, edge: snapping() ? dockEdge() : null, align: dockAlign, vertical: vertical() });
 
   const turnAnimation = createToolbarTurn();
   let pendingTurn: { capture: ReturnType<typeof turnAnimation.captureToolbarTurn>; vertical: boolean } | null = null;
@@ -664,7 +672,7 @@ export function Toolbar(props: ToolbarProps) {
   };
 
   const onToolbarPointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || !draggable()) return;
     // SAFETY: props.ownerWindow owns the event target and therefore its Element constructor.
     const ElementConstructor = (props.ownerWindow as Window & typeof globalThis).Element;
     const target = event.target;
@@ -796,6 +804,8 @@ export function Toolbar(props: ToolbarProps) {
       // Clear the transient transform BEFORE the Solid position commit. The
       // attached player measures the toolbar rect and must never see both.
       if (didDrag && commit) {
+        setAnchor(undefined);
+
         if (snapping()) {
           const square = Math.min(dragStartSize.width, dragStartSize.height);
 
@@ -1209,8 +1219,22 @@ export function Toolbar(props: ToolbarProps) {
     let settleFrame = 0;
     let releaseSettleTimer = 0;
 
+    // A free toolbar still resting at its anchor takes it again as the viewport and its own width change.
+    const restAtAnchor = () => {
+      const resting = anchor();
+
+      if (resting && toolbarElement) setPosition(safePosition(alignedDockPosition(resting.side, resting.align, barSize(), viewport())));
+    };
+
     const settle = () => {
-      if (!snapping() || motionSuspended()) return;
+      if (motionSuspended()) return;
+
+      if (!snapping()) {
+        restAtAnchor();
+
+        return;
+      }
+
       settleDock();
       props.ownerWindow.clearTimeout(persistTimer);
       persistTimer = props.ownerWindow.setTimeout(() => reportPosition(position()), 300);
@@ -1238,7 +1262,10 @@ export function Toolbar(props: ToolbarProps) {
 
     if (toolbarElement) observer?.observe(toolbarElement);
     props.ownerWindow.addEventListener("resize", scheduleSettle);
-    settle();
+
+    // Settling flushes, which onSettled forbids, so a docked toolbar settles on the next frame.
+    if (snapping()) scheduleSettle();
+    else restAtAnchor();
 
     return () => {
       observer?.disconnect();

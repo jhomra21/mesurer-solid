@@ -10,6 +10,11 @@ on:
       - "examples/basic/src/plugin-menu-contract.ts"
       - "tests/visual-parity/toolbar-compact-contract.mjs"
       - "tests/visual-parity/toolbar-docking-contract.mjs"
+      - "tests/visual-parity/toolbar-placement-contract.mjs"
+      - "examples/basic/toolbar-placement-contract.html"
+      - "examples/basic/src/toolbar-placement-contract.ts"
+      - "packages/renderer/src/Mesurer.tsx"
+      - "packages/mesurer/src/index.tsx"
       - "tests/visual-parity/toolbar-vertical-parity-contract.mjs"
       - "packages/renderer/src/runtime/toolbar-*.ts"
       - "packages/renderer/src/components/SettingsPanel.tsx"
@@ -115,6 +120,20 @@ jobs:
         with:
           name: toolbar-docking
           path: toolbar-docking-artifacts
+          retention-days: 14
+
+      - name: Exercise toolbar mount placement
+        env:
+          TOOLBAR_PLACEMENT_URL: http://127.0.0.1:4174/toolbar-placement-contract.html
+          TOOLBAR_PLACEMENT_OUT: toolbar-placement-artifacts
+        run: bun tests/visual-parity/toolbar-placement-contract.mjs
+
+      - name: Upload placement evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: toolbar-placement
+          path: toolbar-placement-artifacts
           retention-days: 14
 
   vertical-toolbar:

@@ -36,6 +36,12 @@ The historical `guide` state and the `action-guide-create-*` interactions compar
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
 
+### 2026-11-05 upstream bug-fix follow-up
+
+| Upstream issue | Decision | Solid mapping and evidence |
+| --- | --- | --- |
+| #23 toolbar position, disable drag, close button; #10 configurable position | **Solid extension: `toolbar` mount option; no close button** | `toolbar.position` maps onto the existing dock model (edge plus start/center/end spot, 16px inset), `toolbar.dock` seeds the existing Free/Snap setting, and `toolbar.draggable: false` pins the toolbar. Settings and tab-session placement still win when draggable. Removing the toolbar stays `mounted.dispose()` or aborting `signal` (`M` only toggles inspection); a close button would add a second way to leave the always-present toolbar. Size presets from #10 are not adopted. Evidence: `toolbar-placement-contract.mjs`. |
+
 ### 2026-11-05 pinned-current follow-up
 
 The upstream `main` SHA was rechecked against `5c2fdaefde54591329d94b179af6ef5f32e15676` on this date, and `npm view mesurer version` returned `0.2.7`. Stable 0.2.5 adopts the sectioned Settings panel and the three upstream behaviors below. The beta series additionally delivers the Responsive card drag and selection/hover fixes and the vertical toolbar layout documented in the feature guides.

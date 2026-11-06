@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Add a `toolbar` mount option (`position`, `dock`, `draggable`) for setting where the toolbar starts, its initial Free/Snap dock, and whether it can be dragged (upstream issues #23 and #10). Defaults are unchanged. A tab-session placement and a dock chosen in Settings still win over the initial option; `draggable: false` pins the toolbar to `position` and ignores both the saved placement and pointer drags. `toolbar` is also accepted by `mesurer-solid/inject`. Remove the toolbar from code with `mounted.dispose()` or by aborting the `signal` option; `M` only toggles inspection.
 
 - Dragging a guide with no tool active now snaps like the Guides tool and honors the Snap setting (upstream `e600402`).
 - Guides draw and measure at their rounded position and keep their configured weight when selected or hovered, so the painted line matches the measurement (upstream `d46b908`).
