@@ -117,6 +117,22 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 
 Use `1` for Select and `2` for Edit. Select owns X-ray, Color Picker, Typography, Screenshot, Recording, and built-in Motion inspection, including across accessible same-origin iframes. Edit owns movement and direct text/style changes. Rulers, Guides, and Layout Guides remain usable in both modes; Context and Codex remain visible in both modes. The grouped toolbar changes modes in 150 ms. `Shift+A` still enters Edit as a compatibility shortcut.
 
+Set where the toolbar starts from code with the `toolbar` mount option:
+
+```ts
+mountMesurer({
+  toolbar: {
+    position: "top-right", // "top-left" | "top" | "top-right" | "bottom-left" | "bottom" | "bottom-right" | "left" | "right"
+    dock: "snap", // initial dock mode, "free" (default) or "snap"
+    draggable: false, // default true
+  },
+})
+```
+
+`position` is an edge and a spot on it, with the toolbar's usual 16px inset. In Free mode `left` and `right` keep the horizontal toolbar centered along that edge; in Snap mode they stand it up. It applies only when the tab has no saved placement: a placement the user dragged, and a dock mode chosen in Settings, win over the option. With `draggable: false` the toolbar ignores pointer drags and any saved placement, stays at `position` (Snap keeps it docked to that edge and spot as the window resizes), and saves nothing; buttons, menus, and Settings work as usual. `toolbar` is also accepted by `mesurer-solid/inject`.
+
+There is no close button on the toolbar. Press `M`, call `mounted.dispose()`, or pass `signal` to mount and close it from code.
+
 Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
 
 Select and agent point inspection use the same rendered hit-test path. They can target SVG and visible `pointer-events:none` descendants instead of collapsing those descendants to an interactive ancestor. Open shadow roots are traversed; closed shadow roots remain browser-owned boundaries. Context and annotations accept the same SVG targets. Edit movement and direct text editing only mutate HTML elements.
