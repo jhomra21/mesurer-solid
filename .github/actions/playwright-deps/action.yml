@@ -42,7 +42,7 @@ runs:
         attempt=1
         while [ "$attempt" -le "$max_attempts" ]; do
           echo "Playwright install-deps attempt $attempt of $max_attempts: ${cmd[*]}"
-          timeout 240 "${cmd[@]}"
+          timeout --kill-after=15 240 "${cmd[@]}"
           status=$?
           if [ "$status" -eq 0 ]; then
             echo "Playwright install-deps succeeded on attempt $attempt."
@@ -50,7 +50,12 @@ runs:
           fi
           echo "::warning::Playwright install-deps attempt $attempt of $max_attempts failed with exit code $status."
           if [ "$attempt" -lt "$max_attempts" ]; then
+            # timeout stops the runner, not the sudo apt-get/dpkg it spawned; clear them so the
+            # next attempt does not wait on the package lock.
+            sudo pkill -x apt-get || true
+            sudo pkill -x dpkg || true
             sleep 10
+            sudo dpkg --configure -a || true
           fi
           attempt=$((attempt + 1))
         done
